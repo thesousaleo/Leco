@@ -159,6 +159,7 @@ const ICONS = {
   x: <path d="M6 6l12 12M18 6L6 18" />,
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   monitor: <><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></>,
+  chat: <><path d="M20.5 11.6a8.5 8.5 0 0 1-12.4 7.5L3.5 20.5l1.4-4.4A8.5 8.5 0 1 1 20.5 11.6z" /><path d="M8.5 10.5h7M8.5 13.5h4.5" /></>,
   phone: <><rect x="7" y="2.5" width="10" height="19" rx="2.5" /><path d="M11 18.5h2" /></>,
   utensils: <><path d="M5 3v7a2 2 0 0 0 4 0V3M7 3v18" /><path d="M17 21V3c-2.5 1.5-3.5 4.5-3.5 8H17" /></>,
   car: <><path d="M5 12l1.6-4.6A2 2 0 0 1 8.5 6h7a2 2 0 0 1 1.9 1.4L19 12" /><path d="M3 12h18v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" /><path d="M6.5 18v2M17.5 18v2M7 15h1M16 15h1" /></>,

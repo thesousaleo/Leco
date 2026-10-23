@@ -17,6 +17,7 @@ App de finanças pessoais com contas de usuário (e-mail e senha ou Google), dad
 - Relatórios por período, categoria e conta; exportação para Excel (CSV) e cópia completa (JSON)
 - Perfil, troca de e-mail e senha, sair dos outros aparelhos, excluir conta (LGPD)
 - Tema claro (fundo branco) e escuro, ocultar valores
+- **Assistente no WhatsApp**: registra gastos e receitas por texto, áudio ou foto da nota/comprovante e responde perguntas (saldo, gastos, vencimentos, faturas, orçamentos)
 
 ## Estrutura
 | Caminho | Para que serve |
@@ -24,6 +25,8 @@ App de finanças pessoais com contas de usuário (e-mail e senha ou Google), dad
 | `src/00-core.jsx` … `src/70-shell.jsx` | O app em React, dividido por assunto (juntado em ordem no build). |
 | `src/styles.css` | Cores e vidro líquido (Tailwind CSS). |
 | `supabase/schema.sql` | Tabelas, segurança por usuário e categorias padrão. |
+| `supabase/whatsapp.sql` | Tabelas do assistente do WhatsApp (vínculo, códigos, desfazer). |
+| `supabase/functions/whatsapp/` | O assistente: recebe as mensagens da Meta, entende com o Gemini e grava no Leco. |
 | `leco.config.json` | Endereço e chave **pública** do Supabase e endereço do site. |
 | `scripts/build-web.mjs` | Monta o app num único `index.html` (Android, site ou teste local). |
 | `tools/` | Ícones e ajuste do projeto Android. |
@@ -47,3 +50,14 @@ Nunca perca a chave de assinatura (`leco-release.jks` e a senha): sem ela o Andr
 
 ## Teste local (sem servidor)
 `npm install && npm run build:test` gera `teste-local.html`, que usa um banco em memória para testar as telas.
+
+## Assistente do WhatsApp (uma vez)
+1. **Supabase › SQL Editor**: cole e rode `supabase/whatsapp.sql`.
+2. **Meta for Developers** (developers.facebook.com): crie um app do tipo *Business*, adicione o produto **WhatsApp** e, em *API Setup*, cadastre os números que vão testar (até 5) no campo *To*.
+3. **Google AI Studio** (aistudio.google.com/apikey): crie uma chave da API do Gemini.
+4. **Supabase › Edge Functions › Secrets**: `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN` (uma senha inventada), `WHATSAPP_APP_SECRET` (Meta › App settings › Basic) e `GEMINI_API_KEY`.
+5. **Supabase › Account › Access Tokens**: gere um token e salve no GitHub como segredo `SUPABASE_ACCESS_TOKEN`. A cada envio para a `main`, a função é publicada sozinha.
+6. **Meta › WhatsApp › Configuration › Webhook**: URL `https://kdnxzxpivkxvhybdmqcp.supabase.co/functions/v1/whatsapp`, o mesmo `WHATSAPP_VERIFY_TOKEN`, e assine o campo **messages**.
+7. Em `leco.config.json`, preencha `whatsappNumber` com o número do assistente (só dígitos, com 55) para o app mostrar o botão “Enviar pelo WhatsApp”.
+
+O número de teste da Meta só conversa com os números cadastrados no passo 2. Para abrir a todos, registre um número próprio e verifique a empresa na Meta.

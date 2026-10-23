@@ -6,6 +6,7 @@ const SETTINGS_TABS = [
   { id: 'seguranca', label: 'Acesso e segurança', icon: 'lock', desc: 'Senha, login e sessões' },
   { id: 'preferencias', label: 'Preferências', icon: 'palette', desc: 'Tema, privacidade, poupança' },
   { id: 'notificacoes', label: 'Notificações', icon: 'bell', desc: 'Lembretes e alertas' },
+  { id: 'whatsapp', label: 'WhatsApp', icon: 'chat', desc: 'Registre pelo chat' },
   { id: 'dados', label: 'Seus dados', icon: 'file', desc: 'Exportar e excluir conta' },
 ];
 
@@ -232,7 +233,110 @@ function DataSettings() {
   );
 }
 
-const SETTINGS_VIEWS = { perfil: ProfileSettings, seguranca: SecuritySettings, preferencias: PrefsSettings, notificacoes: NotifSettings, dados: DataSettings };
+
+const fmtPhone = (p) => {
+  const m = String(p || '').match(/^55(\d{2})(\d{4,5})(\d{4})$/);
+  return m ? `+55 ${m[1]} ${m[2]}-${m[3]}` : `+${p}`;
+};
+function openExternal(url) {
+  if (Native.Browser) Native.Browser.open({ url }).catch(() => window.open(url, '_blank'));
+  else window.open(url, '_blank', 'noopener');
+}
+const WA_EXAMPLES = [
+  ['💸', 'gastei 45,90 no mercado'],
+  ['💳', 'tênis 300 em 3x no cartão'],
+  ['💰', 'recebi 3500 de salário'],
+  ['🎙️', 'mande um áudio contando o gasto'],
+  ['🧾', 'mande a foto da nota ou do Pix'],
+  ['📊', 'quanto gastei este mês?'],
+];
+
+function WhatsAppSettings() {
+  const d = useApp();
+  const api = d.backend.whatsapp;
+  const number = String(CFG.whatsappNumber || '').replace(/\D/g, '');
+  const [link, setLink] = useState(undefined);
+  const [code, setCode] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [left, setLeft] = useState(0);
+  const refresh = useCallback(async () => { try { setLink(await api.status()); } catch (e) { setErr(e.message); setLink(null); } }, [api]);
+  useEffect(() => { refresh(); }, [refresh]);
+  // Enquanto o código está na tela, confere se o vínculo já aconteceu
+  useEffect(() => {
+    if (!code || link) return undefined;
+    const tick = () => {
+      const s = Math.max(0, Math.round((new Date(code.expires_at) - Date.now()) / 1000));
+      setLeft(s);
+      if (!s) setCode(null);
+    };
+    tick();
+    const t1 = setInterval(tick, 1000);
+    const t2 = setInterval(async () => { const l = await api.status().catch(() => null); if (l) { setLink(l); setCode(null); d.toast('WhatsApp vinculado'); } }, 4000);
+    return () => { clearInterval(t1); clearInterval(t2); };
+  }, [code, link]);
+  const gen = async () => { setErr(''); setBusy(true); try { setCode(await api.createCode()); } catch (e) { setErr(e.message); } setBusy(false); };
+  const unlink = async () => { setErr(''); setBusy(true); try { await api.unlink(); setLink(null); d.toast('WhatsApp desvinculado'); } catch (e) { setErr(e.message); } setBusy(false); };
+  const chatUrl = (text) => `https://wa.me/${number}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-4 rounded-3xl bg-gradient-to-br from-leco to-noite p-5 text-white">
+        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/15"><Icon name="chat" size={24} /></span>
+        <div className="min-w-0">
+          <p className="text-[17px] font-extrabold tracking-[-0.02em]">Assistente do Leco no WhatsApp</p>
+          <p className="mt-1 text-[13px] leading-relaxed text-white/80">Mande uma mensagem, um áudio ou a foto da nota e o assistente registra no Leco para você. Também responde quanto você gastou, seu saldo e o que vence.</p>
+        </div>
+      </div>
+
+      {link === undefined ? (
+        <div className="flex justify-center py-6 text-vivo"><Spinner /></div>
+      ) : link ? (
+        <Panel title="Vinculado" sub={`Este número está ligado à sua conta desde ${fmtDate(String(link.created_at).slice(0, 10))}.`}>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full bg-in/10 px-3.5 py-2 text-sm font-bold text-in"><Icon name="check" size={16} />{fmtPhone(link.phone)}</span>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {number && <button type="button" className="btn btn-primary" onClick={() => openExternal(chatUrl(''))}><Icon name="chat" size={16} />Abrir conversa</button>}
+            <button type="button" className="btn btn-ghost" disabled={busy} onClick={unlink}>{busy ? <Spinner size={14} /> : <Icon name="x" size={16} />}Desvincular</button>
+          </div>
+        </Panel>
+      ) : (
+        <Panel title="Vincular seu WhatsApp" sub="Gere um código e envie para o assistente pelo WhatsApp. O código vale 15 minutos.">
+          {code ? (
+            <div className="mt-4 space-y-4">
+              <div className="rounded-2xl border border-vivo/25 bg-menta/60 px-4 py-4 text-center">
+                <p className="lbl">Seu código</p>
+                <p className="mt-1 select-all text-[28px] font-extrabold tracking-[0.06em] tabular-nums text-noite" aria-live="polite">{code.code}</p>
+                <p className="mt-1 text-xs text-ink/65">Expira em {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {number && <button type="button" className="btn btn-primary" onClick={() => openExternal(chatUrl(code.code))}><Icon name="chat" size={16} />Enviar pelo WhatsApp</button>}
+                <button type="button" className="btn btn-ghost" onClick={() => { navigator.clipboard && navigator.clipboard.writeText(code.code).then(() => d.toast('Código copiado')).catch(() => {}); }}><Icon name="file" size={16} />Copiar código</button>
+              </div>
+              <p className="flex items-center gap-2 text-xs text-ink/65"><Spinner size={12} />Aguardando a mensagem no WhatsApp…</p>
+              {!number && <p className="text-xs text-ink/65">Envie o código para o número do assistente do Leco.</p>}
+            </div>
+          ) : (
+            <button type="button" className="btn btn-primary mt-4" disabled={busy} onClick={gen}>{busy ? <Spinner size={14} /> : <Icon name="key" size={16} />}Gerar código</button>
+          )}
+        </Panel>
+      )}
+      <ErrorNote>{err}</ErrorNote>
+
+      <Panel title="O que dá para mandar" sub="Escreva do seu jeito. O assistente entende a categoria, a conta, o cartão e as parcelas.">
+        <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+          {WA_EXAMPLES.map(([e, t]) => (
+            <li key={t} className="flex items-center gap-2.5 rounded-2xl bg-ink/[0.04] px-3.5 py-2.5 text-[13px] font-semibold"><span aria-hidden="true">{e}</span>{t}</li>
+          ))}
+        </ul>
+        <p className="mt-3 text-xs leading-relaxed text-ink/65">Errou? Toque em <b>Desfazer</b> na resposta ou escreva <b>desfazer</b>. As mensagens são interpretadas por IA (Google Gemini) apenas para registrar os lançamentos.</p>
+      </Panel>
+    </div>
+  );
+}
+
+const SETTINGS_VIEWS = { perfil: ProfileSettings, seguranca: SecuritySettings, preferencias: PrefsSettings, notificacoes: NotifSettings, whatsapp: WhatsAppSettings, dados: DataSettings };
 
 function SettingsPage() {
   const d = useApp();

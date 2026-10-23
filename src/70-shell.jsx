@@ -55,7 +55,7 @@ function useLecoData(backend, session, toast) {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (data && !genRan.current) { genRan.current = true; runRecurrings(data); } }, [data]);
   useEffect(() => {
-    const on = () => { if (document.visibilityState === 'visible' && Date.now() - lastLoad.current > 30000) load(); };
+    const on = () => { if (document.visibilityState === 'visible' && Date.now() - lastLoad.current > 5000) load(); };
     document.addEventListener('visibilitychange', on);
     return () => document.removeEventListener('visibilitychange', on);
   }, [load]);

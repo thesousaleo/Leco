@@ -94,7 +94,12 @@ function createSupabaseBackend() {
     async removeWhere(table, field, value) { ok(await client.from(table).delete().eq(field, value)); },
     async saveProfile(userId, patch) { return ok(await client.from('profiles').upsert({ id: userId, ...patch }).select().single()); },
   };
-  return { kind: 'supabase', auth, db };
+  const whatsapp = {
+    async status() { return ok(await client.from('whatsapp_links').select('phone, created_at').maybeSingle()); },
+    async createCode() { const r = ok(await client.rpc('create_whatsapp_code')); return Array.isArray(r) ? r[0] : r; },
+    async unlink() { ok(await client.from('whatsapp_links').delete().not('phone', 'is', null)); },
+  };
+  return { kind: 'supabase', auth, db, whatsapp };
 }
 
 /* ------------------------------------------------------------------ */
@@ -215,7 +220,20 @@ function createMemoryBackend() {
     async removeWhere(table, field, value) { await wait(); store[table] = store[table].filter((r) => !(r[field] === value && r.user_id === session.user.id)); },
     async saveProfile(userId, patch) { await wait(); store.profiles[userId] = { ...store.profiles[userId], ...patch }; return { ...store.profiles[userId] }; },
   };
-  return { kind: 'memory', auth, db };
+  // WhatsApp simulado: o código vira vínculo depois de alguns segundos
+  let waLink = null;
+  let waTimer = null;
+  const whatsapp = {
+    async status() { await wait(); return waLink; },
+    async createCode() {
+      await wait();
+      clearTimeout(waTimer);
+      waTimer = setTimeout(() => { waLink = { phone: '5511987654321', created_at: now() }; }, 6000);
+      return { code: `LECO-${String(Math.floor(Math.random() * 1e6)).padStart(6, '0')}`, expires_at: new Date(Date.now() + 15 * 60000).toISOString() };
+    },
+    async unlink() { await wait(); waLink = null; },
+  };
+  return { kind: 'memory', auth, db, whatsapp };
 }
 
 function createBackend() {
