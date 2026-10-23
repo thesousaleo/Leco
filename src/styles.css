@@ -229,6 +229,59 @@ input[type="range"] { accent-color: #14806B; }
 @keyframes sheet { from { transform: translateY(100%); } to { transform: none; } }
 @keyframes toast { from { opacity: 0; transform: translate(-50%, 16px) scale(.96); } to { opacity: 1; transform: translate(-50%, 0); } }
 
+
+/* =====================================================================
+   Modo leve (celular/APK): o mesmo visual de vidro, sem efeitos caros.
+   backdrop-filter e blobs desfocados animados travam a rolagem no Android.
+   ===================================================================== */
+html { touch-action: manipulation; }
+:root[data-perf="lite"] {
+  --glass-a: rgba(255, 255, 255, .94);
+  --glass-b: rgba(255, 255, 255, .82);
+  --glass-shadow: 0 12px 28px -18px rgba(11, 47, 41, .28), 0 1px 2px rgba(11, 47, 41, .05);
+  --deep-bg: rgba(255, 255, 255, .96);
+  --milk-a: rgba(228, 239, 234, .95);
+  --milk-b: rgba(228, 239, 234, .75);
+}
+:root[data-perf="lite"][data-leco="dark"] {
+  --glass-a: rgba(18, 74, 63, .92);
+  --glass-b: rgba(13, 56, 48, .9);
+  --glass-shadow: 0 14px 30px -18px rgba(2, 16, 13, .8);
+  --deep-bg: rgba(10, 42, 36, .97);
+  --milk-a: rgba(40, 84, 74, .9);
+  --milk-b: rgba(28, 66, 58, .85);
+}
+:root[data-perf="lite"] .atmos-blobs { display: none; }
+:root[data-perf="lite"] .glass,
+:root[data-perf="lite"] .glass-milk,
+:root[data-perf="lite"] .glass-hero { -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-perf="lite"] .glass-deep { -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+:root[data-perf="lite"] .glass-hero { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 16px 30px -18px rgba(15, 92, 77, .7); }
+:root[data-perf="lite"] .glass::after, :root[data-perf="lite"] .glass-deep::after { display: none; }
+:root[data-perf="lite"] .backdrop-blur-md, :root[data-perf="lite"] .backdrop-blur-xl { -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-perf="lite"] .sheet-in, :root[data-perf="lite"] .dialog-in { background: var(--paper); }
+:root[data-perf="lite"] .overlay-in { background-color: rgba(11, 47, 41, .38); }
+/* Toque: resposta imediata e suave */
+:root[data-perf="lite"] button { transition: transform .16s cubic-bezier(.2, .8, .2, 1), background-color .2s ease, color .2s ease, opacity .2s ease; }
+:root[data-perf="lite"] button.glass:active, :root[data-perf="lite"] li > button:active, :root[data-perf="lite"] button.glass-hero:active, :root[data-perf="lite"] button.glass-milk:active { transform: scale(.975); }
+/* Entradas de tela mais curtas e leves */
+:root[data-perf="lite"] .rise { animation: riseLite .28s cubic-bezier(.2, .8, .2, 1) both; }
+:root[data-perf="lite"] .sheet-in { animation: sheet .34s cubic-bezier(.32, .72, 0, 1) both; }
+:root[data-perf="lite"] nav.glass-deep, :root[data-perf="lite"] .fab-corner { will-change: transform; }
+@keyframes riseLite { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
+
+/* Indicador do menu inferior que desliza entre as abas */
+.nav-indicator { transition: transform .38s cubic-bezier(.32, .72, 0, 1), opacity .2s ease; will-change: transform; }
+
+
+/* Saída das janelas (fechar com animação) */
+[data-closing="true"] .overlay-in { animation: fadeOut .22s ease both; }
+[data-closing="true"] .sheet-in { animation: sheetOut .22s cubic-bezier(.4, 0, 1, 1) both; }
+[data-closing="true"] .dialog-in { animation: popOut .2s ease both; }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes sheetOut { from { transform: var(--sheet-from, none); } to { transform: translate3d(0, 100%, 0); } }
+@keyframes popOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(10px) scale(.97); } }
+
 :root[data-calm="1"] *, :root[data-calm="1"] *::before, :root[data-calm="1"] *::after { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }

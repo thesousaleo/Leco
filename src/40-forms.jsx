@@ -734,7 +734,10 @@ function ModalHost() {
   const d = useApp();
   const m = d.modal;
   if (!m) return null;
-  const close = d.closeModal;
+  return <div data-closing={m.closing ? 'true' : undefined} className={m.closing ? 'pointer-events-none' : ''}><ModalBody m={m} close={d.closeModal} /></div>;
+}
+
+function ModalBody({ m, close }) {
   switch (m.kind) {
     case 'tx': return <TxForm key={m.key} initial={m.initial} defaultKind={m.defaultKind} presetSource={m.presetSource} onClose={close} />;
     case 'account': return <AccountForm key={m.key} initial={m.initial} onClose={close} />;

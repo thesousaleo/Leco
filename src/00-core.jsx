@@ -9,6 +9,9 @@ const { useState, useMemo, useEffect, useRef, useLayoutEffect, useCallback, useI
 const CFG = window.LECO_CONFIG || {};
 const NATIVE = !!window.LECO_NATIVE;
 const Native = window.LecoNative || {};
+// Modo leve para celulares: sem desfoque de fundo nem bolhas animadas (pesados no Android), animações só com transform/opacity
+const LITE = NATIVE || !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+if (LITE) document.documentElement.dataset.perf = 'lite';
 
 /* ------------------------------------------------------------------ */
 /* Formatação e datas                                                  */
@@ -471,12 +474,22 @@ function Sheet({ variant, onClose, titleId, onSubmit, children, wide = false }) 
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   const Tag = onSubmit ? 'form' : 'div';
+  const panel = useRef(null);
+  const drag = useRef(null);
+  const dragStart = (e) => { if (!sheet) return; drag.current = { y: e.clientY, dy: 0 }; e.currentTarget.setPointerCapture(e.pointerId); if (panel.current) panel.current.style.transition = 'none'; };
+  const dragMove = (e) => { if (!drag.current || !panel.current) return; drag.current.dy = Math.max(0, e.clientY - drag.current.y); panel.current.style.transform = `translate3d(0,${drag.current.dy}px,0)`; };
+  const dragEnd = () => {
+    if (!drag.current || !panel.current) return;
+    const { dy } = drag.current; drag.current = null;
+    if (dy > 110) { const el = panel.current; el.style.animation = 'none'; el.style.transition = 'transform .22s cubic-bezier(.4,0,1,1)'; el.style.transform = 'translate3d(0,100%,0)'; onClose(); return; }
+    panel.current.style.transition = 'transform .3s cubic-bezier(.32,.72,0,1)'; panel.current.style.transform = '';
+  };
   return (
     <div className={`fixed overlay-in inset-0 z-[70] flex backdrop-blur-md ${sheet ? 'items-end' : 'items-center justify-center p-4'}`}
       style={{ background: 'var(--scrim)' }} onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <Tag onSubmit={onSubmit} role="dialog" aria-modal="true" aria-labelledby={titleId} noValidate
+      <Tag ref={panel} onSubmit={onSubmit} role="dialog" aria-modal="true" aria-labelledby={titleId} noValidate
         className={`glass-deep no-scrollbar w-full overflow-y-auto ${sheet ? 'sheet-in max-h-[92%] rounded-b-none rounded-t-[32px] p-5 pb-[calc(28px+var(--safe-bottom))]' : `dialog-in max-h-[calc(100dvh-32px)] p-6 sm:p-7 ${wide ? 'max-w-[600px]' : 'max-w-[500px]'}`}`}>
-        {sheet && <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-ink/20" aria-hidden="true" />}
+        {sheet && <div className="-mx-5 -mt-5 mb-2 flex cursor-grab touch-none justify-center pb-3 pt-3" onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd} aria-hidden="true"><span className="h-1.5 w-10 rounded-full bg-ink/20" /></div>}
         {children}
       </Tag>
     </div>
