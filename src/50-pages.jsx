@@ -149,6 +149,137 @@ function AccountsMini({ onAll }) {
 }
 
 /* ---------- Visão geral ---------- */
+/* ---------- Início no celular (visual do protótipo) ---------- */
+function Carousel({ children, count }) {
+  const ref = useRef(null);
+  const [idx, setIdx] = useState(0);
+  const stepOf = () => { const el = ref.current; const first = el && el.firstElementChild; return first ? first.getBoundingClientRect().width + 12 : 296; };
+  const onScroll = () => { const el = ref.current; if (el) setIdx(Math.min(count - 1, Math.round(el.scrollLeft / stepOf()))); };
+  const goTo = (i) => { const el = ref.current; if (el) el.scrollTo({ left: i * stepOf(), behavior: reducedMotion() ? 'auto' : 'smooth' }); };
+  return (
+    <div>
+      <div ref={ref} onScroll={onScroll} className="snap-row no-scrollbar -mx-4 -mb-9 flex gap-3 overflow-x-auto px-4 pb-10 pt-1" aria-label="Cartões de resumo">
+        {children}
+        <span className="w-1 shrink-0" aria-hidden="true" />
+      </div>
+      <div className="mt-3 flex justify-center gap-1.5">
+        {Array.from({ length: count }, (_, i) => (
+          <button key={i} type="button" aria-label={`Ver cartão ${i + 1} de ${count}`} onClick={() => goTo(i)}
+            className={`h-1.5 rounded-full transition-all duration-300 ${i === idx ? 'w-6 bg-ouro' : 'w-1.5 bg-ink/25'}`} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MobileHome() {
+  const d = useApp();
+  const m = useMoneyText();
+  const month = d.month;
+  const sm = periodSummary(d.transactions, `${month}-01`, dayIn(month, 31), d.categories);
+  const prevK = shiftMonth(month, -1);
+  const prev = periodSummary(d.transactions, `${prevK}-01`, dayIn(prevK, 31), d.categories);
+  const pct = (a, b) => (b ? ((a - b) / b) * 100 : null);
+  const series = useMemo(() => monthSeries(d.transactions, d.accounts, month), [d.transactions, d.accounts, month]);
+  const budgets = budgetsFor(d.categories, d.transactions, month);
+  const recentOut = d.transactions.filter((t) => t.kind === 'out' && (t.paid || t.card_id) && t.date <= todayISO()).slice(0, 5);
+  const cardsDue = sum(d.cards.filter((c) => !c.archived), (c) => { const s = cardSummary(c, d.transactions); return Math.max(0, s.current.remaining) + sum(s.toPay.filter((i) => i.invoice !== s.current.invoice), (i) => i.remaining); });
+  const goal = d.goals.find((g) => g.saved < g.target) || d.goals[0];
+  const goalPct = goal ? Math.min(100, Math.round((goal.saved / goal.target) * 100)) : 0;
+  const mName = monthName(month).toLowerCase();
+  const first = series[0] || { short: '', bal: 0 };
+  const last = series[series.length - 1] || { short: '', bal: 0 };
+  const hasPending = d.transactions.some((t) => !t.paid && t.date <= addDays(todayISO(), 30)) || cardsDue > 0;
+  const cw = 'w-[calc(100vw-72px)] max-w-[300px]';
+  const P = PALETTES[useContext(ThemeCtx)];
+  return (
+    <div className="space-y-6">
+      <Carousel count={4}>
+        <article className={`glass-hero flex h-[172px] ${cw} shrink-0 snap-start flex-col justify-between p-5`}>
+          <div className="flex items-center justify-between">
+            <p className="text-[13px] font-semibold text-ink/85">Patrimônio · 6 meses</p>
+            <LogoMark size={26} onDark />
+          </div>
+          <div className="h-[56px]"><Spark values={series.map((p) => p.bal)} color="#E8A317" height={56} /></div>
+          <p className="flex items-baseline justify-between text-xs text-ink/75">
+            <span>{first.short} → {last.short}</span>
+            <b className="text-[15px] font-extrabold text-ink"><Money cents={last.bal - first.bal} /></b>
+          </p>
+        </article>
+        <article className={`glass flex h-[172px] ${cw} shrink-0 snap-start flex-col justify-between p-5`}>
+          <div className="flex items-center justify-between gap-2"><p className="text-[13px] font-semibold text-ink/80">Receitas de {mName}</p><Delta value={pct(sm.income, prev.income)} /></div>
+          <p className="text-[28px] font-extrabold tracking-[-0.02em] text-in"><Money cents={sm.income} /></p>
+          <div className="h-[34px]"><Spark values={series.map((p) => p.in)} color={P.in} height={34} /></div>
+        </article>
+        <article className={`glass flex h-[172px] ${cw} shrink-0 snap-start flex-col justify-between p-5`}>
+          <div className="flex items-center justify-between gap-2"><p className="text-[13px] font-semibold text-ink/80">Despesas de {mName}</p><Delta value={pct(sm.expense, prev.expense)} goodWhen="down" /></div>
+          <p className="text-[28px] font-extrabold tracking-[-0.02em] text-out"><Money cents={sm.expense} /></p>
+          <div className="h-[34px]"><Spark values={series.map((p) => p.out)} color={P.out} height={34} /></div>
+        </article>
+        {d.cards.length > 0 ? (
+          <button type="button" onClick={() => d.go('contas')} className={`glass-milk flex h-[172px] ${cw} shrink-0 snap-start flex-col justify-between rounded-3xl p-5 text-left`}>
+            <div className="flex w-full items-center justify-between"><p className="text-[13px] font-semibold text-ink/80">Faturas a pagar</p><Icon name="card" size={18} className="text-ink/60" /></div>
+            <p className="text-[28px] font-extrabold tracking-[-0.02em]"><Money cents={cardsDue} /></p>
+            <p className="text-xs text-ink/70">{plural(d.cards.filter((c) => !c.archived).length, 'cartão', 'cartões')} · toque para ver</p>
+          </button>
+        ) : (
+          <button type="button" onClick={() => d.go('metas')} className={`glass-milk flex h-[172px] ${cw} shrink-0 snap-start flex-col justify-between rounded-3xl p-5 text-left`}>
+            <div className="flex w-full items-center justify-between"><p className="text-[13px] font-semibold text-ink/80">Meta em destaque</p>{goal && <span className="badge-gold">{goalPct}%</span>}</div>
+            <div>
+              <p className="text-[18px] font-extrabold tracking-[-0.02em]">{goal ? goal.name : 'Crie sua primeira meta'}</p>
+              {goal && <p className="mt-0.5 text-xs text-ink/70">{m(goal.saved)} de {m(goal.target)}</p>}
+            </div>
+            <div className="track w-full"><i style={{ width: `${goalPct}%` }} /></div>
+          </button>
+        )}
+      </Carousel>
+
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { l: 'Receita', i: 'inArrow', fn: () => d.openModal({ kind: 'tx', defaultKind: 'in' }), tone: 'text-in' },
+          { l: 'Despesa', i: 'up', fn: () => d.openModal({ kind: 'tx', defaultKind: 'out' }), tone: 'text-out' },
+          { l: 'Contas', i: 'card', fn: () => d.go('contas'), tone: 'text-ink' },
+          { l: 'Metas', i: 'target', fn: () => d.go('metas'), tone: 'text-[#B57406]' },
+        ].map((a) => (
+          <button key={a.l} type="button" onClick={a.fn} className="group flex flex-col items-center gap-2">
+            <span className={`glass grid size-14 place-items-center rounded-2xl transition-transform group-active:scale-95 ${a.tone}`}><Icon name={a.i} size={21} strokeWidth={2} /></span>
+            <span className="text-[11.5px] font-semibold text-ink/80">{a.l}</span>
+          </button>
+        ))}
+      </div>
+
+      {hasPending && (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">A pagar e a receber</h2>
+            <button type="button" className="text-xs font-bold text-in" onClick={() => d.go('recorrentes')}>Ver tudo</button>
+          </div>
+          <div className="glass rounded-3xl px-3 py-1"><UpcomingList limit={4} compact /></div>
+        </section>
+      )}
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">Orçamentos</h2>
+          <button type="button" className="text-xs font-bold text-in" onClick={() => d.go(budgets.length ? 'relatorios' : 'categorias')}>{budgets.length ? 'Ver análise' : 'Definir'}</button>
+        </div>
+        <div className="glass rounded-3xl p-4"><BudgetList budgets={budgets} limit={3} /></div>
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">Despesas recentes</h2>
+          <button type="button" className="text-xs font-bold text-in" onClick={() => d.go('transacoes')}>Ver extrato</button>
+        </div>
+        <div className="glass rounded-3xl px-3 py-1">
+          {recentOut.length ? <ul className="divide-y divide-ink/[0.07]">{recentOut.map((t) => <TxItem key={t.id} t={t} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} />)}</ul>
+            : <p className="px-1 py-5 text-center text-sm text-ink/65">Nenhuma despesa ainda. Toque no <b>+</b> para registrar a primeira.</p>}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function OverviewPage() {
   const d = useApp();
   const narrow = useNarrow();
@@ -163,6 +294,7 @@ function OverviewPage() {
   const cardsDue = sum(d.cards.filter((c) => !c.archived), (c) => { const s = cardSummary(c, d.transactions); return Math.max(0, s.current.remaining) + sum(s.toPay.filter((i) => i.invoice !== s.current.invoice), (i) => i.remaining); });
   const recent = d.transactions.filter((t) => t.date <= to && t.paid).slice(0, 6);
   const budgets = budgetsFor(d.categories, d.transactions, month);
+  if (narrow) return <MobileHome />;
   return (
     <div className="space-y-5">
       {!narrow && (
@@ -219,6 +351,7 @@ function TransactionsPage() {
   const [status, setStatus] = useState('all');
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('recent');
+  const [showFilters, setShowFilters] = useState(false);
   const [limit, setLimit] = useState(30);
   useEffect(() => setLimit(30), [scope, type, src, cat, status, q, d.month, sort]);
   const rows = useMemo(() => {
@@ -250,11 +383,21 @@ function TransactionsPage() {
         </PageHeader>
       )}
       <Card>
+        {narrow ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              {scope === 'month' ? <MonthSwitch compact month={d.month} onChange={d.setMonth} /> : <span className="text-sm font-bold">Todo o período</span>}
+              <button type="button" className={`btn !px-3.5 !py-2 text-[13px] ${showFilters || (filtered && type === 'all') ? 'btn-primary' : 'btn-ghost'}`} aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}><Icon name="search" size={15} />Filtros</button>
+            </div>
+            <Segmented size="sm" full label="Tipo" value={['all', 'in', 'out'].includes(type) ? type : 'all'} onChange={setType} options={[{ value: 'all', label: 'Tudo' }, { value: 'in', label: 'Receitas' }, { value: 'out', label: 'Despesas' }]} />
+          </div>
+        ) : (
         <div className="flex flex-wrap items-center gap-3">
           <Segmented size="sm" label="Período" value={scope} onChange={setScope} options={[{ value: 'month', label: 'Mês' }, { value: 'all', label: 'Tudo' }]} />
           {scope === 'month' && <MonthSwitch compact month={d.month} onChange={d.setMonth} />}
         </div>
-        <div className={`mt-3 grid gap-2 ${narrow ? 'grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-5'}`}>
+        )}
+        {(!narrow || showFilters) && <div className={`mt-3 grid gap-2 ${narrow ? 'grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-5'}`}>
           <select id="f-type" aria-label="Tipo" className="field !rounded-full !py-2 text-[13px]" value={type} onChange={(e) => setType(e.target.value)}>
             <option value="all">Todos os tipos</option><option value="out">Despesas</option><option value="in">Receitas</option><option value="transfer">Transferências</option><option value="card_payment">Pagamentos de fatura</option>
           </select>
@@ -278,7 +421,8 @@ function TransactionsPage() {
             <Icon name="search" size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/60" />
             <input id="f-q" className="field !rounded-full !py-2 !pl-10 text-[13px]" placeholder="Buscar por descrição, categoria, conta ou observação" value={q} onChange={(e) => setQ(e.target.value)} />
           </label>
-        </div>
+          {narrow && <div className="col-span-2"><Segmented size="sm" full label="Período" value={scope} onChange={setScope} options={[{ value: 'month', label: 'Só este mês' }, { value: 'all', label: 'Todo o período' }]} /></div>}
+        </div>}
         <div className="mt-4 grid grid-cols-3 gap-2">
           <div className="rounded-2xl bg-ink/[0.04] px-3 py-2.5"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-ink/65">Itens</p><p className="text-base font-extrabold tabular-nums">{rows.length}</p></div>
           <div className="rounded-2xl bg-ink/[0.04] px-3 py-2.5"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-ink/65">Entradas</p><p className="truncate text-base font-extrabold tabular-nums text-in">{m(inc)}</p></div>

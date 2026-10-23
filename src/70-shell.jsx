@@ -382,37 +382,64 @@ const MOBILE_MENU = [
 function MobileLayout() {
   const d = useApp();
   const page = d.page;
-  const isTab = ['inicio', 'transacoes', 'relatorios', 'mais'].includes(page);
-  const title = page === 'config' ? (SETTINGS_TABS.find((t) => t.id === d.settingsSub) || {}).label : page === 'mais' ? 'Mais' : (PAGES[page] || {}).label;
+  const TABS = [{ id: 'inicio', label: 'Início', icon: 'home' }, { id: 'transacoes', label: 'Extrato', icon: 'list' }, { id: 'relatorios', label: 'Análises', icon: 'pie' }, { id: 'mais', label: 'Ajustes', icon: 'settings' }];
+  const isTab = TABS.some((t) => t.id === page);
+  const tabTitle = { transacoes: 'Extrato', relatorios: 'Análises', mais: 'Ajustes' }[page];
+  const title = page === 'config' ? (SETTINGS_TABS.find((t) => t.id === d.settingsSub) || {}).label : tabTitle || (PAGES[page] || {}).label;
   const Page = page === 'mais' ? null : (PAGES[page] || PAGES.inicio).C;
   const back = () => d.go(page === 'config' || MOBILE_MENU.some((x) => x.id === page) ? 'mais' : 'inicio');
   const headerAction = { contas: { icon: 'plus', label: 'Nova conta', fn: () => d.openModal({ kind: 'account' }) }, recorrentes: { icon: 'plus', label: 'Nova recorrência', fn: () => d.openModal({ kind: 'recurring' }) }, metas: { icon: 'plus', label: 'Nova meta', fn: () => d.openModal({ kind: 'goal' }) } }[page];
+  const series = useMemo(() => monthSeries(d.transactions, d.accounts, monthKey(todayISO())), [d.transactions, d.accounts]);
+  const totalBal = sum(d.accounts, (a) => d.balances[a.id] || 0);
+  const prevBal = series.length > 1 ? series[series.length - 2].bal : 0;
+  const balDelta = prevBal ? ((totalBal - prevBal) / Math.abs(prevBal)) * 100 : null;
+  const initial = (d.name || d.session.user.email).charAt(0).toUpperCase();
+  useEffect(() => { window.scrollTo(0, 0); }, [page, d.settingsSub]);
   return (
     <NarrowCtx.Provider value={true}>
-      <div className="relative z-10 min-h-[100dvh] pb-[calc(170px+env(safe-area-inset-bottom,0px))]">
-        <header className="sticky top-0 z-40 border-b border-ink/[0.06] bg-paper/70 pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl">
-          <div className="flex h-16 items-center gap-3">
-            {page === 'inicio' ? (
-              <>
-                <button type="button" onClick={() => { d.setSettingsSub('perfil'); d.go('config'); }} aria-label="Abrir perfil" className="grid size-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-vivo to-leco text-[15px] font-extrabold text-white ring-2 ring-ouro/70">{(d.name || d.session.user.email).charAt(0).toUpperCase()}</button>
-                <div className="min-w-0 flex-1"><p className="text-xs text-ink/70">{greeting()},</p><p className="truncate text-[16px] font-extrabold tracking-[-0.02em]">{firstName(d.name) || 'bem-vindo'}</p></div>
+      <div className="relative z-10 min-h-[100dvh] pb-[calc(170px+env(safe-area-inset-bottom,0px))] pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] pt-[calc(14px+env(safe-area-inset-top,0px))]">
+        <header className="pb-4">
+          {page === 'inicio' ? (
+            <>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => { d.setSettingsSub('perfil'); d.go('config'); }} aria-label="Abrir perfil" className="grid size-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-vivo to-leco text-[16px] font-extrabold text-white ring-2 ring-ouro/70">{initial}</button>
+                <div className="min-w-0 flex-1"><p className="text-xs text-ink/70">{greeting()},</p><p className="truncate text-[17px] font-extrabold tracking-[-0.02em]">{firstName(d.name) || 'bem-vindo'}</p></div>
                 <button type="button" className="icon-btn size-11" onClick={() => d.saveProfile({ hide_values: !d.hide })} aria-label={d.hide ? 'Mostrar valores' : 'Ocultar valores'} aria-pressed={d.hide}><Icon name={d.hide ? 'eyeOff' : 'eye'} size={19} /></button>
                 <NotifButton panelWidth={300} />
-              </>
-            ) : (
-              <>
-                {!isTab && <button type="button" className="icon-btn size-10 shrink-0" aria-label="Voltar" onClick={back}><Icon name="left" size={18} /></button>}
-                <h1 className="min-w-0 flex-1 truncate text-[19px] font-extrabold tracking-[-0.02em]">{title}</h1>
-                {headerAction && <button type="button" className="icon-btn size-10" aria-label={headerAction.label} onClick={headerAction.fn}><Icon name={headerAction.icon} size={18} /></button>}
-                <NotifButton panelWidth={300} />
-              </>
-            )}
-          </div>
+              </div>
+              <button type="button" onClick={() => d.go('contas')} className="glass-hero mt-4 flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left">
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-semibold uppercase tracking-wider text-ink/75">Saldo total</span>
+                  <span className="mt-0.5 block text-[24px] font-extrabold leading-tight tracking-[-0.02em]"><Money cents={totalBal} /></span>
+                </span>
+                <Delta value={balDelta} />
+              </button>
+            </>
+          ) : isTab ? (
+            <div className="flex items-center gap-3 pt-1">
+              <h1 className="min-w-0 flex-1 truncate text-[24px] font-extrabold tracking-[-0.02em]">{title}</h1>
+              {page !== 'mais' && <NotifButton panelWidth={300} />}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 pt-1">
+              <button type="button" className="icon-btn size-10 shrink-0" aria-label="Voltar" onClick={back}><Icon name="left" size={18} /></button>
+              <h1 className="min-w-0 flex-1 truncate text-[20px] font-extrabold tracking-[-0.02em]">{title}</h1>
+              {headerAction && <button type="button" className="icon-btn size-10" aria-label={headerAction.label} onClick={headerAction.fn}><Icon name={headerAction.icon} size={18} /></button>}
+            </div>
+          )}
         </header>
-        <main className="pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] pt-4">
+        <main>
           <div key={`${page}-${d.settingsSub}`} className="rise">
             {page === 'mais' ? (
               <div className="space-y-4">
+                <button type="button" onClick={() => { d.setSettingsSub('perfil'); d.go('config'); }} className="glass-hero flex w-full items-center gap-3 rounded-3xl p-4 text-left">
+                  <span className="grid size-14 shrink-0 place-items-center rounded-full bg-white/15 text-xl font-extrabold ring-2 ring-ouro/80">{initial}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[16px] font-extrabold">{d.name || 'Sua conta'}</span>
+                    <span className="block truncate text-xs text-ink/75">{d.session.user.email}</span>
+                  </span>
+                  <Icon name="right" size={18} />
+                </button>
                 <ul className="glass divide-y divide-ink/[0.07] rounded-3xl px-2 py-1">
                   {MOBILE_MENU.map((it) => (
                     <li key={it.id}><button type="button" onClick={() => d.go(it.id)} className="flex w-full items-center gap-3 rounded-2xl px-2 py-3 text-left">
@@ -422,9 +449,8 @@ function MobileLayout() {
                     </button></li>
                   ))}
                 </ul>
-                <p className="px-2 text-[11px] font-bold uppercase tracking-wider text-ink/55">Configurações</p>
                 <ul className="glass divide-y divide-ink/[0.07] rounded-3xl px-2 py-1">
-                  {SETTINGS_TABS.map((it) => (
+                  {SETTINGS_TABS.filter((it) => it.id !== 'perfil').map((it) => (
                     <li key={it.id}><button type="button" onClick={() => { d.setSettingsSub(it.id); d.go('config'); }} className="flex w-full items-center gap-3 rounded-2xl px-2 py-3 text-left">
                       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ink/[0.06]"><Icon name={it.icon} size={18} /></span>
                       <span className="min-w-0 flex-1"><span className="block text-[14px] font-bold">{it.label}</span><span className="block truncate text-xs text-ink/65">{it.desc}</span></span>
@@ -433,19 +459,22 @@ function MobileLayout() {
                   ))}
                 </ul>
                 <button type="button" className="btn btn-ghost w-full" onClick={d.signOut}><Icon name="logout" size={16} />Sair da conta</button>
-                <p className="text-center text-[11px] text-ink/50">{d.session.user.email}</p>
+                <p className="text-center text-[11px] text-ink/50">Leco · seus dados ficam protegidos e só você tem acesso</p>
               </div>
             ) : <Page />}
           </div>
         </main>
         <nav aria-label="Navegação principal" className="glass-deep fixed inset-x-3.5 bottom-[calc(14px+env(safe-area-inset-bottom,0px))] z-40 grid h-[70px] grid-cols-4 items-center rounded-[28px] px-1">
-          {[{ id: 'inicio', label: 'Início', icon: 'home' }, { id: 'transacoes', label: 'Extrato', icon: 'list' }, { id: 'relatorios', label: 'Relatórios', icon: 'chart' }, { id: 'mais', label: 'Mais', icon: 'menu' }].map((t) => (
-            <button key={t.id} type="button" onClick={() => d.go(t.id)} aria-current={page === t.id ? 'page' : undefined}
-              className={`flex flex-col items-center gap-1 text-[10.5px] font-semibold transition-colors ${page === t.id || (t.id === 'mais' && !isTab) ? 'text-ink' : 'text-ink/60'}`}>
-              <span className={`grid h-8 w-12 place-items-center rounded-full transition-all ${page === t.id || (t.id === 'mais' && !isTab) ? 'bg-gradient-to-br from-vivo to-leco text-white shadow-[0_6px_14px_-6px_rgba(20,128,107,.9)]' : ''}`}><Icon name={t.icon} size={19} /></span>
-              {t.label}
-            </button>
-          ))}
+          {TABS.map((t) => {
+            const on = page === t.id || (t.id === 'mais' && !isTab && page !== 'inicio');
+            return (
+              <button key={t.id} type="button" onClick={() => d.go(t.id)} aria-current={page === t.id ? 'page' : undefined}
+                className={`flex flex-col items-center gap-1 text-[10.5px] font-semibold transition-colors ${on ? 'text-ink' : 'text-ink/60'}`}>
+                <span className={`grid h-8 w-12 place-items-center rounded-full transition-all ${on ? 'bg-gradient-to-br from-vivo to-leco text-white shadow-[0_6px_14px_-6px_rgba(20,128,107,.9)]' : ''}`}><Icon name={t.icon} size={19} /></span>
+                {t.label}
+              </button>
+            );
+          })}
         </nav>
         {page !== 'mais' && page !== 'config' && (
           <button type="button" className="fab-corner fixed right-[max(18px,env(safe-area-inset-right,0px))] bottom-[calc(98px+env(safe-area-inset-bottom,0px))] z-40 size-[58px]" onClick={() => d.openModal({ kind: 'tx' })} aria-label="Nova transação">
