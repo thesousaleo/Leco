@@ -1,6 +1,6 @@
-# Gera o APK do Leco a cada envio para a branch main (ou manualmente em Actions › "Gerar APK do Leco" › Run workflow).
-# O APK assinado aparece em "Releases" do repositório, pronto para baixar no celular.
-name: Gerar APK do Leco
+# Gera o APK do Leco e publica o site a cada envio para a branch main
+# (ou manualmente em Actions › "Gerar APK e site do Leco" › Run workflow).
+name: Gerar APK e site do Leco
 
 on:
   push:
@@ -9,8 +9,35 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: leco-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  site:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+      - name: Montar o site
+        run: npm run build:site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
   apk:
     runs-on: ubuntu-latest
     steps:
@@ -35,20 +62,22 @@ jobs:
           KEY_ALIAS: ${{ secrets.LECO_KEY_ALIAS }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KS_PASS" ] || [ -z "$KEY_ALIAS" ]; then
-            echo "::error::Faltam os segredos LECO_KEYSTORE_BASE64, LECO_KEYSTORE_PASSWORD e LECO_KEY_ALIAS. Veja o passo 3 do LEIA-ME.md."
+            echo "::error::Faltam os segredos LECO_KEYSTORE_BASE64, LECO_KEYSTORE_PASSWORD e LECO_KEY_ALIAS. Veja o LEIA-ME.md."
             exit 1
           fi
 
       - name: Instalar dependências
         run: npm install --no-audit --no-fund
 
-      - name: Montar o app (React + Tailwind)
-        run: npm run build:web
+      - name: Montar o app (React + Tailwind + Supabase)
+        run: |
+          set -o pipefail
+          npm run build:native 2>&1 | tee web.log || { echo "::error title=Falha ao montar o app::$(tail -40 web.log | sed -e 's/%/%25/g' -e 's/\r//g' | sed ':a;N;$!ba;s/\n/%0A/g')"; exit 1; }
 
       - name: Criar o projeto Android
         run: |
           set -o pipefail
-          { npx cap add android && cp -r resources/android/res/* android/app/src/main/res/ && npx cap sync android; } 2>&1 | tee cap.log || {
+          { npx cap add android && cp -r resources/android/res/* android/app/src/main/res/ && node tools/patch-android.cjs && npx cap sync android; } 2>&1 | tee cap.log || {
             echo "::error title=Falha ao criar o projeto Android::$(tail -45 cap.log | sed -e 's/%/%25/g' -e 's/\r//g' | sed ':a;N;$!ba;s/\n/%0A/g')"
             exit 1
           }
@@ -80,7 +109,7 @@ jobs:
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BT/zipalign" -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk alinhado.apk
           "$BT/apksigner" sign --ks leco-release.jks --ks-key-alias "$KEY_ALIAS" --ks-pass env:KS_PASS --key-pass env:KS_PASS --out "Leco-$VERSION.apk" alinhado.apk
-          "$BT/apksigner" verify --verbose "Leco-$VERSION.apk"
+          "$BT/apksigner" verify "Leco-$VERSION.apk"
           rm -f leco-release.jks alinhado.apk
 
       - name: Guardar o APK nesta execução
@@ -94,7 +123,9 @@ jobs:
         with:
           tag_name: v${{ env.VERSION }}-build${{ github.run_number }}
           name: Leco ${{ env.VERSION }} (build ${{ github.run_number }})
+          make_latest: true
           body: |
             Baixe o ficheiro `Leco-${{ env.VERSION }}.apk` abaixo no celular e toque nele para instalar.
-            Se já tem o Leco instalado, esta versão atualiza o app e mantém os seus dados.
+            Se já tem o Leco instalado, esta versão atualiza o app.
+            Versão web: https://thesousaleo.github.io/Leco/
           files: Leco-*.apk

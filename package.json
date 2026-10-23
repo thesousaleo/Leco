@@ -1,17 +1,23 @@
 {
   "name": "leco",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Leco · controle financeiro (app Android feito com Capacitor)",
+  "description": "Leco · controle financeiro (Android com Capacitor + site, dados no Supabase)",
   "type": "module",
   "scripts": {
-    "build:web": "node scripts/build-web.mjs",
-    "sync": "npm run build:web && npx cap sync android"
+    "build:native": "node scripts/build-web.mjs native",
+    "build:site": "node scripts/build-web.mjs web",
+    "build:test": "node scripts/build-web.mjs test teste-local.html"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",
     "@capacitor/app": "^6.0.0",
-    "@capacitor/core": "^6.2.0"
+    "@capacitor/browser": "^6.0.0",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/filesystem": "^6.0.0",
+    "@capacitor/local-notifications": "^6.1.0",
+    "@capacitor/share": "^6.0.0",
+    "@supabase/supabase-js": "^2.50.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.2.0",

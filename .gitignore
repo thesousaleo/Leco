@@ -1,5 +1,8 @@
-node_modules/
+node_modules
 /android/
+/www/
+/site/
+teste-local.html
 *.jks
 *.keystore
 *.apk
