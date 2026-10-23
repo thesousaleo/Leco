@@ -6,7 +6,8 @@ const SETTINGS_TABS = [
   { id: 'seguranca', label: 'Acesso e segurança', icon: 'lock', desc: 'Senha, login e sessões' },
   { id: 'preferencias', label: 'Preferências', icon: 'palette', desc: 'Tema, privacidade, poupança' },
   { id: 'notificacoes', label: 'Notificações', icon: 'bell', desc: 'Lembretes e alertas' },
-  { id: 'whatsapp', label: 'WhatsApp', icon: 'chat', desc: 'Registre pelo chat' },
+  // A aba do WhatsApp só aparece quando o número do assistente estiver no leco.config.json
+  ...(String((window.LECO_CONFIG || {}).whatsappNumber || '').replace(/\D/g, '') ? [{ id: 'whatsapp', label: 'WhatsApp', icon: 'chat', desc: 'Registre pelo chat' }] : []),
   { id: 'dados', label: 'Seus dados', icon: 'file', desc: 'Exportar e excluir conta' },
 ];
 
