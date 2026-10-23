@@ -43,7 +43,7 @@ function PasswordInput({ id, value, onChange, autoComplete, placeholder, invalid
 
 function AuthShell({ children, footer }) {
   return (
-    <div className="relative z-10 flex min-h-[100dvh] flex-col items-center justify-center pb-[max(24px,env(safe-area-inset-bottom))] pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] pt-[max(24px,env(safe-area-inset-top))]">
+    <div className="relative z-10 flex min-h-[100dvh] flex-col items-center justify-center pb-[max(24px,var(--safe-bottom))] pl-[max(16px,var(--safe-left))] pr-[max(16px,var(--safe-right))] pt-[max(24px,var(--safe-top))]">
       <div className="w-full max-w-[440px]">
         <div className="mb-6 flex justify-center"><Logo size="lg" /></div>
         <div className="glass-deep rise p-6 sm:p-8">{children}</div>

@@ -149,97 +149,38 @@ function AccountsMini({ onAll }) {
 }
 
 /* ---------- Visão geral ---------- */
-/* ---------- Início no celular (visual do protótipo) ---------- */
-function Carousel({ children, count }) {
-  const ref = useRef(null);
-  const [idx, setIdx] = useState(0);
-  const stepOf = () => { const el = ref.current; const first = el && el.firstElementChild; return first ? first.getBoundingClientRect().width + 12 : 296; };
-  const onScroll = () => { const el = ref.current; if (el) setIdx(Math.min(count - 1, Math.round(el.scrollLeft / stepOf()))); };
-  const goTo = (i) => { const el = ref.current; if (el) el.scrollTo({ left: i * stepOf(), behavior: reducedMotion() ? 'auto' : 'smooth' }); };
-  return (
-    <div>
-      <div ref={ref} onScroll={onScroll} className="snap-row no-scrollbar -mx-4 -mb-9 flex gap-3 overflow-x-auto px-4 pb-10 pt-1" aria-label="Cartões de resumo">
-        {children}
-        <span className="w-1 shrink-0" aria-hidden="true" />
-      </div>
-      <div className="mt-3 flex justify-center gap-1.5">
-        {Array.from({ length: count }, (_, i) => (
-          <button key={i} type="button" aria-label={`Ver cartão ${i + 1} de ${count}`} onClick={() => goTo(i)}
-            className={`h-1.5 rounded-full transition-all duration-300 ${i === idx ? 'w-6 bg-ouro' : 'w-1.5 bg-ink/25'}`} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
+/* ---------- Início no celular: só o essencial ---------- */
 function MobileHome() {
   const d = useApp();
-  const m = useMoneyText();
-  const month = d.month;
+  const month = monthKey(todayISO());
   const sm = periodSummary(d.transactions, `${month}-01`, dayIn(month, 31), d.categories);
-  const prevK = shiftMonth(month, -1);
-  const prev = periodSummary(d.transactions, `${prevK}-01`, dayIn(prevK, 31), d.categories);
-  const pct = (a, b) => (b ? ((a - b) / b) * 100 : null);
-  const series = useMemo(() => monthSeries(d.transactions, d.accounts, month), [d.transactions, d.accounts, month]);
-  const budgets = budgetsFor(d.categories, d.transactions, month);
-  const recentOut = d.transactions.filter((t) => t.kind === 'out' && (t.paid || t.card_id) && t.date <= todayISO()).slice(0, 5);
-  const cardsDue = sum(d.cards.filter((c) => !c.archived), (c) => { const s = cardSummary(c, d.transactions); return Math.max(0, s.current.remaining) + sum(s.toPay.filter((i) => i.invoice !== s.current.invoice), (i) => i.remaining); });
-  const goal = d.goals.find((g) => g.saved < g.target) || d.goals[0];
-  const goalPct = goal ? Math.min(100, Math.round((goal.saved / goal.target) * 100)) : 0;
-  const mName = monthName(month).toLowerCase();
-  const first = series[0] || { short: '', bal: 0 };
-  const last = series[series.length - 1] || { short: '', bal: 0 };
-  const hasPending = d.transactions.some((t) => !t.paid && t.date <= addDays(todayISO(), 30)) || cardsDue > 0;
-  const cw = 'w-[calc(100vw-72px)] max-w-[300px]';
-  const P = PALETTES[useContext(ThemeCtx)];
+  const recent = d.transactions.filter((t) => t.paid && t.date <= todayISO()).slice(0, 5);
+  const hasPending = d.transactions.some((t) => !t.paid && t.date <= addDays(todayISO(), 30))
+    || d.cards.some((c) => !c.archived && cardSummary(c, d.transactions).toPay.some((i) => i.remaining > 0));
   return (
     <div className="space-y-6">
-      <Carousel count={4}>
-        <article className={`glass-hero flex h-[172px] ${cw} shrink-0 snap-start flex-col justify-between p-5`}>
-          <div className="flex items-center justify-between">
-            <p className="text-[13px] font-semibold text-ink/85">Patrimônio · 6 meses</p>
-            <LogoMark size={26} onDark />
-          </div>
-          <div className="h-[56px]"><Spark values={series.map((p) => p.bal)} color="#E8A317" height={56} /></div>
-          <p className="flex items-baseline justify-between text-xs text-ink/75">
-            <span>{first.short} → {last.short}</span>
-            <b className="text-[15px] font-extrabold text-ink"><Money cents={last.bal - first.bal} /></b>
-          </p>
-        </article>
-        <article className={`glass flex h-[172px] ${cw} shrink-0 snap-start flex-col justify-between p-5`}>
-          <div className="flex items-center justify-between gap-2"><p className="text-[13px] font-semibold text-ink/80">Receitas de {mName}</p><Delta value={pct(sm.income, prev.income)} /></div>
-          <p className="text-[28px] font-extrabold tracking-[-0.02em] text-in"><Money cents={sm.income} /></p>
-          <div className="h-[34px]"><Spark values={series.map((p) => p.in)} color={P.in} height={34} /></div>
-        </article>
-        <article className={`glass flex h-[172px] ${cw} shrink-0 snap-start flex-col justify-between p-5`}>
-          <div className="flex items-center justify-between gap-2"><p className="text-[13px] font-semibold text-ink/80">Despesas de {mName}</p><Delta value={pct(sm.expense, prev.expense)} goodWhen="down" /></div>
-          <p className="text-[28px] font-extrabold tracking-[-0.02em] text-out"><Money cents={sm.expense} /></p>
-          <div className="h-[34px]"><Spark values={series.map((p) => p.out)} color={P.out} height={34} /></div>
-        </article>
-        {d.cards.length > 0 ? (
-          <button type="button" onClick={() => d.go('contas')} className={`glass-milk flex h-[172px] ${cw} shrink-0 snap-start flex-col justify-between rounded-3xl p-5 text-left`}>
-            <div className="flex w-full items-center justify-between"><p className="text-[13px] font-semibold text-ink/80">Faturas a pagar</p><Icon name="card" size={18} className="text-ink/60" /></div>
-            <p className="text-[28px] font-extrabold tracking-[-0.02em]"><Money cents={cardsDue} /></p>
-            <p className="text-xs text-ink/70">{plural(d.cards.filter((c) => !c.archived).length, 'cartão', 'cartões')} · toque para ver</p>
-          </button>
-        ) : (
-          <button type="button" onClick={() => d.go('metas')} className={`glass-milk flex h-[172px] ${cw} shrink-0 snap-start flex-col justify-between rounded-3xl p-5 text-left`}>
-            <div className="flex w-full items-center justify-between"><p className="text-[13px] font-semibold text-ink/80">Meta em destaque</p>{goal && <span className="badge-gold">{goalPct}%</span>}</div>
-            <div>
-              <p className="text-[18px] font-extrabold tracking-[-0.02em]">{goal ? goal.name : 'Crie sua primeira meta'}</p>
-              {goal && <p className="mt-0.5 text-xs text-ink/70">{m(goal.saved)} de {m(goal.target)}</p>}
-            </div>
-            <div className="track w-full"><i style={{ width: `${goalPct}%` }} /></div>
-          </button>
-        )}
-      </Carousel>
+      <button type="button" onClick={() => d.go('relatorios')} className="glass block w-full rounded-3xl p-4 text-left">
+        <span className="flex items-center justify-between">
+          <span className="text-[13px] font-bold">Resumo de {monthName(month).toLowerCase()}</span>
+          <span className="flex items-center gap-0.5 text-xs font-bold text-in">Análises<Icon name="right" size={14} /></span>
+        </span>
+        <span className="mt-2 block divide-y divide-ink/[0.07]">
+          {[{ l: 'Receitas', v: sm.income, c: 'text-in', i: 'inArrow' }, { l: 'Despesas', v: sm.expense, c: 'text-out', i: 'up' }, { l: 'Resultado do mês', v: sm.net, c: sm.net < 0 ? 'text-out' : '', i: 'sparkle', strong: true }].map((x) => (
+            <span key={x.l} className="flex items-center gap-3 py-2.5">
+              <span className={`grid size-8 shrink-0 place-items-center rounded-xl bg-ink/[0.05] ${x.c}`}><Icon name={x.i} size={16} /></span>
+              <span className={`min-w-0 flex-1 text-[13.5px] ${x.strong ? 'font-bold' : 'font-semibold text-ink/80'}`}>{x.l}</span>
+              <span className={`shrink-0 font-extrabold tabular-nums ${x.strong ? 'text-[17px]' : 'text-[15px]'} ${x.c}`}><Money cents={x.v} /></span>
+            </span>
+          ))}
+        </span>
+      </button>
 
       <div className="grid grid-cols-4 gap-2">
         {[
           { l: 'Receita', i: 'inArrow', fn: () => d.openModal({ kind: 'tx', defaultKind: 'in' }), tone: 'text-in' },
           { l: 'Despesa', i: 'up', fn: () => d.openModal({ kind: 'tx', defaultKind: 'out' }), tone: 'text-out' },
+          { l: 'Transferir', i: 'swap', fn: () => d.openModal({ kind: 'tx', defaultKind: 'transfer' }), tone: 'text-ink' },
           { l: 'Contas', i: 'card', fn: () => d.go('contas'), tone: 'text-ink' },
-          { l: 'Metas', i: 'target', fn: () => d.go('metas'), tone: 'text-[#B57406]' },
         ].map((a) => (
           <button key={a.l} type="button" onClick={a.fn} className="group flex flex-col items-center gap-2">
             <span className={`glass grid size-14 place-items-center rounded-2xl transition-transform group-active:scale-95 ${a.tone}`}><Icon name={a.i} size={21} strokeWidth={2} /></span>
@@ -260,20 +201,12 @@ function MobileHome() {
 
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">Orçamentos</h2>
-          <button type="button" className="text-xs font-bold text-in" onClick={() => d.go(budgets.length ? 'relatorios' : 'categorias')}>{budgets.length ? 'Ver análise' : 'Definir'}</button>
-        </div>
-        <div className="glass rounded-3xl p-4"><BudgetList budgets={budgets} limit={3} /></div>
-      </section>
-
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">Despesas recentes</h2>
+          <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">Últimas transações</h2>
           <button type="button" className="text-xs font-bold text-in" onClick={() => d.go('transacoes')}>Ver extrato</button>
         </div>
         <div className="glass rounded-3xl px-3 py-1">
-          {recentOut.length ? <ul className="divide-y divide-ink/[0.07]">{recentOut.map((t) => <TxItem key={t.id} t={t} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} />)}</ul>
-            : <p className="px-1 py-5 text-center text-sm text-ink/65">Nenhuma despesa ainda. Toque no <b>+</b> para registrar a primeira.</p>}
+          {recent.length ? <ul className="divide-y divide-ink/[0.07]">{recent.map((t) => <TxItem key={t.id} t={t} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} />)}</ul>
+            : <p className="px-1 py-5 text-center text-sm text-ink/65">Nada registrado ainda. Toque no <b>+</b> para começar.</p>}
         </div>
       </section>
     </div>
@@ -374,10 +307,23 @@ function TransactionsPage() {
   const groups = [];
   if (sort === 'recent' || sort === 'old') rows.slice(0, limit).forEach((t) => { const g = groups[groups.length - 1]; if (g && g.date === t.date) g.items.push(t); else groups.push({ date: t.date, items: [t] }); });
   const filtered = type !== 'all' || src !== 'all' || cat !== 'all' || status !== 'all' || q;
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const exportPdf = async () => {
+    setPdfBusy(true);
+    const parts = [scope === 'month' ? monthLabel(d.month) : 'Todo o período'];
+    if (type !== 'all') parts.push({ in: 'receitas', out: 'despesas', transfer: 'transferências', card_payment: 'pagamentos de fatura' }[type]);
+    if (cat !== 'all') parts.push((d.categories.find((c) => c.id === cat) || {}).name);
+    if (src !== 'all') { const [k, id] = src.split(':'); parts.push(((k === 'acc' ? d.accounts : d.cards).find((x) => x.id === id) || {}).name); }
+    if (status !== 'all') parts.push(status === 'paid' ? 'só pagas' : 'só pendentes');
+    if (q.trim()) parts.push(`busca "${q.trim()}"`);
+    await d.exportPDF(`leco-extrato-${scope === 'month' ? d.month : 'completo'}.pdf`, () => transactionsPDF(rows, d, parts.filter(Boolean).join(' · ')));
+    setPdfBusy(false);
+  };
   return (
     <div className="space-y-5">
       {!narrow && (
         <PageHeader eyebrow="Transações" title="Movimentações">
+          <button type="button" className="btn btn-ghost" onClick={exportPdf} disabled={pdfBusy}>{pdfBusy ? <Spinner size={14} /> : <Icon name="file" size={17} />}Gerar PDF</button>
           <button type="button" className="btn btn-ghost" onClick={() => d.openModal({ kind: 'tx', defaultKind: 'in' })}><Icon name="inArrow" size={17} />Receita</button>
           <button type="button" className="btn btn-primary" onClick={() => d.openModal({ kind: 'tx', defaultKind: 'out' })}><Icon name="plus" size={18} strokeWidth={2.4} />Despesa</button>
         </PageHeader>
@@ -387,7 +333,10 @@ function TransactionsPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               {scope === 'month' ? <MonthSwitch compact month={d.month} onChange={d.setMonth} /> : <span className="text-sm font-bold">Todo o período</span>}
-              <button type="button" className={`btn !px-3.5 !py-2 text-[13px] ${showFilters || (filtered && type === 'all') ? 'btn-primary' : 'btn-ghost'}`} aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}><Icon name="search" size={15} />Filtros</button>
+              <span className="flex gap-2">
+                <button type="button" className="btn btn-ghost !px-3 !py-2 text-[13px]" aria-label="Gerar PDF do extrato" onClick={exportPdf} disabled={pdfBusy}>{pdfBusy ? <Spinner size={14} /> : <Icon name="file" size={15} />}PDF</button>
+                <button type="button" className={`btn !px-3.5 !py-2 text-[13px] ${showFilters || (filtered && type === 'all') ? 'btn-primary' : 'btn-ghost'}`} aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}><Icon name="search" size={15} />Filtros</button>
+              </span>
             </div>
             <Segmented size="sm" full label="Tipo" value={['all', 'in', 'out'].includes(type) ? type : 'all'} onChange={setType} options={[{ value: 'all', label: 'Tudo' }, { value: 'in', label: 'Receitas' }, { value: 'out', label: 'Despesas' }]} />
           </div>
@@ -617,11 +566,15 @@ function ReportsPage() {
     d.exportFile(`leco-resumo-${from}-a-${to}.csv`, toCSV(['Tipo', 'Categoria', 'Valor (R$)', 'Participação'], rows));
   };
   const top = sm ? sm.expenseTx.slice().sort((a, b) => b.amount - a.amount).slice(0, 10) : [];
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const exportPdf = async () => { setPdfBusy(true); await d.exportPDF(`leco-relatorio-${from}-a-${to}.pdf`, () => summaryPDF({ d, from, to, sm, months, byAccount, budgets: budgetsFor(d.categories, d.transactions, monthKey(to)) })); setPdfBusy(false); };
+  const pdfBtn = (cls) => <button type="button" className={`btn btn-primary ${cls}`} onClick={exportPdf} disabled={!valid || pdfBusy}>{pdfBusy ? <Spinner size={14} /> : <Icon name="file" size={16} />}Gerar PDF</button>;
   return (
     <div className="space-y-5">
       {!narrow && <PageHeader eyebrow="Relatórios" title={valid ? `${fmtDate(from)} a ${fmtDate(to)}` : 'Escolha o período'}>
-        <button type="button" className="btn btn-ghost" onClick={exportSummary} disabled={!valid}><Icon name="download" size={17} />Resumo</button>
-        <button type="button" className="btn btn-primary" onClick={exportTx} disabled={!valid}><Icon name="download" size={17} />Exportar para Excel</button>
+        <button type="button" className="btn btn-ghost" onClick={exportSummary} disabled={!valid}><Icon name="download" size={17} />Resumo (Excel)</button>
+        <button type="button" className="btn btn-ghost" onClick={exportTx} disabled={!valid}><Icon name="download" size={17} />Transações (Excel)</button>
+        {pdfBtn('')}
       </PageHeader>}
       <Card>
         <div className="flex flex-wrap items-end gap-3">
@@ -633,8 +586,9 @@ function ReportsPage() {
             <Field label="Até" className="min-w-[150px] flex-1 sm:flex-none"><input id="rp-to" type="date" className="field" value={custom.to} onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))} /></Field>
           </>)}
           {narrow && <div className="grid w-full grid-cols-2 gap-2">
-            <button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={exportSummary} disabled={!valid}><Icon name="download" size={15} />Resumo</button>
-            <button type="button" className="btn btn-primary !py-2 text-[13px]" onClick={exportTx} disabled={!valid}><Icon name="download" size={15} />Transações</button>
+            {pdfBtn('col-span-2 !py-2.5 text-[13.5px]')}
+            <button type="button" className="btn btn-ghost !py-2 text-[12.5px]" onClick={exportSummary} disabled={!valid}><Icon name="download" size={15} />Resumo Excel</button>
+            <button type="button" className="btn btn-ghost !py-2 text-[12.5px]" onClick={exportTx} disabled={!valid}><Icon name="download" size={15} />Extrato Excel</button>
           </div>}
         </div>
         {!valid && <p className="mt-3 text-sm font-semibold text-out">A data inicial precisa ser antes da final.</p>}
@@ -669,6 +623,9 @@ function ReportsPage() {
               )}
             </Card>
           </div>
+          <Card title={`Orçamentos de ${monthName(monthKey(to)).toLowerCase()}`} action={<button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => d.go('categorias')}>Ajustar</button>}>
+            <BudgetList budgets={budgetsFor(d.categories, d.transactions, monthKey(to))} />
+          </Card>
           <Card title="Maiores despesas" sub="Top 10 do período">
             {top.length ? <ol className="divide-y divide-ink/[0.07]">{top.map((t) => <TxItem key={t.id} t={t} dense onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} />)}</ol> : <p className="py-6 text-center text-sm text-ink/65">Nenhuma despesa no período.</p>}
           </Card>

@@ -475,7 +475,7 @@ function Sheet({ variant, onClose, titleId, onSubmit, children, wide = false }) 
     <div className={`fixed overlay-in inset-0 z-[70] flex backdrop-blur-md ${sheet ? 'items-end' : 'items-center justify-center p-4'}`}
       style={{ background: 'var(--scrim)' }} onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <Tag onSubmit={onSubmit} role="dialog" aria-modal="true" aria-labelledby={titleId} noValidate
-        className={`glass-deep no-scrollbar w-full overflow-y-auto ${sheet ? 'sheet-in max-h-[92%] rounded-b-none rounded-t-[32px] p-5 pb-[calc(28px+env(safe-area-inset-bottom,0px))]' : `dialog-in max-h-[calc(100dvh-32px)] p-6 sm:p-7 ${wide ? 'max-w-[600px]' : 'max-w-[500px]'}`}`}>
+        className={`glass-deep no-scrollbar w-full overflow-y-auto ${sheet ? 'sheet-in max-h-[92%] rounded-b-none rounded-t-[32px] p-5 pb-[calc(28px+var(--safe-bottom))]' : `dialog-in max-h-[calc(100dvh-32px)] p-6 sm:p-7 ${wide ? 'max-w-[600px]' : 'max-w-[500px]'}`}`}>
         {sheet && <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-ink/20" aria-hidden="true" />}
         {children}
       </Tag>
@@ -498,7 +498,7 @@ function SheetHead({ id, title, sub, onClose }) {
 function Toast({ toast, onClose, bottom = 24 }) {
   if (!toast) return null;
   return (
-    <div key={toast.id} role="status" style={{ transform: 'translateX(-50%)', bottom: `calc(${bottom}px + env(safe-area-inset-bottom, 0px))` }}
+    <div key={toast.id} role="status" style={{ transform: 'translateX(-50%)', bottom: `calc(${bottom}px + var(--safe-bottom))` }}
       className="glass-deep toast-in fixed left-1/2 z-[90] flex w-max max-w-[calc(100%-32px)] items-center gap-3 rounded-full py-2.5 pl-4 pr-2.5 text-[13px] font-semibold">
       <span className={`grid size-6 shrink-0 place-items-center rounded-full text-white ${toast.error ? 'bg-coral' : 'bg-vivo'}`}><Icon name={toast.error ? 'alert' : 'check'} size={14} strokeWidth={2.6} /></span>
       <span className="min-w-0 flex-1">{toast.msg}</span>

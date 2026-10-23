@@ -2,6 +2,14 @@
 
 /* Leco · Liquid Glass (Esmeralda & Ouro) — tema claro (fundo branco) por padrão, escuro opcional.
    Layout: barra de vista flutuante → modo Web (sidebar com abas + página ativa) ou modo App (simulador de smartphone). */
+:root {
+  /* Áreas seguras (câmera, barra de status, barra de navegação). No APK, o Android informa os valores reais. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
 @theme {
   --color-noite: #0B2F29;   /* Verde Noite */
   --color-leco: #0F5C4D;    /* Verde Leco */

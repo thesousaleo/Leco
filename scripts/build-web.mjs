@@ -32,6 +32,7 @@ const css = (await esbuild.transform(compiler.build(candidates), { loader: 'css'
 
 // 2. Bibliotecas
 let entry = "import * as R from 'react'; import * as D from 'react-dom/client'; window.React = R; window.ReactDOM = D;\n";
+entry += "import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'; window.LecoPDF = { PDFDocument, StandardFonts, rgb };\n";
 if (mode !== 'test') entry += "import { createClient } from '@supabase/supabase-js'; window.LecoSupabase = { createClient };\n";
 if (mode === 'native') {
   entry += `import { App } from '@capacitor/app'; import { Browser } from '@capacitor/browser';

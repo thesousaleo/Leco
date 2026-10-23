@@ -6,12 +6,15 @@ const byTx = (a, b) => (a.date === b.date ? (a.created_at < b.created_at ? 1 : -
 const stripRow = (r) => { const { id, user_id, created_at, ...rest } = r; return rest; };
 
 async function exportFile(filename, content, mime = 'text/csv') {
+  const binary = content instanceof Uint8Array;
   if (NATIVE && Native.Filesystem && Native.Share) {
-    const r = await Native.Filesystem.writeFile({ path: filename, data: content, directory: Native.Directory.Cache, encoding: Native.Encoding.UTF8 });
+    let data = content;
+    if (binary) { let bin = ''; for (let i = 0; i < content.length; i += 0x8000) bin += String.fromCharCode.apply(null, content.subarray(i, i + 0x8000)); data = btoa(bin); }
+    const r = await Native.Filesystem.writeFile({ path: filename, data, directory: Native.Directory.Cache, ...(binary ? {} : { encoding: Native.Encoding.UTF8 }) });
     await Native.Share.share({ title: filename, url: r.uri, dialogTitle: 'Salvar ou enviar o ficheiro' });
     return;
   }
-  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+  const blob = new Blob([content], { type: binary ? mime : `${mime};charset=utf-8` });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = filename;
@@ -202,7 +205,7 @@ function NotifButton({ panelWidth = 340 }) {
         {unread && <span className="absolute right-2.5 top-2.5 size-2.5 rounded-full bg-ouro ring-2 ring-paper" />}
       </button>
       {open && (
-        <div className="glass-deep pop-in absolute right-0 top-[calc(100%+10px)] z-50 p-2 max-sm:fixed max-sm:inset-x-4 max-sm:top-[calc(72px+env(safe-area-inset-top,0px))] max-sm:!w-auto" style={{ width: panelWidth }} role="dialog" aria-label="Avisos">
+        <div className="glass-deep pop-in absolute right-0 top-[calc(100%+10px)] z-50 p-2 max-sm:fixed max-sm:inset-x-4 max-sm:top-[calc(72px+var(--safe-top))] max-sm:!w-auto" style={{ width: panelWidth }} role="dialog" aria-label="Avisos">
           <div className="flex items-center justify-between px-3 pb-1 pt-2">
             <p className="text-sm font-extrabold tracking-[-0.02em]">Avisos</p>
             <span className="text-[11px] text-ink/60">{d.alerts.length}</span>
@@ -339,7 +342,7 @@ function WebLayout() {
   const d = useApp();
   const Page = (PAGES[d.page] || PAGES.inicio).C;
   return (
-    <div className="relative z-10 mx-auto grid w-full max-w-[1480px] gap-5 pb-8 pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] pt-5 lg:grid-cols-[248px_minmax(0,1fr)]">
+    <div className="relative z-10 mx-auto grid w-full max-w-[1480px] gap-5 pb-8 pl-[max(16px,var(--safe-left))] pr-[max(16px,var(--safe-right))] pt-5 lg:grid-cols-[248px_minmax(0,1fr)]">
       <aside className="glass sticky top-5 flex max-h-[calc(100vh-40px)] flex-col gap-5 self-start overflow-y-auto p-5">
         <div className="px-1 pt-1"><Logo size="md" /></div>
         <button type="button" className="btn btn-primary w-full" onClick={() => d.openModal({ kind: 'tx' })}><Icon name="plus" size={18} strokeWidth={2.4} />Nova transação</button>
@@ -397,7 +400,7 @@ function MobileLayout() {
   useEffect(() => { window.scrollTo(0, 0); }, [page, d.settingsSub]);
   return (
     <NarrowCtx.Provider value={true}>
-      <div className="relative z-10 min-h-[100dvh] pb-[calc(170px+env(safe-area-inset-bottom,0px))] pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] pt-[calc(14px+env(safe-area-inset-top,0px))]">
+      <div className="relative z-10 min-h-[100dvh] pb-[calc(170px+var(--safe-bottom))] pl-[max(16px,var(--safe-left))] pr-[max(16px,var(--safe-right))] pt-[calc(14px+var(--safe-top))]">
         <header className="pb-4">
           {page === 'inicio' ? (
             <>
@@ -464,7 +467,7 @@ function MobileLayout() {
             ) : <Page />}
           </div>
         </main>
-        <nav aria-label="Navegação principal" className="glass-deep fixed inset-x-3.5 bottom-[calc(14px+env(safe-area-inset-bottom,0px))] z-40 grid h-[70px] grid-cols-4 items-center rounded-[28px] px-1">
+        <nav aria-label="Navegação principal" className="glass-deep fixed inset-x-3.5 bottom-[calc(14px+var(--safe-bottom))] z-40 grid h-[70px] grid-cols-4 items-center rounded-[28px] px-1">
           {TABS.map((t) => {
             const on = page === t.id || (t.id === 'mais' && !isTab && page !== 'inicio');
             return (
@@ -477,7 +480,7 @@ function MobileLayout() {
           })}
         </nav>
         {page !== 'mais' && page !== 'config' && (
-          <button type="button" className="fab-corner fixed right-[max(18px,env(safe-area-inset-right,0px))] bottom-[calc(98px+env(safe-area-inset-bottom,0px))] z-40 size-[58px]" onClick={() => d.openModal({ kind: 'tx' })} aria-label="Nova transação">
+          <button type="button" className="fab-corner fixed right-[max(18px,var(--safe-right))] bottom-[calc(98px+var(--safe-bottom))] z-40 size-[58px]" onClick={() => d.openModal({ kind: 'tx' })} aria-label="Nova transação">
             <Icon name="plus" size={26} strokeWidth={2.6} />
           </button>
         )}
@@ -497,7 +500,7 @@ function Workspace({ backend, session, toast, toastNode }) {
   const [modal, setModal] = useState(null);
   const [calm, setCalm] = useLocal('leco.calm', false);
   const theme = data && data.profile && data.profile.theme === 'dark' ? 'dark' : 'light';
-  useEffect(() => { document.documentElement.dataset.leco = theme; }, [theme]);
+  useEffect(() => { document.documentElement.dataset.leco = theme; try { if (window.LecoAndroid) window.LecoAndroid.setDarkBars(theme === 'dark'); } catch (e) { /* sem ponte nativa */ } }, [theme]);
   useEffect(() => { document.documentElement.dataset.calm = calm ? '1' : '0'; }, [calm]);
   useEffect(() => { if (data && NATIVE) { const t = setTimeout(() => scheduleReminders(data), 1500); return () => clearTimeout(t); } return undefined; }, [data]);
 
@@ -526,6 +529,7 @@ function Workspace({ backend, session, toast, toastNode }) {
       name: data.profile.name || '', hide: !!data.profile.hide_values, theme, calm, setCalm,
       page, go, settingsSub, setSettingsSub, month, setMonth,
       modal, openModal: (m) => setModal({ key: Date.now(), ...m }), closeModal: () => setModal(null),
+      exportPDF: async (name, make) => { try { const bytes = await make(); await exportFile(name, bytes, 'application/pdf'); toast(NATIVE ? 'PDF pronto para salvar ou enviar' : 'PDF baixado'); } catch (e) { console.error(e); toast('Não foi possível gerar o PDF.', null, true); } },
       exportFile: async (name, content, mime) => { try { await exportFile(name, content, mime); toast(NATIVE ? 'Ficheiro pronto para salvar ou enviar' : 'Download iniciado'); } catch (e) { toast('Não foi possível exportar o ficheiro.', null, true); } },
       signOut: async () => { try { await backend.auth.signOut(); } catch (e) { toast(e.message, null, true); } },
     };
@@ -576,7 +580,7 @@ function Root() {
     const off = backend.auth.onChange((event, s) => {
       if (event === 'PASSWORD_RECOVERY') setRecovery(true);
       setSession(s || null);
-      if (event === 'SIGNED_OUT') { setScreen({ name: 'login' }); document.documentElement.dataset.leco = 'light'; }
+      if (event === 'SIGNED_OUT') { setScreen({ name: 'login' }); document.documentElement.dataset.leco = 'light'; try { if (window.LecoAndroid) window.LecoAndroid.setDarkBars(false); } catch (e) { /* sem ponte nativa */ } }
     });
     let linkHandle = null;
     if (Native.App) {
