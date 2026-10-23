@@ -61,7 +61,13 @@ const html = `<!doctype html>
 <meta name="description" content="Leco · controle financeiro pessoal: contas, cartões, faturas, recorrências, metas e relatórios.">
 <title>Leco · Controle financeiro</title>
 <link rel="icon" type="image/png" href="data:image/png;base64,${fs.readFileSync(path.join(root, 'resources/icone-leco-512.png')).toString('base64')}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
+${mode === 'web' ? `<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Leco">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+` : ''}<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
 <style>${css}
