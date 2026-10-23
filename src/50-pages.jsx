@@ -331,14 +331,12 @@ function TransactionsPage() {
       <Card>
         {narrow ? (
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              {scope === 'month' ? <MonthSwitch compact month={d.month} onChange={d.setMonth} /> : <span className="text-sm font-bold">Todo o período</span>}
-              <span className="flex gap-2">
-                <button type="button" className="btn btn-ghost !px-3 !py-2 text-[13px]" aria-label="Gerar PDF do extrato" onClick={exportPdf} disabled={pdfBusy}>{pdfBusy ? <Spinner size={14} /> : <Icon name="file" size={15} />}PDF</button>
-                <button type="button" className={`btn !px-3.5 !py-2 text-[13px] ${showFilters || (filtered && type === 'all') ? 'btn-primary' : 'btn-ghost'}`} aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}><Icon name="search" size={15} />Filtros</button>
-              </span>
-            </div>
+            {scope === 'month' ? <MonthSwitch full month={d.month} onChange={d.setMonth} /> : <p className="py-2 text-center text-sm font-bold">Todo o período</p>}
             <Segmented size="sm" full label="Tipo" value={['all', 'in', 'out'].includes(type) ? type : 'all'} onChange={setType} options={[{ value: 'all', label: 'Tudo' }, { value: 'in', label: 'Receitas' }, { value: 'out', label: 'Despesas' }]} />
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" className={`btn !px-3 !py-2 text-[13px] ${showFilters || (filtered && type === 'all') ? 'btn-primary' : 'btn-ghost'}`} aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}><Icon name="search" size={15} />Filtros</button>
+              <button type="button" className="btn btn-ghost !px-3 !py-2 text-[13px]" aria-label="Gerar PDF do extrato" onClick={exportPdf} disabled={pdfBusy}>{pdfBusy ? <Spinner size={14} /> : <Icon name="file" size={15} />}Gerar PDF</button>
+            </div>
           </div>
         ) : (
         <div className="flex flex-wrap items-center gap-3">
@@ -346,7 +344,7 @@ function TransactionsPage() {
           {scope === 'month' && <MonthSwitch compact month={d.month} onChange={d.setMonth} />}
         </div>
         )}
-        {(!narrow || showFilters) && <div className={`mt-3 grid gap-2 ${narrow ? 'grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-5'}`}>
+        {(!narrow || showFilters) && <div className={`mt-3 grid gap-2 ${narrow ? 'grid-cols-1' : 'sm:grid-cols-2 lg:grid-cols-5'}`}>
           <select id="f-type" aria-label="Tipo" className="field !rounded-full !py-2 text-[13px]" value={type} onChange={(e) => setType(e.target.value)}>
             <option value="all">Todos os tipos</option><option value="out">Despesas</option><option value="in">Receitas</option><option value="transfer">Transferências</option><option value="card_payment">Pagamentos de fatura</option>
           </select>
@@ -365,18 +363,26 @@ function TransactionsPage() {
           <select id="f-sort" aria-label="Ordenar" className="field !rounded-full !py-2 text-[13px]" value={sort} onChange={(e) => setSort(e.target.value)}>
             <option value="recent">Mais recentes</option><option value="old">Mais antigas</option><option value="high">Maior valor</option><option value="low">Menor valor</option>
           </select>
-          <label className={`relative ${narrow ? 'col-span-2' : 'sm:col-span-2 lg:col-span-5'}`}>
+          <label className={`relative ${narrow ? '' : 'sm:col-span-2 lg:col-span-5'}`}>
             <span className="sr-only">Buscar</span>
             <Icon name="search" size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/60" />
             <input id="f-q" className="field !rounded-full !py-2 !pl-10 text-[13px]" placeholder="Buscar por descrição, categoria, conta ou observação" value={q} onChange={(e) => setQ(e.target.value)} />
           </label>
-          {narrow && <div className="col-span-2"><Segmented size="sm" full label="Período" value={scope} onChange={setScope} options={[{ value: 'month', label: 'Só este mês' }, { value: 'all', label: 'Todo o período' }]} /></div>}
+          {narrow && <div><Segmented size="sm" full label="Período" value={scope} onChange={setScope} options={[{ value: 'month', label: 'Só este mês' }, { value: 'all', label: 'Todo o período' }]} /></div>}
         </div>}
+        {narrow ? (
+          <div className="mt-4 divide-y divide-ink/[0.07] rounded-2xl bg-ink/[0.04] px-3.5">
+            <p className="flex items-center justify-between gap-2 py-2 text-[13px]"><span className="font-semibold text-ink/70">Entradas</span><b className="font-extrabold tabular-nums text-in">{m(inc)}</b></p>
+            <p className="flex items-center justify-between gap-2 py-2 text-[13px]"><span className="font-semibold text-ink/70">Saídas</span><b className="font-extrabold tabular-nums text-out">{m(exp)}</b></p>
+            <p className="flex items-center justify-between gap-2 py-2 text-[13px]"><span className="font-semibold text-ink/70">{plural(rows.length, 'lançamento', 'lançamentos')}</span><b className={`font-extrabold tabular-nums ${inc - exp < 0 ? 'text-out' : ''}`}>{m(inc - exp)}</b></p>
+          </div>
+        ) : (
         <div className="mt-4 grid grid-cols-3 gap-2">
           <div className="rounded-2xl bg-ink/[0.04] px-3 py-2.5"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-ink/65">Itens</p><p className="text-base font-extrabold tabular-nums">{rows.length}</p></div>
           <div className="rounded-2xl bg-ink/[0.04] px-3 py-2.5"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-ink/65">Entradas</p><p className="truncate text-base font-extrabold tabular-nums text-in">{m(inc)}</p></div>
           <div className="rounded-2xl bg-ink/[0.04] px-3 py-2.5"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-ink/65">Saídas</p><p className="truncate text-base font-extrabold tabular-nums text-out">{m(exp)}</p></div>
         </div>
+        )}
         <div className="mt-4">
           {rows.length === 0 ? (
             <EmptyState icon="search" title={filtered ? 'Nada encontrado' : 'Nenhuma transação neste período'} text={filtered ? 'Mude os filtros ou limpe a busca.' : 'Use o botão + para registrar uma receita, despesa ou transferência.'}

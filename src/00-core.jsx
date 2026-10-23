@@ -352,13 +352,13 @@ function ColorIcon({ icon, color, size = 40, round = false }) {
   );
 }
 
-function MonthSwitch({ month, onChange, compact = false, min, max }) {
+function MonthSwitch({ month, onChange, compact = false, min, max, full = false }) {
   return (
-    <div className="inline-flex items-center gap-1 rounded-full border border-ink/10 bg-ink/[0.04] p-1 backdrop-blur-xl">
+    <div className={`${full ? 'flex w-full justify-between' : 'inline-flex'} items-center gap-1 rounded-full border border-ink/10 bg-ink/[0.04] p-1 backdrop-blur-xl`}>
       <button type="button" className="icon-btn size-8 border-transparent bg-transparent" aria-label="Mês anterior" disabled={min && month <= min} onClick={() => onChange(shiftMonth(month, -1))}>
         <Icon name="left" size={16} />
       </button>
-      <span aria-live="polite" className={`text-center text-[13px] font-bold tabular-nums ${compact ? 'min-w-[112px]' : 'min-w-[138px]'}`}>{monthLabel(month)}</span>
+      <span aria-live="polite" className={`text-center text-[13px] font-bold tabular-nums ${full ? 'min-w-0 flex-1' : compact ? 'min-w-[112px]' : 'min-w-[138px]'}`}>{monthLabel(month)}</span>
       <button type="button" className="icon-btn size-8 border-transparent bg-transparent" aria-label="Próximo mês" disabled={max && month >= max} onClick={() => onChange(shiftMonth(month, 1))}>
         <Icon name="right" size={16} />
       </button>
