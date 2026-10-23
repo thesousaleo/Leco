@@ -78,4 +78,8 @@ html,body{margin:0;min-height:100%;overscroll-behavior-y:none;-webkit-tap-highli
 const out = mode === 'test' ? path.resolve(process.argv[3] || '/tmp/leco-test.html') : path.join(root, mode === 'web' ? 'site/index.html' : 'www/index.html');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, html);
+// No site, publica também as páginas estáticas de public/ (ex.: política de privacidade)
+if (mode === 'web' && fs.existsSync(path.join(root, 'public'))) {
+  for (const f of fs.readdirSync(path.join(root, 'public'))) fs.copyFileSync(path.join(root, 'public', f), path.join(root, 'site', f));
+}
 console.log(`${path.relative(root, out) || out} pronto (${Math.round(html.length / 1024)} KB)`);
