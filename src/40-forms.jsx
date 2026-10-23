@@ -121,6 +121,9 @@ function TxForm({ initial, defaultKind = 'out', presetSource, onClose }) {
   });
   const [toAcc, setToAcc] = useState(initial && initial.to_account_id ? initial.to_account_id : (accounts[1] || accounts[0] || {}).id || '');
   const [installments, setInstallments] = useState(1);
+  const [repeat, setRepeat] = useState(false);
+  const [freq, setFreq] = useState('monthly');
+  const [endDate, setEndDate] = useState('');
   const [paid, setPaid] = useState(initial ? initial.paid : true);
   const [paidTouched, setPaidTouched] = useState(editing);
   const [notes, setNotes] = useState(initial && initial.notes ? initial.notes : '');
@@ -132,7 +135,17 @@ function TxForm({ initial, defaultKind = 'out', presetSource, onClose }) {
   const isCard = source.startsWith('card:');
   const card = isCard ? cards.find((c) => c.id === source.slice(5)) : null;
   useEffect(() => { if (!paidTouched) setPaid(date <= todayISO()); }, [date]);
-  useEffect(() => { if (kind === 'in' && isCard) setSource(accounts[0] ? `acc:${accounts[0].id}` : ''); }, [kind]);
+  useEffect(() => { if (kind === 'in' && isCard) setSource(accounts[0] ? `acc:${accounts[0].id}` : ''); if (kind !== 'out') setInstallments(1); if (kind === 'transfer') setRepeat(false); }, [kind]);
+  const canSplit = kind === 'out' && !editing && !repeat;
+  const canRepeat = kind !== 'transfer' && !editing && installments === 1;
+  // Atalhos: Parcelada e Assinatura
+  const shortcutSplit = () => { switchKind('out'); setRepeat(false); setInstallments((n) => (n > 1 ? 1 : 2)); };
+  const shortcutSub = () => {
+    switchKind('out'); setInstallments(1);
+    const turnOn = !repeat;
+    setRepeat(turnOn);
+    if (turnOn) { setFreq('monthly'); const sub = d.categories.find((c) => c.kind === 'out' && !c.archived && /assinatura/i.test(c.name)); if (sub) setCat(sub.id); }
+  };
   const switchKind = (k) => { setKind(k); if (cat && (d.categories.find((c) => c.id === cat) || {}).kind !== k) setCat(null); };
   const fallbackCat = (k) => { const n = k === 'in' ? 'outras receitas' : 'outros gastos'; const c = d.categories.find((x) => x.kind === k && x.name.toLowerCase() === n); return c ? c.id : firstCat(k); };
   const catList = d.categories.filter((c) => c.kind === kind && (!c.archived || c.id === cat));
@@ -154,6 +167,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, onClose }) {
       if (!source.startsWith('acc:')) er.source = 'Escolha a conta de origem.';
       if (!toAcc || `acc:${toAcc}` === source) er.to = 'Escolha uma conta de destino diferente.';
     } else if (!source) er.source = 'Escolha de onde sai (ou para onde vai) o dinheiro.';
+    if (repeat && endDate && endDate < date) er.end = 'O fim precisa ser depois da primeira data.';
     setErrors(er);
     if (Object.keys(er).length) return;
     setBusy(true);
@@ -166,7 +180,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, onClose }) {
       card_id: isCard && kind === 'out' ? card.id : null,
       paid: isCard ? true : paid,
     };
-    const ok = await d.saveTx(initial, base, isCard && !editing ? installments : 1);
+    const ok = repeat && canRepeat ? await d.saveTxRepeat(base, freq, endDate) : await d.saveTx(initial, base, canSplit ? installments : 1);
     setBusy(false);
     if (ok) onClose();
   };
@@ -197,6 +211,16 @@ function TxForm({ initial, defaultKind = 'out', presetSource, onClose }) {
               </button>
             ))}
           </div>
+          {!editing && (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {[{ on: installments > 1, l: 'Parcelada', i: 'card', fn: shortcutSplit }, { on: repeat && kind === 'out', l: 'Assinatura', i: 'repeat', fn: shortcutSub }].map((o) => (
+                <button key={o.l} type="button" aria-pressed={o.on} onClick={o.fn}
+                  className={`flex items-center justify-center gap-1.5 rounded-2xl border py-2.5 text-[12.5px] font-bold transition-all ${o.on ? 'border-ouro bg-ouro/25 text-ink shadow-[0_0_0_3px_rgba(232,163,23,.18)]' : 'border-ink/10 bg-ink/[0.03] text-ink/70 hover:text-ink'}`}>
+                  <Icon name={o.i} size={15} strokeWidth={2.2} />{o.l}
+                </button>
+              ))}
+            </div>
+          )}
           <Field label="Valor" error={errors.amount} className="mt-5">
             <MoneyInput id="tx-amount" label="Valor" cents={amount} onChange={setAmount} invalid={errors.amount}
               className={`!py-3 text-[30px] font-extrabold tracking-[-0.02em] ${kind === 'in' ? 'text-in' : kind === 'out' ? 'text-out' : ''}`} />
@@ -250,8 +274,8 @@ function TxForm({ initial, defaultKind = 'out', presetSource, onClose }) {
                   {kind === 'out' && cards.length > 0 && <optgroup label="Cartões de crédito">{cards.map((c) => <option key={c.id} value={`card:${c.id}`}>{c.name} (crédito)</option>)}</optgroup>}
                 </select>
               </Field>
-              {isCard && !editing && (
-                <Field label="Parcelas" className="mt-4" hint={card ? `${installments > 1 ? `${installments}x de ${fmtBRL(perInstallment)} · ` : ''}primeira parcela na fatura de ${invoiceLabel(invoiceOf(card, date || todayISO()))}` : ''}>
+              {canSplit && (
+                <Field label="Parcelas" className="mt-4" hint={card ? `${installments > 1 ? `${installments}x de ${fmtBRL(perInstallment)} · ` : ''}primeira parcela na fatura de ${invoiceLabel(invoiceOf(card, date || todayISO()))}` : installments > 1 ? `${installments}x de ${fmtBRL(perInstallment)} · 1ª em ${fmtDate(date || todayISO())}, depois todo dia ${Number((date || todayISO()).slice(8, 10))}. As próximas ficam "a pagar".` : 'Boleto, carnê ou Pix parcelado: cria as parcelas nos próximos meses.'}>
                   <select id="tx-inst" className="field" value={installments} onChange={(e) => setInstallments(Number(e.target.value))}>
                     {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? 'À vista' : `${n}x`}</option>)}
                   </select>
@@ -271,6 +295,24 @@ function TxForm({ initial, defaultKind = 'out', presetSource, onClose }) {
               </div>
             )}
           </div>
+          {canRepeat && (
+            <div className="mt-4 rounded-2xl border border-ink/[0.08] bg-ink/[0.02] px-3.5">
+              <Toggle id="tx-repeat" icon="repeat" label={kind === 'in' ? 'Repetir (receita fixa)' : 'Repetir (assinatura ou conta fixa)'}
+                desc={repeat ? (isCard ? 'Cai em toda fatura do cartão, sem precisar lançar de novo.' : 'O Leco lança sozinho nas próximas datas como "a pagar" e avisa antes.') : 'Netflix, academia, aluguel, salário…'}
+                checked={repeat} onChange={setRepeat} />
+              {repeat && (
+                <div className="grid gap-3 pb-3.5 sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <span className="lbl">Frequência</span>
+                    <div className="mt-2"><Segmented full size="sm" label="Frequência" value={freq} onChange={setFreq} options={[{ value: 'weekly', label: 'Semanal' }, { value: 'monthly', label: 'Mensal' }, { value: 'yearly', label: 'Anual' }]} /></div>
+                  </div>
+                  <Field label="Até (opcional)" error={errors.end} hint={endDate ? fmtDate(endDate) : 'Sem data de fim'}>
+                    <input id="tx-end" type="date" className="field" value={endDate} min={date} onChange={(e) => setEndDate(e.target.value)} />
+                  </Field>
+                </div>
+              )}
+            </div>
+          )}
           <Field label="Observações" className="mt-4">
             <textarea id="tx-notes" className="field min-h-[64px]" maxLength={200} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
           </Field>

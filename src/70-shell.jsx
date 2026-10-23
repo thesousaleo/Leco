@@ -80,12 +80,25 @@ function useLecoData(backend, session, toast) {
           markFresh([row.id]);
           return true;
         }
-        const rows = card ? buildInstallments(base, card, installments) : [{ ...base, invoice: null }];
+        const rows = installments > 1 || card ? buildInstallments(base, card, installments) : [{ ...base, invoice: null }];
         const made = await backend.db.insert('transactions', rows);
         set('transactions', (l) => [...made, ...l].sort(byTx));
         markFresh(made.map((r) => r.id));
         return true;
       }, initial && initial.id ? 'Transação atualizada' : installments > 1 ? `Compra em ${installments}x registrada` : base.kind === 'in' ? 'Receita registrada' : base.kind === 'transfer' ? 'Transferência registrada' : 'Despesa registrada');
+    },
+    // Transação que se repete (assinatura, aluguel, salário): cria a recorrência e o primeiro lançamento
+    async saveTxRepeat(base, frequency, endDate) {
+      const ok = await guard(async () => {
+        const [rec] = await backend.db.insert('recurrings', [{
+          kind: base.kind, amount: base.amount, description: base.description.slice(0, 60), category_id: base.category_id,
+          account_id: base.account_id, card_id: base.card_id, frequency, next_date: nextDateOf(base.date, frequency), end_date: endDate || null, active: true,
+        }]);
+        const card = base.card_id ? data.cards.find((c) => c.id === base.card_id) : null;
+        await backend.db.insert('transactions', [{ ...base, recurring_id: rec.id, invoice: card ? invoiceOf(card, base.date) : null, paid: card ? true : base.paid }]);
+      }, base.card_id ? 'Assinatura criada: cai em toda fatura' : `${base.kind === 'in' ? 'Receita' : 'Despesa'} recorrente criada`);
+      if (ok) { const fresh = await load(); if (fresh) runRecurrings(fresh); }
+      return ok;
     },
     async deleteTx(t, scope = 'one') {
       if (scope === 'group' && t.group_id) {
@@ -376,7 +389,7 @@ function MobileLayout() {
   const headerAction = { contas: { icon: 'plus', label: 'Nova conta', fn: () => d.openModal({ kind: 'account' }) }, recorrentes: { icon: 'plus', label: 'Nova recorrência', fn: () => d.openModal({ kind: 'recurring' }) }, metas: { icon: 'plus', label: 'Nova meta', fn: () => d.openModal({ kind: 'goal' }) } }[page];
   return (
     <NarrowCtx.Provider value={true}>
-      <div className="relative z-10 min-h-[100dvh] pb-[calc(110px+env(safe-area-inset-bottom,0px))]">
+      <div className="relative z-10 min-h-[100dvh] pb-[calc(170px+env(safe-area-inset-bottom,0px))]">
         <header className="sticky top-0 z-40 border-b border-ink/[0.06] bg-paper/70 pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl">
           <div className="flex h-16 items-center gap-3">
             {page === 'inicio' ? (
@@ -425,19 +438,20 @@ function MobileLayout() {
             ) : <Page />}
           </div>
         </main>
-        <nav aria-label="Navegação principal" className="glass-deep fixed inset-x-3.5 bottom-[calc(14px+env(safe-area-inset-bottom,0px))] z-40 grid h-[70px] grid-cols-5 items-center rounded-[28px] px-1">
-          {[{ id: 'inicio', label: 'Início', icon: 'home' }, { id: 'transacoes', label: 'Extrato', icon: 'list' }, null, { id: 'relatorios', label: 'Relatórios', icon: 'chart' }, { id: 'mais', label: 'Mais', icon: 'menu' }].map((t, i) => t ? (
+        <nav aria-label="Navegação principal" className="glass-deep fixed inset-x-3.5 bottom-[calc(14px+env(safe-area-inset-bottom,0px))] z-40 grid h-[70px] grid-cols-4 items-center rounded-[28px] px-1">
+          {[{ id: 'inicio', label: 'Início', icon: 'home' }, { id: 'transacoes', label: 'Extrato', icon: 'list' }, { id: 'relatorios', label: 'Relatórios', icon: 'chart' }, { id: 'mais', label: 'Mais', icon: 'menu' }].map((t) => (
             <button key={t.id} type="button" onClick={() => d.go(t.id)} aria-current={page === t.id ? 'page' : undefined}
               className={`flex flex-col items-center gap-1 text-[10.5px] font-semibold transition-colors ${page === t.id || (t.id === 'mais' && !isTab) ? 'text-ink' : 'text-ink/60'}`}>
               <span className={`grid h-8 w-12 place-items-center rounded-full transition-all ${page === t.id || (t.id === 'mais' && !isTab) ? 'bg-gradient-to-br from-vivo to-leco text-white shadow-[0_6px_14px_-6px_rgba(20,128,107,.9)]' : ''}`}><Icon name={t.icon} size={19} /></span>
               {t.label}
             </button>
-          ) : (
-            <div key={`fab-${i}`} className="flex justify-center">
-              <button type="button" className="fab -mt-9 size-[60px]" onClick={() => d.openModal({ kind: 'tx' })} aria-label="Nova transação"><Icon name="plus" size={26} strokeWidth={2.6} /></button>
-            </div>
           ))}
         </nav>
+        {page !== 'mais' && page !== 'config' && (
+          <button type="button" className="fab-corner fixed right-[max(18px,env(safe-area-inset-right,0px))] bottom-[calc(98px+env(safe-area-inset-bottom,0px))] z-40 size-[58px]" onClick={() => d.openModal({ kind: 'tx' })} aria-label="Nova transação">
+            <Icon name="plus" size={26} strokeWidth={2.6} />
+          </button>
+        )}
       </div>
     </NarrowCtx.Provider>
   );

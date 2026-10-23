@@ -124,7 +124,9 @@ function budgetsFor(cats, txs, month) {
 }
 
 /* ---------- Parcelas ---------- */
-function buildInstallments(base, card, n) {
+// Cartão: cada parcela cai numa fatura. Conta (boleto, carnê, Pix parcelado): parcelas mensais;
+// as que já venceram seguem a situação escolhida e as futuras ficam "a pagar".
+function buildInstallments(base, card, n, today = todayISO()) {
   const group = uid();
   const each = Math.floor(base.amount / n);
   const first = base.amount - each * (n - 1);
@@ -134,7 +136,8 @@ function buildInstallments(base, card, n) {
       ...base, amount: i === 0 ? first : each, date,
       description: n > 1 ? `${base.description} (${i + 1}/${n})` : base.description,
       installment: n > 1 ? i + 1 : null, installments: n > 1 ? n : null, group_id: n > 1 ? group : null,
-      invoice: shiftMonth(invoiceOf(card, base.date), i), paid: true,
+      invoice: card ? shiftMonth(invoiceOf(card, base.date), i) : null,
+      paid: card ? true : i === 0 ? base.paid : date <= today ? base.paid : false,
     };
   });
 }
