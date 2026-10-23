@@ -1,0 +1,8 @@
+{
+  "appId": "br.com.leco.app",
+  "appName": "Leco",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#FFFFFF"
+  }
+}

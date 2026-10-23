@@ -1,0 +1,93 @@
+# Gera o APK do Leco a cada envio para a branch main (ou manualmente em Actions › "Gerar APK do Leco" › Run workflow).
+# O APK assinado aparece em "Releases" do repositório, pronto para baixar no celular.
+name: Gerar APK do Leco
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Conferir a chave de assinatura
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LECO_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.LECO_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.LECO_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KS_PASS" ] || [ -z "$KEY_ALIAS" ]; then
+            echo "::error::Faltam os segredos LECO_KEYSTORE_BASE64, LECO_KEYSTORE_PASSWORD e LECO_KEY_ALIAS. Veja o passo 3 do LEIA-ME.md."
+            exit 1
+          fi
+
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+
+      - name: Montar o app (React + Tailwind)
+        run: npm run build:web
+
+      - name: Criar o projeto Android
+        run: |
+          npx cap add android
+          cp -r resources/android/res/* android/app/src/main/res/
+          npx cap sync android
+
+      - name: Definir a versão
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"$VERSION\"/" android/app/build.gradle
+          grep -E "versionCode|versionName" android/app/build.gradle
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Compilar
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Assinar o APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LECO_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.LECO_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.LECO_KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > leco-release.jks
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/zipalign" -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk alinhado.apk
+          "$BT/apksigner" sign --ks leco-release.jks --ks-key-alias "$KEY_ALIAS" --ks-pass env:KS_PASS --key-pass env:KS_PASS --out "Leco-$VERSION.apk" alinhado.apk
+          "$BT/apksigner" verify --verbose "Leco-$VERSION.apk"
+          rm -f leco-release.jks alinhado.apk
+
+      - name: Guardar o APK nesta execução
+        uses: actions/upload-artifact@v4
+        with:
+          name: Leco-${{ env.VERSION }}-build-${{ github.run_number }}
+          path: Leco-*.apk
+
+      - name: Publicar em Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}-build${{ github.run_number }}
+          name: Leco ${{ env.VERSION }} (build ${{ github.run_number }})
+          body: |
+            Baixe o ficheiro `Leco-${{ env.VERSION }}.apk` abaixo no celular e toque nele para instalar.
+            Se já tem o Leco instalado, esta versão atualiza o app e mantém os seus dados.
+          files: Leco-*.apk
