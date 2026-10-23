@@ -330,6 +330,7 @@ function Onboarding({ backend, session, profile, onDone }) {
 const PAGES = {
   inicio: { label: 'Visão geral', icon: 'home', C: OverviewPage },
   transacoes: { label: 'Transações', icon: 'list', C: TransactionsPage },
+  calendario: { label: 'Calendário', icon: 'calendar', C: CalendarPage },
   contas: { label: 'Contas e cartões', icon: 'card', C: AccountsPage },
   recorrentes: { label: 'Recorrentes', icon: 'repeat', C: RecurringPage },
   relatorios: { label: 'Relatórios', icon: 'chart', C: ReportsPage },
@@ -385,10 +386,10 @@ const MOBILE_MENU = [
 function MobileLayout() {
   const d = useApp();
   const page = d.page;
-  const TABS = [{ id: 'inicio', label: 'Início', icon: 'home' }, { id: 'transacoes', label: 'Extrato', icon: 'list' }, { id: 'relatorios', label: 'Análises', icon: 'pie' }, { id: 'mais', label: 'Ajustes', icon: 'settings' }];
+  const TABS = [{ id: 'inicio', label: 'Início', icon: 'home' }, { id: 'transacoes', label: 'Extrato', icon: 'list' }, { id: 'calendario', label: 'Calendário', icon: 'calendar' }, { id: 'relatorios', label: 'Análises', icon: 'pie' }, { id: 'mais', label: 'Ajustes', icon: 'settings' }];
   const isTab = TABS.some((t) => t.id === page);
-  const activeTab = isTab ? TABS.findIndex((t) => t.id === page) : page === 'inicio' ? 0 : 3;
-  const tabTitle = { transacoes: 'Extrato', relatorios: 'Análises', mais: 'Ajustes' }[page];
+  const activeTab = isTab ? TABS.findIndex((t) => t.id === page) : page === 'inicio' ? 0 : TABS.length - 1;
+  const tabTitle = { transacoes: 'Extrato', calendario: 'Calendário', relatorios: 'Análises', mais: 'Ajustes' }[page];
   const title = page === 'config' ? (SETTINGS_TABS.find((t) => t.id === d.settingsSub) || {}).label : tabTitle || (PAGES[page] || {}).label;
   const Page = page === 'mais' ? null : (PAGES[page] || PAGES.inicio).C;
   const back = () => d.go(page === 'config' || MOBILE_MENU.some((x) => x.id === page) ? 'mais' : 'inicio');
@@ -468,15 +469,15 @@ function MobileLayout() {
             ) : <Page />}
           </div>
         </main>
-        <nav aria-label="Navegação principal" className="glass-deep fixed inset-x-3.5 bottom-[calc(14px+var(--safe-bottom))] z-40 grid h-[70px] grid-cols-4 items-center rounded-[28px] px-1">
-          <span aria-hidden="true" className="nav-indicator pointer-events-none absolute inset-y-0 left-1 flex w-[calc((100%-8px)/4)] justify-center" style={{ transform: `translate3d(${Math.max(0, activeTab) * 100}%,0,0)`, opacity: activeTab < 0 ? 0 : 1 }}>
+        <nav aria-label="Navegação principal" className="glass-deep fixed inset-x-3.5 bottom-[calc(14px+var(--safe-bottom))] z-40 grid h-[70px] grid-cols-5 items-center rounded-[28px] px-1">
+          <span aria-hidden="true" className="nav-indicator pointer-events-none absolute inset-y-0 left-1 flex w-[calc((100%-8px)/5)] justify-center" style={{ transform: `translate3d(${Math.max(0, activeTab) * 100}%,0,0)`, opacity: activeTab < 0 ? 0 : 1 }}>
             <span className="mt-[10px] h-8 w-12 rounded-full bg-gradient-to-br from-vivo to-leco shadow-[0_6px_14px_-6px_rgba(20,128,107,.9)]" />
           </span>
           {TABS.map((t, i) => {
             const on = i === activeTab;
             return (
               <button key={t.id} type="button" onClick={() => d.go(t.id)} aria-current={page === t.id ? 'page' : undefined}
-                className={`relative flex flex-col items-center gap-1 text-[10.5px] font-semibold transition-colors duration-300 ${on ? 'text-ink' : 'text-ink/60'}`}>
+                className={`relative flex min-w-0 flex-col items-center gap-1 text-[10px] font-semibold transition-colors duration-300 ${on ? 'text-ink' : 'text-ink/60'}`}>
                 <span className={`grid h-8 w-12 place-items-center rounded-full transition-colors duration-300 ${on ? 'text-white' : ''}`}><Icon name={t.icon} size={19} /></span>
                 {t.label}
               </button>

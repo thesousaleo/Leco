@@ -193,7 +193,7 @@ function MobileHome() {
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">A pagar e a receber</h2>
-            <button type="button" className="text-xs font-bold text-in" onClick={() => d.go('recorrentes')}>Ver tudo</button>
+            <button type="button" className="text-xs font-bold text-in" onClick={() => d.go('calendario')}>Calendário</button>
           </div>
           <div className="glass rounded-3xl px-3 py-1"><UpcomingList limit={4} compact /></div>
         </section>

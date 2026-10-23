@@ -102,7 +102,7 @@ function ConfirmBlock({ title, text, confirmLabel, onConfirm, onCancel, busy }) 
 }
 
 /* ---------- Transação ---------- */
-function TxForm({ initial, defaultKind = 'out', presetSource, onClose }) {
+function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClose }) {
   const d = useApp();
   const editing = !!(initial && initial.id);
   const accounts = d.accounts.filter((a) => !a.archived || (initial && (a.id === initial.account_id || a.id === initial.to_account_id)));
@@ -110,7 +110,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, onClose }) {
   const [kind, setKind] = useState(initial ? initial.kind : defaultKind);
   const [amount, setAmount] = useState(initial ? initial.amount : 0);
   const [desc, setDesc] = useState(initial ? (initial.installments ? initial.description.replace(/ \(\d+\/\d+\)$/, '') : initial.description) : '');
-  const [date, setDate] = useState(initial ? initial.date : todayISO());
+  const [date, setDate] = useState(initial ? initial.date : presetDate || todayISO());
   const firstCat = (k) => (d.categories.find((c) => c.kind === k && !c.archived) || {}).id || null;
   const [cat, setCat] = useState(initial ? initial.category_id : null);
   const [source, setSource] = useState(() => {
@@ -739,7 +739,7 @@ function ModalHost() {
 
 function ModalBody({ m, close }) {
   switch (m.kind) {
-    case 'tx': return <TxForm key={m.key} initial={m.initial} defaultKind={m.defaultKind} presetSource={m.presetSource} onClose={close} />;
+    case 'tx': return <TxForm key={m.key} initial={m.initial} defaultKind={m.defaultKind} presetSource={m.presetSource} presetDate={m.presetDate} onClose={close} />;
     case 'account': return <AccountForm key={m.key} initial={m.initial} onClose={close} />;
     case 'card': return <CardForm key={m.key} initial={m.initial} onClose={close} />;
     case 'invoice': return <InvoiceSheet key={m.key} card={m.card} initialInvoice={m.invoice} onClose={close} />;
