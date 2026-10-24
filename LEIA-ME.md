@@ -29,6 +29,15 @@ App de finanças pessoais com contas de usuário (e-mail e senha ou Google), dad
 - Busca global, gestos (arrastar para pagar/excluir, puxar para atualizar), gráficos novos, vibração, conquistas e dicas
 - Testes automáticos antes de cada publicação (`npm test`)
 
+## Novidades do Leco 3.3 (acabamento)
+- Vidro líquido refinado: bordas em gradiente translúcido, reflexo nos cartões principais, sombra dupla e brilho nos botões ativos; ouro só como destaque (textos em ouro com contraste AA)
+- Avisos de vidro: no topo no celular, no canto no computador, com barra de tempo
+- Toque/mouse: botões e cartões crescem 1% ao passar o mouse e encolhem 2% ao tocar; dicas flutuantes nos ícones e gráficos
+- Estados vazios com ilustração e "Limpar filtros"; editar/excluir rápido na lista (sempre com confirmação)
+- Cópia local dos dados: abre na hora e permite consultar sem internet (apagada ao sair da conta)
+- Modo demonstração ("Explorar com dados de exemplo" na tela de entrada ou `?demo=1`): dados fictícios salvos só no navegador
+- Moldura de celular no computador (`?moldura=1`): barra de status com hora real, sinal, Wi-Fi e bateria, e indicador de início
+
 ## Estrutura
 | Caminho | Para que serve |
 |---|---|

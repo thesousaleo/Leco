@@ -4,7 +4,7 @@
    ===================================================================== */
 function KpiCard({ label, icon, children, foot, spark, sparkColor, hero, delay = 0, extra }) {
   return (
-    <article className={`${hero ? 'glass-hero' : 'glass'} rise flex min-w-0 flex-col gap-4 p-4 sm:p-6`} style={{ animationDelay: `${delay}ms` }}>
+    <article className={`${hero ? 'glass-hero' : 'glass spec'} rise flex min-w-0 flex-col gap-4 p-4 sm:p-6`} style={{ animationDelay: `${delay}ms` }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${hero ? 'bg-ouro/25 text-ouro' : 'bg-ink/[0.06] text-ink'}`}><Icon name={icon} size={18} /></span>
@@ -442,7 +442,7 @@ function TransactionsPage() {
         <div className="mt-4">
           {rows.length === 0 ? (
             <EmptyState icon="search" title={filtered ? 'Nada encontrado' : 'Nenhuma transação neste período'} text={filtered ? 'Mude os filtros ou limpe a busca.' : 'Use o botão + para registrar uma receita, despesa ou transferência.'}
-              action={filtered ? <button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => { setType('all'); setSrc('all'); setCat('all'); setStatus('all'); setQ(''); }}>Limpar filtros</button> : null} />
+              action={filtered ? <button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => { setType('all'); setSrc('all'); setCat('all'); setStatus('all'); setTag('all'); setQ(''); }}><Icon name="x" size={14} />Limpar filtros</button> : null} />
           ) : groups.length ? groups.map((g) => (
             <div key={g.date} className="mb-2">
               <p className="sticky top-0 z-[1] px-1.5 py-1.5 text-[11px] font-bold uppercase tracking-wider tabular-nums text-ink/60">{fmtDate(g.date)} · {relDay(g.date)}</p>

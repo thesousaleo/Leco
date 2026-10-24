@@ -160,7 +160,7 @@ const DEFAULT_CATEGORIES = [
   ['Freelance', 'in', 'laptop', '#6B9E8F'], ['Outras receitas', 'in', 'gift', '#8C7AB8'],
 ];
 
-function createMemoryBackend() {
+function createMemoryBackend(opts = {}) {
   const users = {};
   const store = { profiles: {} };
   ALL_TABLES.forEach((t) => { store[t] = []; });
@@ -168,7 +168,14 @@ function createMemoryBackend() {
   let session = null;
   const listeners = new Set();
   const emit = (ev) => listeners.forEach((cb) => cb(ev, session));
-  const wait = (v) => new Promise((r) => setTimeout(() => r(v), 120));
+  // Demonstração: tudo fica salvo neste navegador (localStorage)
+  let persistTimer = null;
+  function persist() {
+    if (!opts.demo) return;
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => { try { localStorage.setItem(DEMO_STORE, JSON.stringify({ users, store })); } catch (e) { /* armazenamento cheio ou bloqueado */ } }, 200);
+  }
+  const wait = (v) => new Promise((r) => setTimeout(() => { persist(); r(v); }, opts.demo ? 60 : 120));
   const now = () => new Date().toISOString();
   const defaults = {
     accounts: { kind: 'corrente', initial_balance: 0, color: '#14806B', archived: false },
@@ -225,8 +232,9 @@ function createMemoryBackend() {
     async updatePassword(password) { await wait(); const u = Object.values(users).find((x) => x.id === session.user.id); u.password = password; },
     async updateEmail() { await wait(); },
     async updateName(name) { await wait(); session.user.user_metadata.name = name; },
-    async signOut() { await wait(); session = null; emit('SIGNED_OUT'); },
+    async signOut() { if (opts.demo) { leaveDemo(); return; } await wait(); session = null; emit('SIGNED_OUT'); },
     async deleteAccount() {
+      if (opts.demo) { try { localStorage.removeItem(DEMO_STORE); } catch (e) { /* ok */ } leaveDemo(); return; }
       await wait();
       const id = session.user.id;
       ALL_TABLES.forEach((t) => { store[t] = store[t].filter((r) => r.user_id !== id); });
@@ -316,10 +324,27 @@ function createMemoryBackend() {
       return { encontrado: true, tipo: 'despesa', valor: 87.35, data: addDays(payload.today, -1), estabelecimento: 'Supermercado Dia', descricao: 'Supermercado Dia', categoria: 'Alimentação', forma: 'debito', parcelas: 1, itens: ['Arroz 5kg', 'Feijão', 'Café'], confianca: 0.93 };
     },
   };
-  return { kind: 'memory', auth, db, whatsapp, files, ai };
+  if (opts.demo) {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(DEMO_STORE) || 'null'); } catch (e) { saved = null; }
+    if (saved && saved.users && saved.store) {
+      Object.assign(users, saved.users);
+      Object.keys(saved.store).forEach((k) => { store[k] = saved.store[k]; });
+      ALL_TABLES.forEach((t) => { if (!store[t]) store[t] = []; });
+    } else {
+      const u = makeUser('demo@leco.app', 'Visitante');
+      store.profiles[u.id] = { ...store.profiles[u.id], onboarded: true };
+      seedDemo(store, u.id);
+      persist();
+    }
+    const u = Object.values(users)[0];
+    if (u) session = toSession(u);
+  }
+  return { kind: 'memory', demo: !!opts.demo, auth, db, whatsapp, files, ai };
 }
 
 function createBackend() {
+  if (demoOn()) return createMemoryBackend({ demo: true });
   if (window.LECO_TEST_BACKEND) return createMemoryBackend();
   if (!window.LecoSupabase || !CFG.supabaseUrl || !CFG.supabaseKey) return null;
   return createSupabaseBackend();

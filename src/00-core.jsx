@@ -402,7 +402,7 @@ function MonthSwitch({ month, onChange, compact = false, min, max, full = false 
 
 function Card({ title, sub, action, children, className = '', delay = 0 }) {
   return (
-    <section className={`glass rise min-w-0 p-5 sm:p-6 ${className}`} style={{ animationDelay: `${delay}ms` }}>
+    <section className={`glass spec rise min-w-0 p-5 sm:p-6 ${className}`} style={{ animationDelay: `${delay}ms` }}>
       {(title || action) && (
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -446,11 +446,50 @@ function Panel({ title, sub, children, tone, action }) {
   );
 }
 
+// Ilustração vetorial de vidro para telas vazias (ícone flutuando sobre um disco translúcido e uma moeda)
+function EmptyArt({ icon }) {
+  const id = cleanId(useId());
+  return (
+    <div className="empty-art relative mx-auto h-[112px] w-[150px]" aria-hidden="true">
+      <svg viewBox="0 0 150 112" className="absolute inset-0 size-full overflow-visible">
+        <defs>
+          <linearGradient id={`ea${id}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" style={{ stopColor: 'var(--color-vivo-hi)', stopOpacity: 0.42 }} />
+            <stop offset="1" style={{ stopColor: 'var(--color-leco)', stopOpacity: 0.12 }} />
+          </linearGradient>
+          <linearGradient id={`eb${id}`} x1="0" y1="0" x2="0.4" y2="1">
+            <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.85" />
+            <stop offset="1" stopColor="#FFFFFF" stopOpacity="0.18" />
+          </linearGradient>
+          <radialGradient id={`ec${id}`} cx="0.35" cy="0.3" r="0.8">
+            <stop offset="0" stopColor="#FFE29A" /><stop offset="0.55" stopColor="#E8A317" /><stop offset="1" stopColor="#B57E0C" />
+          </radialGradient>
+        </defs>
+        <ellipse cx="75" cy="104" rx="42" ry="5" style={{ fill: 'var(--ink)' }} opacity="0.08" />
+        <circle cx="75" cy="54" r="44" fill={`url(#ea${id})`} />
+        <circle cx="75" cy="54" r="44" fill="none" stroke="#FFFFFF" strokeOpacity="0.35" />
+        <g className="float">
+          <rect x="47" y="27" width="56" height="54" rx="17" fill={`url(#eb${id})`} fillOpacity="0.55" stroke="#FFFFFF" strokeOpacity="0.75" />
+          <path d="M55 33 q10 -4 22 -2" stroke="#FFFFFF" strokeOpacity="0.9" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        </g>
+        <g className="float-2">
+          <circle cx="118" cy="27" r="10" fill={`url(#ec${id})`} />
+          <circle cx="118" cy="27" r="6.5" fill="none" stroke="#FFF3CF" strokeOpacity="0.8" />
+        </g>
+        <circle cx="28" cy="78" r="5" style={{ fill: 'var(--color-vivo)' }} opacity="0.35" />
+        <circle cx="126" cy="80" r="3" style={{ fill: 'var(--color-vivo-hi)' }} opacity="0.5" />
+        <circle cx="34" cy="26" r="2.5" style={{ fill: 'var(--color-ouro)' }} opacity="0.6" />
+      </svg>
+      <span className="float absolute inset-x-0 top-0 grid h-[108px] place-items-center text-vivo"><Icon name={icon} size={26} strokeWidth={2.2} /></span>
+    </div>
+  );
+}
+
 function EmptyState({ icon = 'sparkle', title, text, action }) {
   return (
-    <div className="flex flex-col items-center rounded-3xl border border-dashed border-ink/15 px-5 py-10 text-center">
-      <span className="grid size-12 place-items-center rounded-2xl bg-ink/[0.05] text-ink/70"><Icon name={icon} size={22} /></span>
-      <p className="mt-3 text-[15px] font-extrabold tracking-[-0.02em]">{title}</p>
+    <div className="flex flex-col items-center rounded-3xl border border-dashed border-ink/12 bg-ink/[0.015] px-5 py-8 text-center">
+      <EmptyArt icon={icon} />
+      <p className="mt-2 text-[15px] font-extrabold tracking-[-0.02em]">{title}</p>
       {text && <p className="mt-1 max-w-sm text-xs leading-relaxed text-ink/65">{text}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
@@ -539,18 +578,64 @@ function SheetHead({ id, title, sub, onClose }) {
   );
 }
 
-function Toast({ toast, onClose, bottom = 24 }) {
+// Aviso de vidro: no topo no celular, no canto inferior direito no computador
+function Toast({ toast, onClose, place = 'top' }) {
   if (!toast) return null;
+  const top = place === 'top';
+  const ms = toast.action || toast.error ? 6000 : 3500;
+  const style = top
+    ? { transform: 'translateX(-50%)', top: 'calc(10px + var(--safe-top))', left: '50%' }
+    : { right: 24, bottom: 24 };
   return (
-    <div key={toast.id} role="status" style={{ transform: 'translateX(-50%)', bottom: `calc(${bottom}px + var(--safe-bottom))` }}
-      className="glass-deep toast-in fixed left-1/2 z-[90] flex w-max max-w-[calc(100%-32px)] items-center gap-3 rounded-full py-2.5 pl-4 pr-2.5 text-[13px] font-semibold">
-      <span className={`grid size-6 shrink-0 place-items-center rounded-full text-white ${toast.error ? 'bg-coral' : 'bg-vivo'}`}><Icon name={toast.error ? 'alert' : 'check'} size={14} strokeWidth={2.6} /></span>
+    <div key={toast.id} role={toast.error ? 'alert' : 'status'} aria-live={toast.error ? 'assertive' : 'polite'} style={style}
+      className={`glass-deep ${top ? 'toast-top max-w-[calc(100%-24px)]' : 'toast-corner max-w-[420px]'} fixed z-[90] flex w-max items-center gap-3 overflow-hidden rounded-full py-2.5 pl-3 pr-2.5 text-[13px] font-semibold`}>
+      <span className={`grid size-7 shrink-0 place-items-center rounded-full text-white ${toast.error ? 'bg-coral shadow-[0_0_16px_-2px_rgba(240,138,107,.7)]' : 'bg-vivo shadow-[0_0_16px_-2px_rgba(52,195,155,.7)]'}`}><Icon name={toast.error ? 'alert' : 'check'} size={15} strokeWidth={2.6} /></span>
       <span className="min-w-0 flex-1">{toast.msg}</span>
       {toast.action ? (
         <button type="button" className="btn btn-ghost !px-3 !py-1.5 text-xs" onClick={() => { toast.action.run(); onClose(); }}>{toast.action.label}</button>
       ) : (
         <button type="button" className="icon-btn size-7 border-transparent" aria-label="Fechar aviso" onClick={onClose}><Icon name="x" size={14} /></button>
       )}
+      <span className="toast-bar" style={{ animationDuration: `${ms}ms` }} aria-hidden="true" />
+    </div>
+  );
+}
+
+/* ---------- Dica flutuante ----------
+   Mostra o rótulo de ícones e atalhos ao passar o mouse (ou foco pelo teclado).
+   Vale para qualquer elemento com data-tip ou botão de ícone com aria-label. */
+function TooltipLayer() {
+  const [tip, setTip] = useState(null);
+  useEffect(() => {
+    if (!window.matchMedia || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return undefined;
+    let timer = null;
+    const find = (el) => el && el.closest && el.closest('[data-tip], .icon-btn[aria-label], [data-tip-auto][aria-label]');
+    const show = (el) => {
+      const text = el.getAttribute('data-tip') || el.getAttribute('aria-label');
+      if (!text || el.disabled) return;
+      const r = el.getBoundingClientRect();
+      const below = r.top < 56;
+      setTip({ text, x: Math.min(Math.max(r.left + r.width / 2, 70), window.innerWidth - 70), y: below ? r.bottom + 8 : r.top - 8, below });
+    };
+    const over = (e) => { const el = find(e.target); clearTimeout(timer); if (!el) { setTip(null); return; } timer = setTimeout(() => show(el), 380); };
+    const focus = (e) => { const el = find(e.target); if (el && el.matches(':focus-visible')) show(el); };
+    const hide = () => { clearTimeout(timer); setTip(null); };
+    document.addEventListener('pointerover', over);
+    document.addEventListener('focusin', focus);
+    document.addEventListener('focusout', hide);
+    document.addEventListener('pointerdown', hide);
+    window.addEventListener('scroll', hide, true);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointerover', over); document.removeEventListener('focusin', focus);
+      document.removeEventListener('focusout', hide); document.removeEventListener('pointerdown', hide);
+      window.removeEventListener('scroll', hide, true);
+    };
+  }, []);
+  if (!tip) return null;
+  return (
+    <div className="pointer-events-none fixed z-[120]" style={{ left: tip.x, top: tip.y, transform: `translate(-50%, ${tip.below ? '0' : '-100%'})` }}>
+      <div role="tooltip" className="tip-bubble">{tip.text}</div>
     </div>
   );
 }
@@ -664,7 +749,7 @@ function AreaChart({ series, points, height = 260, selectedKey, zeroBase = true,
         </svg>
       )}
       {active != null && W > 0 && (
-        <div className="glass-deep pointer-events-none absolute top-0 z-10 w-[180px] rounded-2xl px-3.5 py-3 text-xs" style={{ left: tipX }}>
+        <div className="glass-deep chart-tip pointer-events-none absolute top-0 z-10 w-[180px] rounded-2xl px-3.5 py-3 text-xs" style={{ left: tipX }}>
           <p className="mb-1.5 font-bold">{points[active].full}</p>
           {series.map((s) => (
             <p key={s.key} className="flex items-center justify-between gap-3 py-0.5">
@@ -718,7 +803,7 @@ function BarChart({ points, height = 240, label }) {
         </svg>
       )}
       {hover != null && W > 0 && (
-        <div className="glass-deep pointer-events-none absolute top-0 z-10 w-[180px] rounded-2xl px-3.5 py-3 text-xs" style={{ left: tipX }}>
+        <div className="glass-deep chart-tip pointer-events-none absolute top-0 z-10 w-[180px] rounded-2xl px-3.5 py-3 text-xs" style={{ left: tipX }}>
           <p className="mb-1.5 font-bold">{points[hover].full}</p>
           <p className="flex justify-between gap-3"><span className="text-ink/75">Receitas</span><b className="tabular-nums">{fmtBRL(points[hover].in)}</b></p>
           <p className="flex justify-between gap-3"><span className="text-ink/75">Despesas</span><b className="tabular-nums">{fmtBRL(points[hover].out)}</b></p>

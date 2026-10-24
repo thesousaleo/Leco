@@ -293,6 +293,56 @@ try {
   await wait(600);
   ok(await page.getByRole('dialog', { name: 'App bloqueado' }).count() === 0, 'PIN certo desbloqueia');
 
+  step('Exclusão rápida, aviso e estado vazio');
+  {
+    const before = (await txs()).length;
+    await page.evaluate(() => { const d = window.__leco(); const t = d.transactions.find((x) => !x.group_id && !x.recurring_id && !x.split_id && x.kind !== 'card_payment'); d.openModal({ kind: 'deleteTx', t }); });
+    await wait(500);
+    ok(await dlg().getByText('Excluir transação?').count() === 1, 'excluir pede confirmação');
+    await dlg().getByRole('button', { name: 'Excluir', exact: true }).click();
+    await wait(700);
+    ok((await txs()).length === before - 1, 'transação excluída depois de confirmar');
+    const toastBox = await page.locator('.toast-top').boundingBox();
+    ok(toastBox && toastBox.y < 120, 'aviso de vidro aparece no topo no celular');
+    await page.evaluate(() => window.__leco().go('transacoes'));
+    await wait(450);
+    if (!(await page.locator('#f-q').count())) { await page.getByRole('button', { name: 'Filtros' }).click(); await wait(400); }
+    await page.fill('#f-q', 'zzzz-nada');
+    await wait(400);
+    ok(await page.locator('.empty-art').count() > 0, 'estado vazio com ilustração');
+    await page.getByRole('button', { name: 'Limpar filtros' }).click();
+    await wait(400);
+    ok(await page.locator('.empty-art').count() === 0, 'limpar filtros mostra a lista de novo');
+  }
+
+  step('Modo demonstração (dados fictícios no navegador)');
+  {
+    const dctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' });
+    const dp = await dctx.newPage();
+    dp.on('pageerror', (e) => errors.push(`demo: ${e}`));
+    await dp.route(/fonts\.(googleapis|gstatic)\.com|api\.github\.com/, (r) => r.abort());
+    await dp.goto(`file://${html}?demo=1`);
+    await dp.waitForTimeout(1500);
+    const st = await dp.evaluate(() => { const d = window.__leco && window.__leco(); return d ? { tx: d.transactions.length, acc: d.accounts.length, goals: d.goals.length } : null; });
+    ok(st && st.tx > 30 && st.acc === 3 && st.goals === 2, 'demonstração abre com dados de exemplo', JSON.stringify(st));
+    ok(await dp.getByText('Demonstração', { exact: true }).count() === 1, 'selo de demonstração visível');
+    await dp.evaluate(async () => { const d = window.__leco(); await d.deleteTx(d.transactions.find((x) => !x.recurring_id && x.kind === 'out'), 'one'); });
+    await dp.waitForTimeout(600);
+    await dp.reload();
+    await dp.waitForTimeout(1500);
+    const n2 = await dp.evaluate(() => window.__leco().transactions.length);
+    ok(n2 === st.tx - 1, 'alterações da demonstração ficam salvas no navegador', `${n2} vs ${st.tx - 1}`);
+    await dp.setViewportSize({ width: 1280, height: 900 });
+    await dp.goto(`file://${html}?demo=1&moldura=1`);
+    await dp.waitForTimeout(2500);
+    const clock = (await dp.locator('.statusbar span').first().textContent()) || '';
+    ok(/^\d{2}:\d{2}$/.test(clock.trim()), 'moldura mostra a hora na barra de status', clock);
+    ok(await dp.locator('.home-indicator').count() === 1, 'moldura tem o indicador de início');
+    const inFrame = await dp.frameLocator('iframe').getByText('Saldo total').count();
+    ok(inFrame > 0, 'app roda dentro da moldura');
+    await dctx.close();
+  }
+
   step('Layout no celular (sem rolagem lateral)');
   await page.setViewportSize({ width: 360, height: 760 });
   for (const id of ['inicio', 'transacoes', 'calendario', 'relatorios', 'planejamento', 'dividas', 'contas', 'metas', 'categorias', 'mais']) {

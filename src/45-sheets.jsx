@@ -352,7 +352,7 @@ function SearchSheet({ onClose }) {
         <input id="search-q" autoFocus className="field !rounded-full !py-3 !pl-11 text-[15px]" placeholder="Buscar lançamentos, contas, categorias, telas…" value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
       </div>
       {!res && <p className="mt-4 px-1 text-xs text-ink/60">Dica: busque por descrição, categoria, #etiqueta, conta, valor (ex.: 45,90) ou nome de uma tela.</p>}
-      {res && count === 0 && <p className="mt-6 text-center text-sm text-ink/65">Nada encontrado para "{q}".</p>}
+      {res && count === 0 && <div className="mt-4"><EmptyState icon="search" title="Nada encontrado" text={`Nenhum resultado para "${q}".`} action={<button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => setQ('')}><Icon name="x" size={14} />Limpar busca</button>} /></div>}
       {res && (
         <div className="max-h-[60vh] overflow-y-auto">
           {res.pages.length > 0 && <Sec title="Telas">{res.pages.map((p) => <Row key={p.id + p.l} ic={p.ic} title={p.l} fn={p.fn} />)}</Sec>}

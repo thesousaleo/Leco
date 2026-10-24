@@ -40,7 +40,7 @@ function TxItem({ t, onOpen, onConfirm, showDate = true, dense = false }) {
   const up = () => {
     const s = g.current; g.current = null;
     if (!s || !s.on) return;
-    if (dx <= -90) { haptic('heavy'); setDx(-400); setTimeout(() => d.deleteTx(t, 'one'), 160); return; }
+    if (dx <= -90) { haptic('heavy'); setDx(0); d.openModal({ kind: 'deleteTx', t }); return; }
     if (dx >= 90 && !t.paid && onConfirm) { haptic('success'); onConfirm(t); }
     setDx(0);
   };
@@ -72,6 +72,12 @@ function TxItem({ t, onOpen, onConfirm, showDate = true, dense = false }) {
           </button>
         )}
         <span className={`shrink-0 whitespace-nowrap text-[14px] font-extrabold tabular-nums ${meta.tone} ${!t.paid ? 'opacity-60' : ''}`}>{meta.sign}{meta.sign ? ' ' : ''}{m(t.amount)}</span>
+        {!LITE && onOpen && t.kind !== 'card_payment' && (
+          <span className="row-actions flex shrink-0 items-center gap-1">
+            <button type="button" className="icon-btn size-8" aria-label="Editar" onClick={() => onOpen(t)}><Icon name="edit" size={14} /></button>
+            <button type="button" className="icon-btn size-8 hover:!bg-coral/15 hover:text-out" aria-label="Excluir" onClick={() => d.openModal({ kind: 'deleteTx', t })}><Icon name="trash" size={14} /></button>
+          </span>
+        )}
       </div>
     </li>
   );
@@ -130,6 +136,77 @@ function ConfirmBlock({ title, text, confirmLabel, onConfirm, onCancel, busy }) 
         <button type="button" className="btn btn-danger flex-1 !py-2" disabled={busy} onClick={onConfirm}>{busy ? <Spinner size={14} /> : null}{confirmLabel}</button>
       </div>
     </div>
+  );
+}
+
+// Opções de exclusão de um lançamento (parcelas, recorrência, compra dividida ou simples)
+function DeleteTxChoices({ t, busy, onCancel, onPick, flat = false }) {
+  const box = flat ? '' : 'mt-6 rounded-2xl border border-coral/40 bg-coral/10 p-4';
+  if (t.recurring_id) {
+    return <ScopeChoice danger what={'Lançamento de uma recorrência. "Esta e as próximas" encerra a recorrência; "Todas" também apaga a recorrência.'} busy={busy} onCancel={onCancel} onPick={onPick} />;
+  }
+  if (t.split_id) {
+    return (
+      <div className={box}>
+        <p className="text-sm font-bold">Excluir compra dividida?</p>
+        <p className="mt-1 text-xs text-ink/75">Você pode excluir só esta parte ou a compra inteira.</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <button type="button" className="btn btn-ghost !py-2" onClick={onCancel}>Cancelar</button>
+          <button type="button" className="btn btn-ghost !py-2" disabled={busy} onClick={() => onPick('one')}>Só esta parte</button>
+          <button type="button" className="btn btn-danger !py-2" disabled={busy} onClick={() => onPick('split')}>Compra inteira</button>
+        </div>
+      </div>
+    );
+  }
+  if (t.group_id) {
+    return (
+      <div className={box}>
+        <p className="text-sm font-bold">Excluir compra parcelada?</p>
+        <p className="mt-1 text-xs text-ink/75">Parcela {t.installment} de {t.installments}.</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-4">
+          <button type="button" className="btn btn-ghost !py-2" onClick={onCancel}>Cancelar</button>
+          <button type="button" className="btn btn-ghost !py-2" disabled={busy} onClick={() => onPick('one')}>Só esta</button>
+          <button type="button" className="btn btn-ghost !py-2" disabled={busy} onClick={() => onPick('next')}>Esta e as próximas</button>
+          <button type="button" className="btn btn-danger !py-2" disabled={busy} onClick={() => onPick('group')}>Todas</button>
+        </div>
+      </div>
+    );
+  }
+  if (flat) {
+    return (
+      <div className="mt-5 flex gap-2">
+        <button type="button" className="btn btn-ghost flex-1" onClick={onCancel}>Cancelar</button>
+        <button type="button" className="btn btn-danger flex-1" disabled={busy} onClick={() => onPick('one')}>{busy ? <Spinner size={14} /> : <Icon name="trash" size={16} />}Excluir</button>
+      </div>
+    );
+  }
+  return <ConfirmBlock title="Excluir esta transação?" text="Os saldos são recalculados na hora." confirmLabel="Excluir" busy={busy} onConfirm={() => onPick('one')} onCancel={onCancel} />;
+}
+
+// Exclusão rápida (pela lista): pede confirmação antes de apagar
+function DeleteTxSheet({ t, onClose }) {
+  const d = useApp();
+  const m = useMoneyText();
+  const meta = txMeta(t, d);
+  const [busy, setBusy] = useState(false);
+  const titleId = cleanId(useId());
+  const pick = async (scope) => { setBusy(true); const ok = await d.deleteTx(t, scope); setBusy(false); if (ok) onClose(); };
+  return (
+    <Sheet variant={sheetVariant()} onClose={onClose} titleId={titleId}>
+      <div className="flex items-start gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-coral/15 text-out"><Icon name="trash" size={20} /></span>
+        <div className="min-w-0 flex-1">
+          <h2 id={titleId} className="text-[19px] font-extrabold tracking-[-0.02em]">Excluir transação?</h2>
+          <p className="mt-0.5 text-[13px] text-ink/70">Os saldos são recalculados na hora.</p>
+        </div>
+      </div>
+      <div className="mt-4 flex items-center gap-3 rounded-2xl bg-ink/[0.04] px-3 py-2.5">
+        <ColorIcon icon={meta.icon} color={meta.color} size={36} />
+        <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-semibold">{meta.title}</span><span className="block truncate text-xs text-ink/65">{meta.sub} · {fmtDate(t.date)}</span></span>
+        <span className={`shrink-0 text-[14px] font-extrabold tabular-nums ${meta.tone}`}>{meta.sign}{meta.sign ? ' ' : ''}{m(t.amount)}</span>
+      </div>
+      <DeleteTxChoices t={t} busy={busy} onCancel={onClose} onPick={pick} flat />
+    </Sheet>
   );
 }
 
@@ -486,31 +563,8 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
       {askScope ? (
         <ScopeChoice what={initial.group_id ? `Esta é a parcela ${initial.installment} de ${initial.installments}.` : 'Este lançamento faz parte de uma recorrência. "Esta e as próximas" também muda o valor da recorrência.'} busy={busy}
           onCancel={() => setAskScope(false)} onPick={(sc) => { setAskScope(false); submit(null, sc); }} />
-      ) : confirmDel && initial.recurring_id ? (
-        <ScopeChoice danger what={'Lançamento de uma recorrência. "Esta e as próximas" encerra a recorrência; "Todas" também apaga a recorrência.'} busy={busy} onCancel={() => setConfirmDel(false)} onPick={(sc) => remove(sc)} />
-      ) : confirmDel && initial.split_id ? (
-        <div className="mt-6 rounded-2xl border border-coral/40 bg-coral/10 p-4">
-          <p className="text-sm font-bold">Excluir compra dividida?</p>
-          <p className="mt-1 text-xs text-ink/75">Você pode excluir só esta parte ou a compra inteira.</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <button type="button" className="btn btn-ghost !py-2" onClick={() => setConfirmDel(false)}>Cancelar</button>
-            <button type="button" className="btn btn-ghost !py-2" disabled={busy} onClick={() => remove('one')}>Só esta parte</button>
-            <button type="button" className="btn btn-danger !py-2" disabled={busy} onClick={() => remove('split')}>Compra inteira</button>
-          </div>
-        </div>
       ) : confirmDel ? (
-        initial.group_id ? (
-          <div className="mt-6 rounded-2xl border border-coral/40 bg-coral/10 p-4">
-            <p className="text-sm font-bold">Excluir compra parcelada?</p>
-            <p className="mt-1 text-xs text-ink/75">Parcela {initial.installment} de {initial.installments}.</p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-4">
-              <button type="button" className="btn btn-ghost !py-2" onClick={() => setConfirmDel(false)}>Cancelar</button>
-              <button type="button" className="btn btn-ghost !py-2" disabled={busy} onClick={() => remove('one')}>Só esta</button>
-              <button type="button" className="btn btn-ghost !py-2" disabled={busy} onClick={() => remove('next')}>Esta e as próximas</button>
-              <button type="button" className="btn btn-danger !py-2" disabled={busy} onClick={() => remove('group')}>Todas</button>
-            </div>
-          </div>
-        ) : <ConfirmBlock title="Excluir esta transação?" text="Os saldos são recalculados na hora." confirmLabel="Excluir" busy={busy} onConfirm={() => remove('one')} onCancel={() => setConfirmDel(false)} />
+        <DeleteTxChoices t={initial} busy={busy} onCancel={() => setConfirmDel(false)} onPick={remove} />
       ) : (
         <div className="mt-6 flex gap-2">
           {editing && <button type="button" className="icon-btn size-11 shrink-0" aria-label="Excluir transação" onClick={() => setConfirmDel(true)}><Icon name="trash" size={17} /></button>}
@@ -988,6 +1042,7 @@ function ModalBody({ m, close }) {
     case 'search': return <SearchSheet key={m.key} onClose={close} />;
     case 'monthSummary': return <MonthSummarySheet key={m.key} month={m.month} onClose={close} />;
     case 'pin': return <PinSetupSheet key={m.key} onClose={close} />;
+    case 'deleteTx': return <DeleteTxSheet key={m.key} t={m.t} onClose={close} />;
     default: return null;
   }
 }

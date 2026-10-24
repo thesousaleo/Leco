@@ -40,7 +40,13 @@ async function exportFile(filename, content, mime = 'text/csv') {
 
 function useLecoData(backend, session, toast) {
   const userId = session.user.id;
-  const [data, setData] = useState(null);
+  // Cópia local dos últimos dados: o app abre na hora e funciona para consulta sem internet
+  const cacheKey = `leco.cache.${userId}`;
+  const useCache = !backend.demo && !window.LECO_TEST_BACKEND;
+  const [data, setData] = useState(() => {
+    if (!useCache) return null;
+    try { const c = JSON.parse(localStorage.getItem(cacheKey) || 'null'); return c && c.profile && c.transactions ? { ...c, cached: true } : null; } catch (e) { return null; }
+  });
   const [error, setError] = useState('');
   const [freshIds, setFreshIds] = useState([]);
   const genRan = useRef(false);
@@ -56,8 +62,15 @@ function useLecoData(backend, session, toast) {
       lastLoad.current = Date.now();
       setData(all);
       setError('');
+      if (useCache) {
+        try { localStorage.setItem(cacheKey, JSON.stringify(all)); } catch (e) { try { localStorage.removeItem(cacheKey); } catch (x) { /* ok */ } }
+      }
       return all;
-    } catch (e) { setError(e.message); return null; }
+    } catch (e) {
+      setError(e.message);
+      setData((cur) => { if (cur && cur.cached) toast('Sem conexão: mostrando a última cópia salva neste aparelho.', null, true); return cur; });
+      return null;
+    }
   }, [userId]);
 
   const runRecurrings = useCallback(async (snap) => {
@@ -71,7 +84,7 @@ function useLecoData(backend, session, toast) {
   }, [load]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (data && !genRan.current) { genRan.current = true; runRecurrings(data); } }, [data]);
+  useEffect(() => { if (data && !data.cached && !genRan.current) { genRan.current = true; runRecurrings(data); } }, [data]);
   useEffect(() => {
     const on = () => { if (document.visibilityState === 'visible' && Date.now() - lastLoad.current > 5000) load(); };
     document.addEventListener('visibilitychange', on);
@@ -125,7 +138,7 @@ function useLecoData(backend, session, toast) {
         set('transactions', (l) => [...made, ...l].sort(byTx));
         markFresh(made.map((r) => r.id));
         return true;
-      }, initial && initial.id ? (scope === 'one' ? 'Transação atualizada' : 'Lançamentos atualizados') : installments > 1 ? `Compra em ${installments}x registrada` : base.kind === 'in' ? 'Receita registrada' : base.kind === 'transfer' ? 'Transferência registrada' : 'Despesa registrada');
+      }, initial && initial.id ? (scope === 'one' ? 'Transação atualizada com sucesso!' : 'Lançamentos atualizados com sucesso!') : installments > 1 ? `Compra em ${installments}x registrada` : base.kind === 'in' ? 'Receita adicionada com sucesso!' : base.kind === 'transfer' ? 'Transferência adicionada com sucesso!' : 'Despesa adicionada com sucesso!');
     },
     // Transação que se repete (assinatura, aluguel, salário): cria a recorrência e o primeiro lançamento
     async saveTxRepeat(base, frequency, endDate) {
@@ -163,7 +176,7 @@ function useLecoData(backend, session, toast) {
           set('transactions', (l) => l.filter((x) => !ids.includes(x.id)));
         }, scope === 'all' ? 'Recorrência excluída' : 'Recorrência encerrada');
       }
-      return guard(async () => { await backend.db.remove('transactions', t.id); set('transactions', (l) => l.filter((x) => x.id !== t.id)); }, 'Transação excluída', {
+      return guard(async () => { await backend.db.remove('transactions', t.id); set('transactions', (l) => l.filter((x) => x.id !== t.id)); }, 'Transação excluída com sucesso!', {
         label: 'Desfazer', run: async () => { try { const made = await backend.db.insert('transactions', [stripRow(t)]); set('transactions', (l) => [...made, ...l].sort(byTx)); } catch (e) { toast(e.message, null, true); } },
       });
     },
@@ -861,7 +874,8 @@ function Workspace({ backend, session, toast, toastNode }) {
       <AppCtx.Provider value={ctx}>
         {wide ? <WebLayout /> : <MobileLayout />}
         <ModalHost />
-        {toastNode(wide ? 24 : 100)}
+        {toastNode(wide ? 'corner' : 'top')}
+        {backend.demo && <DemoBadge wide={wide} />}
         {locked && <PinLock name={ctx.name} onUnlock={() => setLocked(false)} onForgot={async () => { pinSave(null); setLocked(false); await ctx.signOut(); }} />}
       </AppCtx.Provider>
     </ThemeCtx.Provider>
@@ -888,7 +902,10 @@ function Root() {
     const off = backend.auth.onChange((event, s) => {
       if (event === 'PASSWORD_RECOVERY') setRecovery(true);
       setSession(s || null);
-      if (event === 'SIGNED_OUT') { setScreen({ name: 'login' }); applyAppearance(mergePrefs({}), 'light'); }
+      if (event === 'SIGNED_OUT') {
+        setScreen({ name: 'login' }); applyAppearance(mergePrefs({}), 'light');
+        try { Object.keys(localStorage).filter((k) => k.startsWith('leco.cache.')).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* ok */ }
+      }
     });
     let linkHandle = null;
     if (Native.App) {
@@ -903,7 +920,7 @@ function Root() {
     }
   }, [session]);
 
-  const toastNode = (bottom) => <Toast toast={toastState} onClose={() => setToast(null)} bottom={bottom} />;
+  const toastNode = (place) => <><Toast toast={toastState} onClose={() => setToast(null)} place={place} /><TooltipLayer /></>;
   const go = (name, extra = {}) => setScreen({ name, ...extra });
   let content;
   if (!backend) content = <ConfigMissingScreen />;
@@ -914,7 +931,7 @@ function Root() {
   else if (screen.name === 'check') content = <CheckEmailScreen backend={backend} go={go} email={screen.email} />;
   else if (screen.name === 'forgot') content = <ForgotScreen backend={backend} go={go} />;
   else content = <LoginScreen backend={backend} go={go} notice={screen.notice} />;
-  return <ThemeCtx.Provider value="light"><Atmosphere />{content}{toastNode(24)}</ThemeCtx.Provider>;
+  return <ThemeCtx.Provider value="light"><Atmosphere />{content}{toastNode(!NATIVE && window.innerWidth >= 1024 ? 'corner' : 'top')}</ThemeCtx.Provider>;
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<Root />);
+ReactDOM.createRoot(document.getElementById('root')).render(MOCKUP ? <PhoneMockup /> : <Root />);

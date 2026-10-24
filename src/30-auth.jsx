@@ -112,6 +112,9 @@ function LoginScreen({ backend, go, notice }) {
       </form>
       <Divider>ou</Divider>
       <GoogleButton onClick={google} busy={gBusy} />
+      <button type="button" className="tap mt-3 flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-[13px] font-bold text-in hover:bg-vivo/[0.07]" onClick={() => enterDemo(false)}>
+        <Icon name="sparkle" size={15} />Explorar com dados de exemplo
+      </button>
     </AuthShell>
   );
 }

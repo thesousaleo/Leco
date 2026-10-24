@@ -207,7 +207,7 @@ function CalendarPage() {
                 <span className="mt-1 flex h-1.5 gap-[3px]">{dots(list).map((c, i) => <i key={i} className={`size-1.5 rounded-full ${isSel ? 'bg-white' : c}`} />)}</span>
               ) : (
                 <span className="mt-1 min-w-0 space-y-0.5 text-left">
-                  {list.slice(0, 2).map((e) => <span key={e.id} className={`block truncate rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold ${isSel ? 'bg-white/15' : e.group === 'pay' ? 'bg-coral/15 text-out' : e.group === 'invoice' ? 'bg-ouro/20 text-[#8A5A00]' : e.group === 'receive' ? 'bg-vivo/15 text-in' : 'bg-ink/[0.05] text-ink/70'}`}>{e.title}</span>)}
+                  {list.slice(0, 2).map((e) => <span key={e.id} className={`block truncate rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold ${isSel ? 'bg-white/15' : e.group === 'pay' ? 'bg-coral/15 text-out' : e.group === 'invoice' ? 'bg-ouro/20 text-ouro-ink' : e.group === 'receive' ? 'bg-vivo/15 text-in' : 'bg-ink/[0.05] text-ink/70'}`}>{e.title}</span>)}
                   {list.length > 2 && <span className={`block px-1.5 text-[10px] font-bold ${isSel ? 'text-white/80' : 'text-ink/55'}`}>+{list.length - 2}</span>}
                   {!list.length && due === 0 ? null : null}
                 </span>
