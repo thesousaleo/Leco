@@ -293,6 +293,21 @@ try {
   await wait(600);
   ok(await page.getByRole('dialog', { name: 'App bloqueado' }).count() === 0, 'PIN certo desbloqueia');
 
+  step('Tema não volta ao atualizar');
+  {
+    const prev = await page.evaluate(() => window.__leco().prefs.theme);
+    await page.evaluate(() => window.__leco().setPrefs({ theme: 'dark' }));
+    await wait(900);
+    await page.evaluate(() => window.__leco().setPrefs({ theme: 'light' }));
+    await wait(100);
+    await page.evaluate(() => window.__leco().reload());
+    await wait(900);
+    const th = await page.evaluate(() => [window.__leco().prefs.theme, document.documentElement.dataset.leco]);
+    ok(th[0] === 'light' && th[1] === 'light', 'tema claro continua depois de puxar para atualizar', th.join(','));
+    await page.evaluate((t) => window.__leco().setPrefs({ theme: t }), prev);
+    await wait(900);
+  }
+
   step('Exclusão rápida, aviso e estado vazio');
   {
     const before = (await txs()).length;

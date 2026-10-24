@@ -53,8 +53,18 @@ function useLecoData(backend, session, toast) {
   const lastLoad = useRef(0);
   const profileTimer = useRef(null);
 
+  // Envia ao servidor as alterações de perfil que ainda estão esperando
+  const pendingProfile = useRef(null);
+  const flushProfile = async (okMsg) => {
+    clearTimeout(profileTimer.current);
+    const patch = pendingProfile.current;
+    pendingProfile.current = null;
+    if (!patch) return true;
+    try { await backend.db.saveProfile(userId, patch); if (okMsg) { toast(okMsg); haptic('success'); } return true; } catch (e) { toast(e.message, null, true); return false; }
+  };
   const load = useCallback(async () => {
     try {
+      await flushProfile();
       const all = await backend.db.loadAll(userId);
       if (!all.profile) all.profile = await backend.db.saveProfile(userId, { name: (session.user.user_metadata && (session.user.user_metadata.name || session.user.user_metadata.full_name)) || '' });
       if (!all.categories.length) all.categories = await backend.db.insert('categories', DEFAULT_CATEGORIES.map(([name, kind, icon, color]) => ({ name, kind, icon, color })));
@@ -339,9 +349,10 @@ function useLecoData(backend, session, toast) {
     },
     async saveProfile(patch, okMsg, debounce) {
       setData((d) => (d ? { ...d, profile: { ...d.profile, ...patch } } : d));
-      const run = () => guard(async () => { await backend.db.saveProfile(userId, patch); }, okMsg);
-      if (debounce) { clearTimeout(profileTimer.current); profileTimer.current = setTimeout(run, 600); return true; }
-      return run();
+      // Junta as alterações pendentes: um salvamento não pode apagar o anterior (ex.: preferências + tema)
+      pendingProfile.current = { ...(pendingProfile.current || {}), ...patch };
+      if (debounce) { clearTimeout(profileTimer.current); profileTimer.current = setTimeout(() => flushProfile(), 600); return true; }
+      return flushProfile(okMsg);
     },
   };
   return { data, error, freshIds, actions };
