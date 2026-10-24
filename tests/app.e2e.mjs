@@ -87,6 +87,17 @@ try {
   let list = await txs();
   ok(list.some((t) => t.amount === 4590 && /mercado extra/i.test(t.description)), 'cria o lançamento a partir do texto');
 
+  step('Leitura de comprovante com IA');
+  const img = path.join(tmp, 'cupom.png');
+  fs.writeFileSync(img, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+  await page.locator('button[aria-label="Ler comprovante com IA"] + input[type=file]').first().setInputFiles(img);
+  await wait(1400);
+  ok((await page.inputValue('#tx-desc')) === 'Supermercado Dia' && (await page.inputValue('#tx-amount')).includes('87,35'), 'IA preenche valor e descrição');
+  ok(await dlg().getByText(/Lido pela IA/).count() === 1, 'mostra o aviso para conferir');
+  await save();
+  list = await txs();
+  ok(list.some((t) => t.description === 'Supermercado Dia' && t.amount === 8735 && t.attachment), 'lançamento salvo com o comprovante anexado');
+
   step('Parcelado no boleto (conta)');
   await fab();
   await dlg().getByRole('button', { name: 'Parcelada', exact: true }).click();

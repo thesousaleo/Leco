@@ -192,13 +192,16 @@ function MobileHome() {
           { l: 'Receita', i: 'inArrow', fn: () => d.openModal({ kind: 'tx', defaultKind: 'in' }), tone: 'text-in' },
           { l: 'Despesa', i: 'up', fn: () => d.openModal({ kind: 'tx', defaultKind: 'out' }), tone: 'text-out' },
           { l: 'Rápido', i: 'bolt', fn: () => d.openModal({ kind: 'quick' }), tone: 'text-[#B57406]' },
-          { l: 'Transferir', i: 'swap', fn: () => d.openModal({ kind: 'tx', defaultKind: 'transfer' }), tone: 'text-ink' },
         ].map((a) => (
           <button key={a.l} type="button" onClick={() => { haptic(); a.fn(); }} className="group flex flex-col items-center gap-2">
             <span className={`glass grid size-14 place-items-center rounded-2xl transition-transform group-active:scale-95 ${a.tone}`}><Icon name={a.i} size={21} strokeWidth={2} /></span>
             <span className="text-[11.5px] font-semibold text-ink/80">{a.l}</span>
           </button>
         ))}
+        <ScanButton onFile={(f) => d.openModal({ kind: 'tx', scanFile: f })} className="group flex flex-col items-center gap-2">
+          <span className="glass relative grid size-14 place-items-center rounded-2xl text-in transition-transform group-active:scale-95"><Icon name="camera" size={21} strokeWidth={2} /><span className="absolute -right-1 -top-1 rounded-full bg-gradient-to-br from-[#FFD36B] to-[#E8A317] px-1.5 text-[9px] font-extrabold text-[#2A1D00]">IA</span></span>
+          <span className="text-[11.5px] font-semibold text-ink/80">Comprovante</span>
+        </ScanButton>
       </div>
     ),
     semana: () => (

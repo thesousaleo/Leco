@@ -187,3 +187,43 @@ function QuickAddSheet({ onClose }) {
     </Sheet>
   );
 }
+
+/* ---------- Leitura de comprovante com IA ---------- */
+const blobToBase64 = (blob) => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = bad; r.readAsDataURL(blob); });
+async function readReceiptFile(d, file) {
+  const prep = file.type === 'application/pdf' ? file : await shrinkImage(file);
+  if (prep.size > 6.5 * 1024 * 1024) throw new Error('Arquivo muito grande. Tente uma foto menor ou um PDF de até 6 MB.');
+  const image = await blobToBase64(prep);
+  const names = (k) => d.categories.filter((c) => c.kind === k && !c.archived).map((c) => c.name);
+  return d.backend.ai.readReceipt({
+    image, mime: prep.type || 'image/jpeg', today: todayISO(),
+    categories: { out: names('out'), in: names('in') }, cards: d.cards.filter((c) => !c.archived).map((c) => c.name),
+  });
+}
+
+// Botão que abre a câmera/galeria (o arquivo precisa ser escolhido no toque do próprio botão)
+function ScanButton({ onFile, className = '', children, label = 'Ler comprovante com IA' }) {
+  const ref = useRef(null);
+  return (
+    <>
+      <button type="button" className={className} aria-label={label} onClick={() => { haptic(); if (ref.current) ref.current.click(); }}>{children}</button>
+      <input ref={ref} type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) onFile(f); e.target.value = ''; }} />
+    </>
+  );
+}
+
+function ScanStatus({ state }) {
+  if (!state) return null;
+  if (state.busy) return (
+    <div className="mb-3 flex items-center gap-3 rounded-2xl border border-vivo/30 bg-vivo/10 px-4 py-3" role="status">
+      <span className="relative grid size-9 shrink-0 place-items-center rounded-xl bg-vivo/15 text-in"><Icon name="sparkle" size={18} /><span className="scan-pulse absolute inset-0 rounded-xl" /></span>
+      <div className="min-w-0"><p className="text-[13.5px] font-bold">Lendo o comprovante…</p><p className="text-xs text-ink/65">A IA está identificando valor, data e loja.</p></div>
+    </div>
+  );
+  return (
+    <div className={`mb-3 flex items-start gap-3 rounded-2xl px-4 py-3 ${state.bad ? 'bg-coral/10' : state.warn ? 'bg-ouro/15' : 'bg-vivo/10'}`} role="status">
+      <Icon name={state.bad ? 'alert' : 'sparkle'} size={18} className={`mt-0.5 shrink-0 ${state.bad ? 'text-out' : 'text-in'}`} />
+      <p className="min-w-0 text-[13px] leading-relaxed">{state.text}</p>
+    </div>
+  );
+}

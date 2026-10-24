@@ -132,7 +132,21 @@ function createSupabaseBackend() {
     async createCode() { const r = ok(await client.rpc('create_whatsapp_code')); return Array.isArray(r) ? r[0] : r; },
     async unlink() { ok(await client.from('whatsapp_links').delete().not('phone', 'is', null)); },
   };
-  return { kind: 'supabase', auth, db, whatsapp, files };
+  // Leitura de comprovante por IA (função ler-comprovante no Supabase; a chave do Gemini fica no servidor)
+  const ai = {
+    async readReceipt(payload) {
+      const { data, error } = await client.functions.invoke('ler-comprovante', { body: payload });
+      if (error) {
+        let msg = '';
+        const res = error.context;
+        if (res && res.status === 404) msg = 'A leitura por IA ainda não foi ativada no servidor.';
+        else { try { msg = (await res.json()).error; } catch (e) { /* sem corpo */ } }
+        throw new Error(msg || translateError(error));
+      }
+      return data;
+    },
+  };
+  return { kind: 'supabase', auth, db, whatsapp, files, ai };
 }
 
 /* ------------------------------------------------------------------ */
@@ -295,7 +309,14 @@ function createMemoryBackend() {
     async remove(paths) { paths.forEach((p) => delete blobs[p]); },
     async removeFolder() {},
   };
-  return { kind: 'memory', auth, db, whatsapp, files };
+  const ai = {
+    async readReceipt(payload) {
+      await new Promise((r) => setTimeout(r, 700));
+      if (window.LECO_TEST_AI_FAIL) throw new Error('A leitura por IA ainda não foi ativada no servidor.');
+      return { encontrado: true, tipo: 'despesa', valor: 87.35, data: addDays(payload.today, -1), estabelecimento: 'Supermercado Dia', descricao: 'Supermercado Dia', categoria: 'Alimentação', forma: 'debito', parcelas: 1, itens: ['Arroz 5kg', 'Feijão', 'Café'], confianca: 0.93 };
+    },
+  };
+  return { kind: 'memory', auth, db, whatsapp, files, ai };
 }
 
 function createBackend() {

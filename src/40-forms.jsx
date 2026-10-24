@@ -134,7 +134,7 @@ function ConfirmBlock({ title, text, confirmLabel, onConfirm, onCancel, busy }) 
 }
 
 /* ---------- Transação ---------- */
-function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClose }) {
+function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFile, onClose }) {
   const d = useApp();
   const editing = !!(initial && initial.id);
   const accounts = d.accounts.filter((a) => !a.archived || (initial && (a.id === initial.account_id || a.id === initial.to_account_id)));
@@ -203,6 +203,41 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
     if (row) { setCat(row.id); setQuickCat(null); }
   };
 
+  // Leitura do comprovante por IA: preenche o formulário e anexa a imagem
+  const [scan, setScan] = useState(null);
+  const doScan = async (file) => {
+    setScan({ busy: true });
+    try {
+      const r = await readReceiptFile(d, file);
+      if (!r || !r.encontrado) { setScan({ bad: true, text: 'Não reconheci um comprovante nessa imagem. Tente uma foto mais nítida, com o valor total aparecendo.' }); haptic('warn'); return; }
+      const k = r.tipo === 'receita' ? 'in' : 'out';
+      switchKind(k);
+      if (Number(r.valor) > 0) setAmount(Math.round(Number(r.valor) * 100));
+      const ds = String(r.descricao || r.estabelecimento || '').trim();
+      if (ds) setDesc(ds.slice(0, 60));
+      const iso = (x) => /^\d{4}-\d{2}-\d{2}$/.test(x || '') && !isNaN(Date.parse(x));
+      if (r.vencimento && iso(r.vencimento)) { setDate(r.vencimento); setPaid(false); setPaidTouched(true); }
+      else if (iso(r.data)) setDate(r.data);
+      const cats = d.categories.filter((c) => c.kind === k && !c.archived);
+      const n = normTxt(r.categoria);
+      const c = n && (cats.find((x) => normTxt(x.name) === n) || cats.find((x) => normTxt(x.name).includes(n) || n.includes(normTxt(x.name))));
+      if (c) setCat(c.id);
+      const activeCards = cards.filter((x) => !x.archived);
+      if (k === 'out' && r.forma === 'credito' && activeCards.length) {
+        setSource(`card:${activeCards[0].id}`);
+        if (Number(r.parcelas) > 1) setInstallments(Math.min(24, Math.round(Number(r.parcelas))));
+      } else if (source.startsWith('card:') && accounts[0]) setSource(`acc:${accounts[0].id}`);
+      if (Array.isArray(r.itens) && r.itens.length && !notes) setNotes(r.itens.slice(0, 5).join(', ').slice(0, 200));
+      if (v3) { setPendingFile(file); setMore(true); }
+      const low = typeof r.confianca === 'number' && r.confianca < 0.6;
+      setScan({ warn: low, text: low ? 'Lido pela IA, mas com pouca certeza. Confira o valor e a data antes de salvar.' : `Lido pela IA${r.forma && r.forma !== 'outro' ? ` (${({ credito: 'crédito', debito: 'débito', pix: 'Pix', dinheiro: 'dinheiro', boleto: 'boleto', transferencia: 'transferência' })[r.forma] || r.forma})` : ''}. Confira os dados e toque em adicionar.` });
+      haptic('success');
+    } catch (x) {
+      setScan({ bad: true, text: x.message || 'Não foi possível ler o comprovante agora.' });
+      haptic('warn');
+    }
+  };
+  useEffect(() => { if (scanFile) doScan(scanFile); }, []);
   const applyTemplate = (t) => {
     switchKind(t.kind); if (t.amount) setAmount(t.amount); setDesc(t.description || t.name); setCat(t.category_id);
     if (t.card_id && cards.some((c) => c.id === t.card_id)) setSource(`card:${t.card_id}`); else if (t.account_id && accounts.some((a) => a.id === t.account_id)) setSource(`acc:${t.account_id}`);
@@ -285,9 +320,11 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
       {!editing && (
         <div className="-mt-2 mb-1 flex items-start gap-1.5">
           <button type="button" onClick={() => { onClose(); setTimeout(() => d.openModal({ kind: 'quick' }), 240); }} className="flex shrink-0 items-center gap-1 rounded-full border border-ouro/60 bg-ouro/15 py-1.5 pl-2 pr-3 text-[12.5px] font-bold text-ink"><Icon name="bolt" size={14} />Rápido</button>
+          <ScanButton onFile={doScan} className="flex shrink-0 items-center gap-1 rounded-full border border-vivo/50 bg-vivo/10 py-1.5 pl-2 pr-3 text-[12.5px] font-bold text-ink"><Icon name="camera" size={14} />Comprovante</ScanButton>
           {v3 && <div className="min-w-0 flex-1"><TemplateChips kind={kind} onPick={applyTemplate} /></div>}
         </div>
       )}
+      <ScanStatus state={scan} />
       {initial && initial.kind === 'card_payment' ? (
         <p className="rounded-2xl bg-ink/[0.04] p-4 text-[13px] text-ink/75">Pagamentos de fatura não podem ser editados. Exclua e registre de novo, se precisar.</p>
       ) : (
@@ -934,7 +971,7 @@ function ModalHost() {
 function ModalBody({ m, close }) {
   switch (m.kind) {
     case 'quick': return <QuickAddSheet key={m.key} onClose={close} />;
-    case 'tx': return <TxForm key={m.key} initial={m.initial} defaultKind={m.defaultKind} presetSource={m.presetSource} presetDate={m.presetDate} onClose={close} />;
+    case 'tx': return <TxForm key={m.key} initial={m.initial} defaultKind={m.defaultKind} presetSource={m.presetSource} presetDate={m.presetDate} scanFile={m.scanFile} onClose={close} />;
     case 'account': return <AccountForm key={m.key} initial={m.initial} onClose={close} />;
     case 'card': return <CardForm key={m.key} initial={m.initial} onClose={close} />;
     case 'invoice': return <InvoiceSheet key={m.key} card={m.card} initialInvoice={m.invoice} onClose={close} />;

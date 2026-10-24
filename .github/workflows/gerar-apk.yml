@@ -48,7 +48,7 @@ jobs:
         id: check
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "::notice::Agente do WhatsApp não publicado: falta o segredo SUPABASE_ACCESS_TOKEN."
+            echo "::notice::Funções do Supabase não publicadas: falta o segredo SUPABASE_ACCESS_TOKEN."
             echo "ok=false" >> "$GITHUB_OUTPUT"
           else
             echo "ok=true" >> "$GITHUB_OUTPUT"
@@ -57,10 +57,12 @@ jobs:
         if: steps.check.outputs.ok == 'true'
         with:
           version: latest
-      - name: Publicar função whatsapp
+      - name: Publicar funções (WhatsApp e leitura de comprovante)
         if: steps.check.outputs.ok == 'true'
         run: |
           REF=$(node -p "new URL(require('./leco.config.json').supabaseUrl).hostname.split('.')[0]")
+          supabase functions deploy ler-comprovante --project-ref "$REF" --use-api || { echo "::error::Falha ao publicar a função ler-comprovante no Supabase (confira o SUPABASE_ACCESS_TOKEN)."; exit 1; }
+          echo "::notice::Leitura de comprovante publicada em https://$REF.supabase.co/functions/v1/ler-comprovante"
           supabase functions deploy whatsapp --project-ref "$REF" --no-verify-jwt --use-api || { echo "::error::Falha ao publicar a função do WhatsApp no Supabase (confira o SUPABASE_ACCESS_TOKEN)."; exit 1; }
           echo "::notice::Agente do WhatsApp publicado em https://$REF.supabase.co/functions/v1/whatsapp"
   site:

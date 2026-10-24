@@ -38,6 +38,8 @@ App de finanças pessoais com contas de usuário (e-mail e senha ou Google), dad
 | `supabase/v3.sql` | Atualização do Leco 3: dívidas, modelos, planejamento, etiquetas, comprovantes e preferências. |
 | `tests/` | Testes automáticos (app e agente do WhatsApp). |
 | `supabase/whatsapp.sql` | Tabelas do assistente do WhatsApp (vínculo, códigos, desfazer). |
+| `supabase/functions/ler-comprovante/` | Lê a foto do comprovante com o Gemini e devolve os dados do lançamento. |
+| `supabase/ia.sql` | Limite diário de leituras por IA. |
 | `supabase/functions/whatsapp/` | O assistente: recebe as mensagens da Meta, entende com o Gemini e grava no Leco. |
 | `leco.config.json` | Endereço e chave **pública** do Supabase e endereço do site. |
 | `scripts/build-web.mjs` | Monta o app num único `index.html` (Android, site ou teste local). |
@@ -76,3 +78,11 @@ O número de teste da Meta só conversa com os números cadastrados no passo 2. 
 
 ## Suporte
 Em `leco.config.json`, preencha `supportWhatsapp` com o número do suporte (só dígitos, com 55 e DDD). O botão "Chamar no WhatsApp" aparece em Configurações › Ajuda e suporte.
+
+## Leitura de comprovante com IA (uma vez)
+1. **Google AI Studio** (aistudio.google.com/apikey): crie uma chave da API do Gemini.
+2. **Supabase › Edge Functions › Secrets**: crie `GEMINI_API_KEY` com a chave.
+3. **Supabase › Account › Access Tokens**: gere um token e salve no GitHub como segredo `SUPABASE_ACCESS_TOKEN`. A cada envio para a `main`, as funções `ler-comprovante` e `whatsapp` são publicadas.
+4. (Recomendado) **SQL Editor**: rode `supabase/ia.sql` para limitar a 40 leituras por usuário por dia.
+
+A chave do Gemini fica só no servidor; o app nunca a recebe.

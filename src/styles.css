@@ -332,6 +332,8 @@ html { touch-action: manipulation; }
 .grid > * { min-width: 0; }
 .drawer { transform: translate3d(-104%, 0, 0); transition: transform .34s cubic-bezier(.32, .72, 0, 1); will-change: transform; }
 .drawer.drawer-open { transform: none; }
+.scan-pulse { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-vivo) 45%, transparent); animation: scanPulse 1.4s ease-out infinite; }
+@keyframes scanPulse { to { box-shadow: 0 0 0 12px color-mix(in srgb, var(--color-vivo) 0%, transparent); } }
 :root[data-calm="1"] *, :root[data-calm="1"] *::before, :root[data-calm="1"] *::after { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }

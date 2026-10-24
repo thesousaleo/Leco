@@ -513,7 +513,10 @@ function WebLayout() {
     <div className="relative z-10 mx-auto grid w-full max-w-[1480px] gap-5 pb-8 pl-[max(16px,var(--safe-left))] pr-[max(16px,var(--safe-right))] pt-5 lg:grid-cols-[248px_minmax(0,1fr)]">
       <aside className="glass sticky top-5 flex max-h-[calc(100vh-40px)] flex-col gap-5 self-start overflow-y-auto p-5">
         <div className="px-1 pt-1"><Logo size="md" /></div>
-        <button type="button" className="btn btn-primary w-full" onClick={() => d.openModal({ kind: 'tx' })}><Icon name="plus" size={18} strokeWidth={2.4} />Nova transação</button>
+        <div className="space-y-2">
+          <button type="button" className="btn btn-primary w-full" onClick={() => d.openModal({ kind: 'tx' })}><Icon name="plus" size={18} strokeWidth={2.4} />Nova transação</button>
+          <ScanButton onFile={(f) => d.openModal({ kind: 'tx', scanFile: f })} className="btn btn-ghost w-full !py-2 text-[13px]"><Icon name="camera" size={16} />Ler comprovante (IA)</ScanButton>
+        </div>
         <nav aria-label="Abas principais" className="flex flex-col gap-1">
           {Object.keys(PAGES).filter((id) => !PAGES[id].hidden).map((id) => {
             const p = PAGES[id];
@@ -596,7 +599,15 @@ function SideDrawer({ open, onClose }) {
         <p className="mb-1 mt-5 px-3 text-[11px] font-bold uppercase tracking-wider text-ink/50">Funções</p>
         <ul className="space-y-0.5">{MOBILE_MENU.map((it) => row(it, d.page === it.id, () => go(() => d.go(it.id))))}</ul>
         <p className="mb-1 mt-5 px-3 text-[11px] font-bold uppercase tracking-wider text-ink/50">Ferramentas</p>
-        <ul className="space-y-0.5">{MOBILE_ACTIONS.map((it) => row(it, false, () => go(() => it.fn(d))))}</ul>
+        <ul className="space-y-0.5">
+          <li>
+            <ScanButton onFile={(f) => { onClose(); setTimeout(() => d.openModal({ kind: 'tx', scanFile: f }), 160); }} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left active:bg-ink/[0.06]">
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-ink/[0.06]"><Icon name="camera" size={17} /></span>
+              <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-bold">Ler comprovante com IA</span><span className="block truncate text-[11.5px] text-ink/60">Foto da nota, cupom, Pix ou boleto</span></span>
+            </ScanButton>
+          </li>
+          {MOBILE_ACTIONS.map((it) => row(it, false, () => go(() => it.fn(d))))}
+        </ul>
         <div className="mt-auto pt-6">
           <button type="button" className="btn btn-ghost w-full" onClick={() => go(() => d.go('mais'))}><Icon name="settings" size={16} />Ajustes</button>
           <p className="mt-3 text-center text-[11px] text-ink/45">Leco {APP_VERSION}{APP_BUILD ? ` (build ${APP_BUILD})` : ''}</p>
