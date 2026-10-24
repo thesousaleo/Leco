@@ -140,24 +140,35 @@ function PinSettingsPanel() {
 /* ---------- Nova versão disponível (APK) ---------- */
 const APP_BUILD = Number(window.LECO_BUILD || 0);
 const APP_VERSION = window.LECO_VERSION || '';
+// Procura versão nova no GitHub: ao abrir, ao voltar para o app (no máx. a cada 10 min) e quando o usuário pede
+const UPDATE = { listeners: new Set(), info: null, at: 0, busy: false };
+async function checkUpdate(force = false) {
+  if (!NATIVE || !CFG.repo || UPDATE.busy) return UPDATE.info;
+  if (!force && Date.now() - UPDATE.at < 10 * 60 * 1000) return UPDATE.info;
+  UPDATE.busy = true;
+  try {
+    const r = await fetch(`https://api.github.com/repos/${CFG.repo}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' });
+    if (r.ok) {
+      const rel = await r.json();
+      const m = String(rel.tag_name || '').match(/^v?([\d.]+)-build(\d+)$/);
+      const apk = (rel.assets || []).find((a) => /\.apk$/i.test(a.name));
+      const v = m && apk ? { version: m[1], build: Number(m[2]), url: apk.browser_download_url, page: rel.html_url } : null;
+      UPDATE.info = v && v.build > APP_BUILD ? v : null;
+      UPDATE.at = Date.now();
+      UPDATE.listeners.forEach((fn) => fn(UPDATE.info));
+    }
+  } catch (e) { /* sem internet: tenta de novo depois */ }
+  UPDATE.busy = false;
+  return UPDATE.info;
+}
 function useUpdateCheck() {
-  const [info, setInfo] = useState(null);
+  const [info, setInfo] = useState(UPDATE.info);
   useEffect(() => {
-    if (!NATIVE || !CFG.repo) return;
-    let last = 0;
-    try { last = Number(localStorage.getItem('leco.updateCheck') || 0); } catch (e) { /* ok */ }
-    const cached = (() => { try { return JSON.parse(localStorage.getItem('leco.updateInfo') || 'null'); } catch (e) { return null; } })();
-    if (cached && cached.build > APP_BUILD) setInfo(cached);
-    if (Date.now() - last < 3 * 3600 * 1000) return;
-    fetch(`https://api.github.com/repos/${CFG.repo}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } })
-      .then((r) => (r.ok ? r.json() : null)).then((rel) => {
-        if (!rel) return;
-        const m = String(rel.tag_name || '').match(/^v?([\d.]+)-build(\d+)$/);
-        const apk = (rel.assets || []).find((a) => /\.apk$/i.test(a.name));
-        const v = m && apk ? { version: m[1], build: Number(m[2]), url: apk.browser_download_url, page: rel.html_url, notes: (rel.body || '').slice(0, 400) } : null;
-        try { localStorage.setItem('leco.updateCheck', String(Date.now())); localStorage.setItem('leco.updateInfo', JSON.stringify(v)); } catch (e) { /* ok */ }
-        setInfo(v && v.build > APP_BUILD ? v : null);
-      }).catch(() => {});
+    UPDATE.listeners.add(setInfo);
+    checkUpdate();
+    const on = () => { if (document.visibilityState === 'visible') checkUpdate(); };
+    document.addEventListener('visibilitychange', on);
+    return () => { UPDATE.listeners.delete(setInfo); document.removeEventListener('visibilitychange', on); };
   }, []);
   return info;
 }

@@ -265,6 +265,7 @@ function SupportSettings() {
   const [open, setOpen] = useState(null);
   const wa = String(CFG.supportWhatsapp || '').replace(/\D/g, '');
   const info = useUpdateCheck();
+  const [checking, setChecking] = useState(false);
   const msg = encodeURIComponent(`Olá! Preciso de ajuda com o Leco (versão ${APP_VERSION}${APP_BUILD ? ` build ${APP_BUILD}` : ''}, ${NATIVE ? 'Android' : 'site'}).`);
   const openWa = () => { const url = `https://wa.me/${wa}?text=${msg}`; if (Native.Browser) Native.Browser.open({ url }).catch(() => window.open(url, '_blank')); else window.open(url, '_blank', 'noopener'); };
   return (
@@ -289,7 +290,11 @@ function SupportSettings() {
           <div className="flex justify-between gap-3 py-2"><dt className="text-ink/65">Banco de dados</dt><dd className="font-semibold">{d.v3 ? 'Atualizado (Leco 3)' : 'Precisa de atualização'}</dd></div>
         </dl>
         {NATIVE && info && <button type="button" className="btn btn-primary mt-3" onClick={() => openUpdate(info)}><Icon name="rocket" size={16} />Baixar versão {info.version}</button>}
-        {NATIVE && !info && <p className="mt-2 text-xs text-ink/60">Você está na versão mais recente.</p>}
+        {NATIVE && !info && (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button type="button" className="btn btn-ghost !py-2 text-[13px]" disabled={checking} onClick={async () => { setChecking(true); const v = await checkUpdate(true); setChecking(false); if (!v) d.toast('Você já está na versão mais recente'); }}>{checking ? <Spinner size={14} /> : <Icon name="refresh" size={15} />}Procurar atualização</button>
+          </div>
+        )}
         <p className="mt-3 text-xs text-ink/60"><a className="font-bold text-in" href={`${CFG.siteUrl || ''}privacidade.html`} target="_blank" rel="noopener">Política de privacidade</a></p>
       </Panel>
     </div>

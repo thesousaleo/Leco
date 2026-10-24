@@ -701,7 +701,7 @@ function MobileLayout() {
           )}
         </header>
         <main>
-          {page === 'inicio' && <UpdateBanner />}
+          {(page === 'inicio' || page === 'mais') && <UpdateBanner />}
           {page !== 'mais' && page !== 'config' && <PageTip id={page} />}
           <div key={`${page}-${d.settingsSub}`} className="rise">
             {page === 'mais' ? (
