@@ -71,6 +71,8 @@ public class MainActivity extends BridgeActivity {
         wv.addJavascriptInterface(new Object() {
             @JavascriptInterface
             public void setDarkBars(boolean dark) { MainActivity.this.setDarkBars(dark); }
+            @JavascriptInterface
+            public void setSecure(boolean on) { MainActivity.this.setSecure(on); }
         }, "LecoAndroid");
         ViewCompat.setOnApplyWindowInsetsListener(wv, (v, insets) -> {
             Insets i = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
@@ -95,6 +97,14 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         pushInsets();
+    }
+
+    // Com PIN ativo, o conteúdo não aparece na tela de apps recentes nem em capturas
+    public void setSecure(boolean on) {
+        runOnUiThread(() -> {
+            if (on) getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        });
     }
 
     // Ícones da barra de status claros ou escuros conforme o tema do app

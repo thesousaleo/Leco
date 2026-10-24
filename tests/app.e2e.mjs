@@ -1,0 +1,305 @@
+// Testes de ponta a ponta do Leco (banco em memória, navegador Chromium).
+// Rodar: node tests/app.e2e.mjs   (gera a versão de teste e abre num celular simulado)
+import { chromium } from 'playwright';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'leco-e2e-'));
+const html = path.join(tmp, 'leco.html');
+execFileSync('node', [path.join(root, 'scripts/build-web.mjs'), 'test', html], { stdio: 'inherit' });
+
+let passed = 0;
+const fails = [];
+const ok = (cond, name, extra = '') => { if (cond) { passed++; console.log(`  ✓ ${name}`); } else { fails.push(name); console.log(`  ✗ ${name} ${extra}`); } };
+const step = (t) => console.log(`\n${t}`);
+
+const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, acceptDownloads: true, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' });
+const page = await ctx.newPage();
+const errors = [];
+page.on('pageerror', (e) => errors.push(String(e)));
+await page.route(/fonts\.(googleapis|gstatic)\.com|api\.github\.com/, (r) => r.abort());
+await page.goto(`file://${html}`);
+
+const dlg = () => page.getByRole('dialog');
+const wait = (ms = 350) => page.waitForTimeout(ms);
+const fab = async () => { await page.locator('.fab-corner').click(); await wait(450); };
+const money = async (sel, cents) => { await page.fill(sel, ''); await page.type(sel, String(cents)); };
+const save = async () => { await dlg().getByRole('button', { name: /Adicionar|Salvar|Transferir/ }).last().click(); await wait(700); };
+const txs = () => page.evaluate(() => window.__leco && window.__leco().transactions);
+const nav = async (name) => { await page.getByRole('navigation').getByRole('button', { name }).click(); await wait(450); };
+const goMenu = async (label) => { await nav('Ajustes'); await page.getByRole('button', { name: new RegExp(label) }).first().click(); await wait(450); };
+const back = async () => { await page.getByRole('button', { name: 'Voltar' }).click(); await wait(350); };
+
+try {
+  step('Entrada e boas-vindas');
+  await page.getByRole('button', { name: /Google/ }).first().click();
+  await page.fill('#ob-name', 'Leonardo Teste');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await page.fill('#ob-acc', 'Nubank');
+  await page.type('#ob-bal', '200000');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await page.getByRole('button', { name: /Sim, cadastrar/ }).click();
+  await page.fill('#ob-card', 'Roxinho');
+  await page.type('#ob-limit', '500000');
+  await page.getByRole('button', { name: 'Concluir' }).click();
+  await wait(900);
+  ok(await page.getByText('Saldo total').count() > 0, 'abre o Início depois das boas-vindas');
+
+  step('Regras sem tela');
+  const unit = await page.evaluate(() => {
+    const d = window.__leco();
+    const r = {};
+    const q1 = parseQuickText('mercado 45,90 ontem', d, '2026-10-23');
+    r.quickAmount = q1.amount === 4590 && q1.date === '2026-10-22' && q1.kind === 'out';
+    const q2 = parseQuickText('recebi 3500 salário', d, '2026-10-23');
+    r.quickIncome = q2.kind === 'in' && q2.amount === 350000;
+    const q3 = parseQuickText('tênis 300 em 3x no cartão', d, '2026-10-23');
+    r.quickCard = q3.installments === 3 && !!q3.card_id && q3.amount === 30000;
+    r.money = parseMoneyBR('1.234,56') === 123456 && parseMoneyBR('-R$ 10,00') === -1000 && parseMoneyBR('1234.5') === 123450;
+    const csv = 'Data;Descrição;Valor\n01/10/2026;Supermercado Dia;-87,35\n02/10/2026;Pix recebido João;150,00\n';
+    const p1 = parseStatement(csv, 'extrato.csv');
+    r.csv = p1.rows.length === 2 && p1.rows[0].amount === -8735 && p1.rows[1].amount === 15000;
+    const nub = 'date,title,amount\n2026-10-05,Uber *Trip,23.50\n2026-10-06,Pagamento recebido,-500.00\n';
+    const p2 = parseStatement(nub, 'nubank.csv');
+    r.cardCsv = p2.rows[0].amount === -2350 && p2.rows[1].amount === 50000;
+    const ofx = '<OFX><BANKTRANLIST><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20261003120000<TRNAMT>-45.90<FITID>1<MEMO>PADARIA BOM PAO</STMTTRN></BANKTRANLIST></OFX>';
+    const p3 = parseStatement(ofx, 'x.ofx');
+    r.ofx = p3.rows.length === 1 && p3.rows[0].date === '2026-10-03' && p3.rows[0].amount === -4590;
+    r.ics = /BEGIN:VCALENDAR[\s\S]*END:VCALENDAR/.test(buildICS(d));
+    const old = FIN.start; FIN.start = 5;
+    const [a, b] = finRange('2026-10');
+    r.finMonth = a === '2026-10-05' && b === '2026-11-04' && finMonthOf('2026-10-03') === '2026-09';
+    FIN.start = old;
+    return r;
+  });
+  Object.entries(unit).forEach(([k, v]) => ok(v, `regra: ${k}`));
+
+  step('Lançamento rápido por texto');
+  await page.getByRole('button', { name: 'Rápido' }).first().click();
+  await wait(400);
+  await page.fill('#quick-text', 'mercado extra 45,90 ontem');
+  await dlg().getByRole('button', { name: 'Lançar' }).click();
+  await wait(700);
+  let list = await txs();
+  ok(list.some((t) => t.amount === 4590 && /mercado extra/i.test(t.description)), 'cria o lançamento a partir do texto');
+
+  step('Parcelado no boleto (conta)');
+  await fab();
+  await dlg().getByRole('button', { name: 'Parcelada', exact: true }).click();
+  await money('#tx-amount', 120000);
+  await page.fill('#tx-desc', 'Geladeira');
+  await page.selectOption('#tx-inst', '6');
+  await save();
+  list = await txs();
+  const gel = list.filter((t) => /^Geladeira/.test(t.description));
+  ok(gel.length === 6 && gel.filter((t) => !t.paid).length === 5 && !gel[0].invoice, '6 parcelas, as futuras ficam a pagar');
+
+  step('Editar todas as parcelas');
+  const p3 = gel.find((t) => t.installment === 3);
+  await page.evaluate((id) => { const t = window.__leco().transactions.find((x) => x.id === id); window.__leco().openModal({ kind: 'tx', initial: t }); }, p3.id);
+  await wait(500);
+  await page.fill('#tx-desc', 'Geladeira Brastemp');
+  await save();
+  await dlg().getByRole('button', { name: 'Todas', exact: true }).click();
+  await wait(1800);
+  list = await txs();
+  ok(list.filter((t) => /^Geladeira Brastemp \(\d\/6\)$/.test(t.description)).length === 6, 'mudança aplicada nas 6 parcelas', JSON.stringify(list.filter((t) => /Geladeira/.test(t.description)).map((t) => t.description)));
+
+  step('Compra dividida em categorias');
+  await fab();
+  await money('#tx-amount', 20000);
+  await page.fill('#tx-desc', 'Supermercado');
+  await dlg().getByRole('button', { name: /Dividir em várias categorias/ }).click();
+  const selects = dlg().locator('select[aria-label^="Categoria da parte"]');
+  await selects.nth(0).selectOption({ label: 'Alimentação' });
+  await selects.nth(1).selectOption({ label: 'Compras' });
+  const amounts = dlg().locator('input[aria-label^="Valor da parte"]');
+  await amounts.nth(0).fill(''); await amounts.nth(0).type('15000');
+  await amounts.nth(1).fill(''); await amounts.nth(1).type('5000');
+  await save();
+  list = await txs();
+  const sp = list.filter((t) => t.description === 'Supermercado');
+  ok(sp.length === 2 && sp[0].split_id && sp[0].split_id === sp[1].split_id, 'duas partes ligadas pelo split_id');
+
+  step('Assinatura no cartão com etiqueta');
+  await fab();
+  await dlg().getByRole('button', { name: 'Assinatura', exact: true }).click();
+  await money('#tx-amount', 5590);
+  await page.fill('#tx-desc', 'Netflix');
+  await page.selectOption('#tx-source', { label: 'Roxinho (crédito)' });
+  await dlg().getByRole('button', { name: /Mais opções/ }).click();
+  await page.fill('#tx-tags', 'lazer ');
+  await save();
+  await wait(500);
+  const st = await page.evaluate(() => { const d = window.__leco(); return { recs: d.recurrings.length, tagged: d.transactions.some((t) => t.description === 'Netflix' && (t.tags || []).includes('lazer')) }; });
+  ok(st.recs === 1 && st.tagged, 'recorrência criada e etiqueta salva');
+
+  step('Modelo de lançamento');
+  await fab();
+  await money('#tx-amount', 3500);
+  await page.fill('#tx-desc', 'Almoço');
+  await dlg().getByRole('button', { name: 'Salvar como modelo' }).click();
+  await wait(500);
+  await dlg().getByRole('button', { name: 'Cancelar' }).click();
+  await wait(400);
+  await fab();
+  await dlg().getByRole('button', { name: /Almoço/ }).first().click();
+  ok((await page.inputValue('#tx-desc')) === 'Almoço', 'modelo preenche o formulário');
+  await dlg().getByRole('button', { name: 'Cancelar' }).click();
+  await wait(400);
+
+  step('Ajustar saldo');
+  await goMenu('Contas e cartões');
+  await page.getByRole('button', { name: /Ajustar saldo/ }).first().click();
+  await wait(400);
+  await page.fill('#adj-real', '');
+  await page.type('#adj-real', '150000');
+  await dlg().getByRole('button', { name: 'Ajustar' }).click();
+  await wait(700);
+  const bal = await page.evaluate(() => { const d = window.__leco(); return d.balances[d.accounts[0].id]; });
+  ok(bal === 150000, 'saldo corrigido para R$ 1.500,00', `(${bal})`);
+  await back();
+
+  step('Importar extrato CSV');
+  await nav('Ajustes');
+  await page.getByRole('button', { name: /Importar extrato/ }).click();
+  await wait(400);
+  const csvPath = path.join(tmp, 'extrato.csv');
+  fs.writeFileSync(csvPath, 'Data;Descrição;Valor\n10/10/2026;Posto Ipiranga;-200,00\n11/10/2026;Farmácia Drogasil;-35,50\n12/10/2026;Pix recebido;300,00\n');
+  await dlg().locator('input[type=file]').setInputFiles(csvPath);
+  await wait(500);
+  await dlg().getByRole('button', { name: /^Importar 3/ }).click();
+  await wait(800);
+  list = await txs();
+  const posto = list.find((t) => t.description === 'Posto Ipiranga');
+  const transporte = await page.evaluate(() => (window.__leco().categories.find((c) => c.name === 'Transporte') || {}).id);
+  ok(posto && posto.category_id === transporte, 'importa e sugere a categoria (posto → Transporte)');
+
+  step('Dívida');
+  await page.evaluate(() => window.__leco().go('dividas'));
+  await wait(400);
+  await page.getByRole('button', { name: 'Nova dívida' }).click();
+  await wait(400);
+  await page.fill('#debt-name', 'Empréstimo banco');
+  await money('#debt-total', 300000);
+  await page.fill('#debt-n', '10');
+  await page.selectOption('#debt-due', '15');
+  await dlg().getByRole('button', { name: 'Salvar' }).click();
+  await wait(600);
+  await page.getByRole('button', { name: 'Registrar pagamento' }).click();
+  await wait(400);
+  await dlg().getByRole('button', { name: 'Registrar' }).click();
+  await wait(700);
+  const debt = await page.evaluate(() => window.__leco().debts[0]);
+  ok(debt && debt.paid === 30000, 'parcela da dívida registrada');
+
+  step('Planejamento');
+  await page.evaluate(() => window.__leco().go('planejamento'));
+  await wait(600);
+  ok(await page.getByText('Planejado × realizado').count() > 0 && await page.getByText('Projeção de saldo').count() > 0, 'página de planejamento abre');
+  await page.getByRole('button', { name: 'Planejar' }).first().click();
+  await wait(300);
+  const planInput = page.locator('input[aria-label^="Planejado para"]').first();
+  await planInput.fill(''); await planInput.type('80000');
+  await page.getByRole('button', { name: 'Salvar' }).first().click();
+  await wait(600);
+  ok(await page.evaluate(() => window.__leco().plans.length) === 1, 'valor planejado salvo');
+
+  step('Calendário e busca');
+  await nav('Calendário');
+  ok(await page.getByText(/Previsto/).count() >= 0, 'calendário abre');
+  const calEv = await page.evaluate(() => calendarEvents(window.__leco(), '2026-01-01', '2027-12-31').some((e) => e.debt));
+  ok(calEv, 'dívida aparece no calendário');
+  await page.getByRole('button', { name: 'Buscar' }).first().click();
+  await wait(400);
+  await page.fill('#search-q', 'netflix');
+  await wait(300);
+  ok(await dlg().getByText('Netflix').count() > 0, 'busca global encontra o lançamento');
+  await page.keyboard.press('Escape');
+  await wait(400);
+
+  step('PDF do extrato');
+  await nav('Extrato');
+  const [pdf] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Gerar PDF do extrato' }).click()]);
+  const pdfPath = path.join(tmp, 'extrato.pdf');
+  await pdf.saveAs(pdfPath);
+  ok(fs.readFileSync(pdfPath).slice(0, 4).toString() === '%PDF', 'PDF gerado');
+
+  step('Cópia completa e restauração');
+  await page.evaluate(() => { const d = window.__leco(); d.setSettingsSub('dados'); d.go('config'); });
+  await wait(500);
+  const [bk] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: /Cópia completa/ }).click()]);
+  const bkPath = path.join(tmp, 'backup.json');
+  await bk.saveAs(bkPath);
+  const before = (await txs()).length;
+  await page.getByRole('button', { name: /Restaurar cópia/ }).click();
+  await wait(400);
+  await dlg().locator('input[type=file]').setInputFiles(bkPath);
+  await wait(400);
+  await dlg().getByRole('button', { name: 'Restaurar' }).click();
+  await wait(1500);
+  const after = (await txs()).length;
+  ok(after === before * 2, 'juntar dobra os lançamentos', `(${before} → ${after})`);
+  await dlg().getByRole('button', { name: 'Pronto' }).click();
+  await wait(400);
+
+  step('Aparência e personalização');
+  await page.evaluate(() => { const d = window.__leco(); d.setSettingsSub('preferencias'); d.go('config'); });
+  await wait(400);
+  await page.getByRole('button', { name: /Preto/ }).click();
+  await page.getByRole('button', { name: /Oceano/ }).click();
+  await wait(400);
+  const look = await page.evaluate(() => ({ black: document.documentElement.dataset.black, vivo: document.documentElement.style.getPropertyValue('--color-vivo') }));
+  ok(look.black === '1' && look.vivo === '#1A7FA3', 'tema preto e cor Oceano aplicados');
+  await page.evaluate(() => { const d = window.__leco(); d.setSettingsSub('personalizar'); d.go('config'); });
+  await wait(400);
+  await page.selectOption('#pz-tab-2', 'planejamento');
+  await wait(400);
+  ok(await page.getByRole('navigation').getByRole('button', { name: 'Planejar' }).count() === 1, 'aba do menu trocada para Planejar');
+
+  step('Bloqueio com PIN');
+  await page.evaluate(() => { const d = window.__leco(); d.setSettingsSub('seguranca'); d.go('config'); });
+  await wait(400);
+  await page.getByRole('button', { name: 'Ativar PIN' }).click();
+  await wait(400);
+  for (const k of '12341234') { await dlg().getByRole('button', { name: k, exact: true }).click(); await wait(60); }
+  await wait(600);
+  await page.selectOption('#pin-timeout', '0');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await wait(400);
+  ok(await page.getByRole('dialog', { name: 'App bloqueado' }).count() === 1, 'app bloqueia ao voltar');
+  for (const k of '9999') await page.getByRole('dialog', { name: 'App bloqueado' }).getByRole('button', { name: k, exact: true }).click();
+  await wait(600);
+  ok(await page.getByRole('dialog', { name: 'App bloqueado' }).count() === 1, 'PIN errado não desbloqueia');
+  for (const k of '1234') await page.getByRole('dialog', { name: 'App bloqueado' }).getByRole('button', { name: k, exact: true }).click();
+  await wait(600);
+  ok(await page.getByRole('dialog', { name: 'App bloqueado' }).count() === 0, 'PIN certo desbloqueia');
+
+  step('Layout no celular (sem rolagem lateral)');
+  await page.setViewportSize({ width: 360, height: 760 });
+  for (const id of ['inicio', 'transacoes', 'calendario', 'relatorios', 'planejamento', 'dividas', 'contas', 'mais']) {
+    await page.evaluate((x) => window.__leco().go(x), id);
+    await wait(450);
+    const [sw, cw] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+    ok(sw <= cw, `sem rolagem lateral: ${id}`, `(${sw} > ${cw})`);
+  }
+} catch (e) {
+  fails.push(`erro: ${e.message.split('\n')[0]}`);
+  console.log(e);
+  await page.screenshot({ path: path.join(tmp, 'falha.png') }).catch(() => {});
+  console.log(`print da falha: ${path.join(tmp, 'falha.png')}`);
+}
+
+ok(errors.length === 0, 'nenhum erro de JavaScript na página', errors.join(' | '));
+await browser.close();
+console.log(`\n${passed} ok, ${fails.length} falha(s)`);
+if (fails.length) { console.log(fails.map((f) => ` - ${f}`).join('\n')); process.exit(1); }

@@ -38,7 +38,8 @@ if (mode === 'native') {
   entry += `import { App } from '@capacitor/app'; import { Browser } from '@capacitor/browser';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'; import { Share } from '@capacitor/share';
-window.LecoNative = { App, Browser, LocalNotifications, Filesystem, Directory, Encoding, Share };\n`;
+import { Haptics } from '@capacitor/haptics';
+window.LecoNative = { App, Browser, LocalNotifications, Filesystem, Directory, Encoding, Share, Haptics };\n`;
 }
 const libs = await esbuild.build({
   stdin: { contents: entry, resolveDir: root, loader: 'js' },
@@ -49,6 +50,7 @@ const app = (await esbuild.transform(src, { loader: 'jsx', jsx: 'transform', jsx
 
 const flags = [
   `window.LECO_CONFIG = ${JSON.stringify(config)};`,
+  `window.LECO_VERSION = ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version)}; window.LECO_BUILD = ${Number(process.env.LECO_BUILD || 0)};`,
   mode === 'native' ? 'window.LECO_NATIVE = true;' : '',
   mode === 'test' ? 'window.LECO_TEST_BACKEND = true;' : '',
 ].join('\n');

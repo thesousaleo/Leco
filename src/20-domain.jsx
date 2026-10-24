@@ -79,8 +79,9 @@ function accountBalances(accounts, txs, until = null) {
 }
 
 /* ---------- Resumos ---------- */
-const countsAsIncome = (t) => t.kind === 'in' && t.paid;
-const countsAsExpense = (t) => t.kind === 'out' && (t.paid || !!t.card_id);
+// Ajustes de saldo mudam o saldo da conta, mas não contam como receita ou despesa nos relatórios
+const countsAsIncome = (t) => t.kind === 'in' && t.paid && !t.is_adjustment;
+const countsAsExpense = (t) => t.kind === 'out' && (t.paid || !!t.card_id) && !t.is_adjustment;
 
 function periodSummary(txs, from, to, cats) {
   const inRange = txs.filter((t) => t.date >= from && t.date <= to);
@@ -91,7 +92,8 @@ function periodSummary(txs, from, to, cats) {
     list.forEach((t) => { const k = t.category_id || 'none'; o[k] = (o[k] || 0) + t.amount; });
     return Object.keys(o).map((k) => {
       const c = cats.find((x) => x.id === k);
-      return { key: k, label: c ? c.name : 'Sem categoria', color: c ? c.color : '#9AA9A4', icon: c ? c.icon : 'tag', value: o[k] };
+      const parent = c && c.parent_id ? cats.find((x) => x.id === c.parent_id) : null;
+      return { key: k, label: c ? (parent ? `${parent.name} › ${c.name}` : c.name) : 'Sem categoria', color: c ? c.color : '#9AA9A4', icon: c ? c.icon : 'tag', value: o[k] };
     }).sort((a, b) => b.value - a.value);
   };
   const income = sum(inc, (t) => t.amount);
@@ -102,7 +104,7 @@ function periodSummary(txs, from, to, cats) {
 function monthSeries(txs, accounts, endMonth, n = 6) {
   return Array.from({ length: n }, (_, i) => {
     const k = shiftMonth(endMonth, i - (n - 1));
-    const from = `${k}-01`, to = dayIn(k, 31);
+    const [from, to] = finRange(k);
     const inRange = txs.filter((t) => t.date >= from && t.date <= to);
     const bal = accountBalances(accounts, txs, to);
     return {
@@ -114,12 +116,20 @@ function monthSeries(txs, accounts, endMonth, n = 6) {
   });
 }
 
-function budgetsFor(cats, txs, month) {
-  const from = `${month}-01`, to = dayIn(month, 31);
+// Orçamento do mês: o planejado do mês (Planejamento) ou o limite fixo da categoria.
+// Gastos das subcategorias também contam no orçamento da categoria principal.
+function budgetsFor(cats, txs, month, plans = []) {
+  const [from, to] = finRange(month);
   const spent = {};
-  txs.forEach((t) => { if (countsAsExpense(t) && t.date >= from && t.date <= to && t.category_id) spent[t.category_id] = (spent[t.category_id] || 0) + t.amount; });
-  return cats.filter((c) => c.kind === 'out' && c.budget > 0 && !c.archived)
-    .map((c) => ({ key: c.id, label: c.name, icon: c.icon, color: c.color, budget: c.budget, spent: spent[c.id] || 0, pct: Math.round(((spent[c.id] || 0) / c.budget) * 100) }))
+  txs.forEach((t) => {
+    if (!countsAsExpense(t) || t.date < from || t.date > to || !t.category_id) return;
+    spent[t.category_id] = (spent[t.category_id] || 0) + t.amount;
+    const c = cats.find((x) => x.id === t.category_id);
+    if (c && c.parent_id) spent[c.parent_id] = (spent[c.parent_id] || 0) + t.amount;
+  });
+  const planOf = (c) => { const p = plans.find((x) => x.month === month && x.category_id === c.id); return p ? p.amount : c.budget; };
+  return cats.filter((c) => c.kind === 'out' && !c.archived && planOf(c) > 0)
+    .map((c) => { const b = planOf(c); return { key: c.id, label: c.name, icon: c.icon, color: c.color, budget: b, spent: spent[c.id] || 0, pct: Math.round(((spent[c.id] || 0) / b) * 100) }; })
     .sort((a, b) => b.pct - a.pct);
 }
 
@@ -169,7 +179,7 @@ function planRecurrings(recurrings, cards, today = todayISO()) {
 }
 
 /* ---------- Alertas ---------- */
-function buildAlerts({ txs, cards, cats, goals, profile, month, today = todayISO() }) {
+function buildAlerts({ txs, cards, cats, goals, profile, month, plans = [], debts = [], today = todayISO() }) {
   const list = [];
   const p = profile || {};
   if (p.notify_bills !== false) {
@@ -191,7 +201,7 @@ function buildAlerts({ txs, cards, cats, goals, profile, month, today = todayISO
     });
   }
   if (p.notify_budget !== false) {
-    budgetsFor(cats, txs, month).filter((b) => b.pct >= 80).forEach((b) => list.push({
+    budgetsFor(cats, txs, month, plans).filter((b) => b.pct >= 80).forEach((b) => list.push({
       id: `b-${b.key}`, icon: 'alert', tone: b.pct >= 100 ? 'bad' : 'gold',
       title: b.pct >= 100 ? `Orçamento de ${b.label} estourado` : `${b.label} em ${b.pct}% do orçamento`,
       body: `${fmtBRL(b.spent)} de ${fmtBRL(b.budget)} em ${monthLabel(month)}.`,
@@ -201,6 +211,28 @@ function buildAlerts({ txs, cards, cats, goals, profile, month, today = todayISO
     goals.filter((g) => g.saved / g.target >= 0.75 && g.saved < g.target).forEach((g) => list.push({
       id: `g-${g.id}`, icon: 'target', tone: 'gold', title: 'Meta quase lá', body: `${g.name} chegou a ${Math.round((g.saved / g.target) * 100)}% (${fmtBRL(g.saved)} de ${fmtBRL(g.target)}).`,
     }));
+    // lembrete mensal de guardar dinheiro na meta
+    goals.filter((g) => g.remind_day && g.monthly_amount > 0 && g.saved < g.target).forEach((g) => {
+      const due = dayIn(monthKey(today), g.remind_day);
+      const dd = diffDays(due, today);
+      if (dd >= 0 && dd <= 2) list.push({ id: `gr-${g.id}-${monthKey(today)}`, icon: 'piggy', tone: 'ok', goalId: g.id, title: `Guardar para ${g.name}`, body: `Lembrete do mês: ${fmtBRL(g.monthly_amount)} ${relDay(due, today)}.` });
+    });
+  }
+  if (p.notify_bills !== false) {
+    // fechamento da fatura: avisa 2 dias antes
+    cards.filter((c) => !c.archived).forEach((c) => {
+      const inv = invoiceOf(c, today);
+      const closing = invoiceClosing(c, inv);
+      const dd = diffDays(closing, today);
+      if (dd >= 0 && dd <= 2) list.push({ id: `fc-${c.id}-${inv}`, icon: 'card', tone: 'ok', cardId: c.id, title: `Fatura ${c.name} fecha ${relDay(closing, today)}`, body: `Compras a partir de ${fmtDate(closing)} vão para a fatura seguinte (vencimento ${fmtDate(invoiceDue(c, shiftMonth(inv, 1)))}).` });
+    });
+    // parcelas de dívidas
+    debts.filter((x) => !x.closed && x.due_day && x.paid < x.total).forEach((x) => {
+      const due = dayIn(monthKey(today), x.due_day);
+      const dd = diffDays(due, today);
+      const lim = p.bill_days_before == null ? 2 : p.bill_days_before;
+      if (dd >= 0 && dd <= lim) list.push({ id: `d-${x.id}-${monthKey(today)}`, icon: 'scale', tone: 'gold', debtId: x.id, title: x.direction === 'owe' ? `Parcela da dívida: ${x.name}` : `Receber de ${x.person || x.name}`, body: `${x.installment_amount ? fmtBRL(x.installment_amount) : 'Valor a combinar'} · vence ${relDay(due, today)} (${fmtDate(due)}).` });
+    });
   }
   return list;
 }

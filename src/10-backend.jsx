@@ -4,6 +4,15 @@
    Testes locais (window.LECO_TEST_BACKEND): banco em memória com a mesma interface.
    ===================================================================== */
 const TABLES = ['accounts', 'cards', 'categories', 'recurrings', 'transactions', 'goals'];
+// Tabelas e colunas do Leco 3 (supabase/v3.sql). Sem a atualização do banco, o app funciona sem elas.
+const V3_TABLES = ['templates', 'debts', 'plans'];
+const ALL_TABLES = [...TABLES, ...V3_TABLES];
+const V3_COLS = {
+  profiles: ['prefs'], accounts: ['icon', 'is_reserve'], cards: ['icon'], categories: ['parent_id'], recurrings: ['tags'],
+  transactions: ['tags', 'split_id', 'attachment', 'orig_amount', 'orig_currency', 'is_adjustment', 'debt_id', 'goal_id'],
+  goals: ['monthly_amount', 'account_id', 'remind_day'],
+};
+const stripV3 = (table, row) => { const cols = V3_COLS[table]; if (!cols) return row; const r = { ...row }; cols.forEach((c) => delete r[c]); return r; };
 const NATIVE_REDIRECT = 'br.com.leco.app://auth';
 
 function translateError(err) {
@@ -66,13 +75,20 @@ function createSupabaseBackend() {
     async updateEmail(email) { ok(await client.auth.updateUser({ email }, { emailRedirectTo: siteUrl })); },
     async updateName(name) { ok(await client.auth.updateUser({ data: { name } })); },
     async signOut(scope = 'local') { ok(await client.auth.signOut({ scope })); },
-    async deleteAccount() { ok(await client.rpc('delete_my_account')); await client.auth.signOut({ scope: 'local' }).catch(() => {}); },
+    async deleteAccount() {
+      // apaga as fotos de comprovante antes (o banco não apaga arquivos sozinho)
+      try { const uidv = (await client.auth.getUser()).data.user.id; await files.removeFolder(uidv); } catch (e) { /* sem fotos ou sem Storage */ }
+      ok(await client.rpc('delete_my_account')); await client.auth.signOut({ scope: 'local' }).catch(() => {});
+    },
   };
 
+  const state = { v3: false };
+  const clean = (table, rows) => (state.v3 ? rows : Array.isArray(rows) ? rows.map((r) => stripV3(table, r)) : stripV3(table, rows));
   const db = {
+    get v3() { return state.v3; },
     async loadAll(userId) {
       const out = {};
-      await Promise.all(TABLES.map(async (t) => {
+      const load = async (t) => {
         const rows = [];
         for (let from = 0; ; from += 1000) {
           const q = client.from(t).select('*').order(t === 'transactions' ? 'date' : 'created_at', { ascending: t !== 'transactions' }).range(from, from + 999);
@@ -80,26 +96,43 @@ function createSupabaseBackend() {
           rows.push(...data);
           if (data.length < 1000) break;
         }
-        out[t] = rows;
-      }));
+        return rows;
+      };
+      await Promise.all(TABLES.map(async (t) => { out[t] = await load(t); }));
+      const v3 = await Promise.all(V3_TABLES.map(async (t) => { try { out[t] = await load(t); return true; } catch (e) { out[t] = []; return false; } }));
       const prof = ok(await client.from('profiles').select('*').eq('id', userId).maybeSingle());
       out.profile = prof;
+      state.v3 = v3.every(Boolean) && (!prof || 'prefs' in prof);
+      out.v3 = state.v3;
       return out;
     },
-    async insert(table, rows) { return ok(await client.from(table).insert(rows).select()); },
-    async insertIgnore(table, rows, onConflict) { return ok(await client.from(table).upsert(rows, { onConflict, ignoreDuplicates: true }).select()); },
-    async update(table, id, patch) { return ok(await client.from(table).update(patch).eq('id', id).select().single()); },
-    async updateWhere(table, field, value, patch) { return ok(await client.from(table).update(patch).eq(field, value).select()); },
+    async insert(table, rows) { return ok(await client.from(table).insert(clean(table, rows)).select()); },
+    async insertIgnore(table, rows, onConflict) { return ok(await client.from(table).upsert(clean(table, rows), { onConflict, ignoreDuplicates: true }).select()); },
+    async upsert(table, rows, onConflict) { return ok(await client.from(table).upsert(clean(table, rows), { onConflict }).select()); },
+    async update(table, id, patch) { return ok(await client.from(table).update(clean(table, patch)).eq('id', id).select().single()); },
+    async updateWhere(table, field, value, patch) { return ok(await client.from(table).update(clean(table, patch)).eq(field, value).select()); },
+    async updateIn(table, ids, patch) { return ok(await client.from(table).update(clean(table, patch)).in('id', ids).select()); },
     async remove(table, id) { ok(await client.from(table).delete().eq('id', id)); },
+    async removeIn(table, ids) { if (ids.length) ok(await client.from(table).delete().in('id', ids)); },
     async removeWhere(table, field, value) { ok(await client.from(table).delete().eq(field, value)); },
-    async saveProfile(userId, patch) { return ok(await client.from('profiles').upsert({ id: userId, ...patch }).select().single()); },
+    async saveProfile(userId, patch) { return ok(await client.from('profiles').upsert(clean('profiles', { id: userId, ...patch })).select().single()); },
+  };
+  // Fotos de comprovante (Storage privado: pasta = id do usuário)
+  const files = {
+    async upload(path, blob) { ok(await client.storage.from('comprovantes').upload(path, blob, { upsert: true, contentType: blob.type || 'image/jpeg' })); return path; },
+    async url(path) { return ok(await client.storage.from('comprovantes').createSignedUrl(path, 3600)).signedUrl; },
+    async remove(paths) { if (paths.length) ok(await client.storage.from('comprovantes').remove(paths)); },
+    async removeFolder(folder) {
+      const list = ok(await client.storage.from('comprovantes').list(folder, { limit: 1000 }));
+      if (list && list.length) await files.remove(list.map((f) => `${folder}/${f.name}`));
+    },
   };
   const whatsapp = {
     async status() { return ok(await client.from('whatsapp_links').select('phone, created_at').maybeSingle()); },
     async createCode() { const r = ok(await client.rpc('create_whatsapp_code')); return Array.isArray(r) ? r[0] : r; },
     async unlink() { ok(await client.from('whatsapp_links').delete().not('phone', 'is', null)); },
   };
-  return { kind: 'supabase', auth, db, whatsapp };
+  return { kind: 'supabase', auth, db, whatsapp, files };
 }
 
 /* ------------------------------------------------------------------ */
@@ -116,7 +149,8 @@ const DEFAULT_CATEGORIES = [
 function createMemoryBackend() {
   const users = {};
   const store = { profiles: {} };
-  TABLES.forEach((t) => { store[t] = []; });
+  ALL_TABLES.forEach((t) => { store[t] = []; });
+  const blobs = {};
   let session = null;
   const listeners = new Set();
   const emit = (ev) => listeners.forEach((cb) => cb(ev, session));
@@ -128,12 +162,20 @@ function createMemoryBackend() {
     categories: { icon: 'tag', color: '#14806B', budget: 0, archived: false },
     recurrings: { frequency: 'monthly', end_date: null, active: true, category_id: null, account_id: null, card_id: null },
     transactions: { description: '', category_id: null, account_id: null, to_account_id: null, card_id: null, invoice: null, installment: null, installments: null, group_id: null, recurring_id: null, paid: true, notes: null },
-    goals: { icon: 'target', saved: 0, due: null },
+    goals: { icon: 'target', saved: 0, due: null, monthly_amount: 0, account_id: null, remind_day: null },
+    templates: { amount: 0, description: '', category_id: null, account_id: null, card_id: null, tags: [], uses: 0 },
+    debts: { person: '', paid: 0, interest: 0, installments: null, installment_amount: null, due_day: null, start_date: null, account_id: null, notes: null, closed: false },
+    plans: { amount: 0 },
   };
+  defaults.transactions = { ...defaults.transactions, tags: [], split_id: null, attachment: null, orig_amount: null, orig_currency: null, is_adjustment: false, debt_id: null, goal_id: null };
+  defaults.accounts = { ...defaults.accounts, icon: null, is_reserve: false };
+  defaults.cards = { ...defaults.cards, icon: null };
+  defaults.categories = { ...defaults.categories, parent_id: null };
+  defaults.recurrings = { ...defaults.recurrings, tags: [] };
   const makeUser = (email, name) => {
     const id = uid();
     users[email] = { id, email, password: null, name, confirmed: true, created_at: now(), last_sign_in_at: now(), provider: 'email' };
-    store.profiles[id] = { id, name, theme: 'light', hide_values: false, savings_goal: 20, notify_bills: true, notify_budget: true, notify_goals: true, bill_days_before: 2, onboarded: false, created_at: now() };
+    store.profiles[id] = { id, name, theme: 'light', hide_values: false, savings_goal: 20, notify_bills: true, notify_budget: true, notify_goals: true, bill_days_before: 2, onboarded: false, prefs: {}, created_at: now() };
     DEFAULT_CATEGORIES.forEach(([n, k, i, c]) => store.categories.push({ id: uid(), user_id: id, name: n, kind: k, icon: i, color: c, budget: 0, archived: false, created_at: now() }));
     return users[email];
   };
@@ -173,20 +215,34 @@ function createMemoryBackend() {
     async deleteAccount() {
       await wait();
       const id = session.user.id;
-      TABLES.forEach((t) => { store[t] = store[t].filter((r) => r.user_id !== id); });
+      ALL_TABLES.forEach((t) => { store[t] = store[t].filter((r) => r.user_id !== id); });
       delete store.profiles[id];
       Object.keys(users).forEach((e) => { if (users[e].id === id) delete users[e]; });
       session = null; emit('SIGNED_OUT');
     },
   };
   const db = {
+    v3: !window.LECO_TEST_NOV3, // testes: simula o banco antigo (sem supabase/v3.sql)
     async loadAll(userId) {
       await wait();
       const out = {};
-      TABLES.forEach((t) => { out[t] = JSON.parse(JSON.stringify(mine(t))); });
+      ALL_TABLES.forEach((t) => { out[t] = JSON.parse(JSON.stringify(mine(t))); });
       out.profile = { ...store.profiles[userId] };
+      out.v3 = db.v3;
       return out;
     },
+    async upsert(table, rows, onConflict) {
+      await wait();
+      const keys = onConflict.split(',');
+      const res = [];
+      for (const r of rows) {
+        const ex = store[table].find((x) => x.user_id === session.user.id && keys.every((k) => k === 'user_id' || x[k] === r[k]));
+        if (ex) { Object.assign(ex, r); res.push({ ...ex }); } else { const [m] = await db.insert(table, [r]); res.push(m); }
+      }
+      return res;
+    },
+    async updateIn(table, ids, patch) { await wait(); const rows = store[table].filter((r) => ids.includes(r.id)); rows.forEach((r) => Object.assign(r, patch)); return rows.map((r) => ({ ...r })); },
+    async removeIn(table, ids) { await wait(); store[table] = store[table].filter((r) => !ids.includes(r.id)); },
     async insert(table, rows) {
       await wait();
       const made = rows.map((r) => ({ id: uid(), user_id: session.user.id, created_at: now(), ...defaults[table], ...r }));
@@ -233,7 +289,13 @@ function createMemoryBackend() {
     },
     async unlink() { await wait(); waLink = null; },
   };
-  return { kind: 'memory', auth, db, whatsapp };
+  const files = {
+    async upload(path, blob) { await wait(); blobs[path] = URL.createObjectURL(blob); return path; },
+    async url(path) { return blobs[path] || ''; },
+    async remove(paths) { paths.forEach((p) => delete blobs[p]); },
+    async removeFolder() {},
+  };
+  return { kind: 'memory', auth, db, whatsapp, files };
 }
 
 function createBackend() {

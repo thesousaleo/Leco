@@ -5,6 +5,21 @@
 const byTx = (a, b) => (a.date === b.date ? (a.created_at < b.created_at ? 1 : -1) : a.date < b.date ? 1 : -1);
 const stripRow = (r) => { const { id, user_id, created_at, ...rest } = r; return rest; };
 
+// Reduz fotos grandes antes de enviar (máx. 1600 px, JPEG 80%)
+async function shrinkImage(file) {
+  if (!file.type.startsWith('image/') || file.size < 400 * 1024) return file;
+  try {
+    const url = URL.createObjectURL(file);
+    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
+    const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    return await new Promise((ok) => c.toBlob((b) => ok(b || file), 'image/jpeg', 0.8));
+  } catch (e) { return file; }
+}
+
 async function exportFile(filename, content, mime = 'text/csv') {
   const binary = content instanceof Uint8Array;
   if (NATIVE && Native.Filesystem && Native.Share) {
@@ -66,14 +81,36 @@ function useLecoData(backend, session, toast) {
   const set = (table, fn) => setData((d) => (d ? { ...d, [table]: fn(d[table]) } : d));
   const markFresh = (ids) => { setFreshIds(ids); setTimeout(() => setFreshIds([]), 2600); };
   const guard = async (fn, okMsg, action) => {
-    try { const r = await fn(); if (okMsg) toast(okMsg, action); return r === undefined ? true : r; } catch (e) { toast(e.message, null, true); return false; }
+    try { const r = await fn(); if (okMsg) { toast(okMsg, action); haptic('success'); } return r === undefined ? true : r; } catch (e) { toast(e.message, null, true); haptic('warn'); return false; }
   };
 
   const actions = {
     reload: load,
-    async saveTx(initial, base, installments = 1) {
+    async saveTx(initial, base, installments = 1, scope = 'one') {
       return guard(async () => {
         const card = base.card_id ? data.cards.find((c) => c.id === base.card_id) : null;
+        // Editar várias de uma vez: parcelas (group_id) ou lançamentos de uma recorrência
+        if (initial && initial.id && scope !== 'one' && (initial.group_id || initial.recurring_id)) {
+          const same = (t) => (initial.group_id ? t.group_id === initial.group_id : t.recurring_id === initial.recurring_id);
+          const from = (t) => (initial.group_id ? (t.installment || 0) >= (initial.installment || 0) : t.date >= initial.date);
+          const targets = data.transactions.filter((t) => same(t) && (scope === 'all' || from(t)));
+          const common = { category_id: base.category_id, notes: base.notes, tags: base.tags };
+          if (base.amount !== initial.amount) common.amount = base.amount;
+          const updated = await Promise.all(targets.map((t) => {
+            const patch = { ...common, description: initial.group_id ? `${base.description} (${t.installment}/${t.installments})` : base.description };
+            if (t.id === initial.id) { patch.date = base.date; if (!initial.group_id) patch.paid = base.paid; }
+            return backend.db.update('transactions', t.id, patch);
+          }));
+          if (initial.recurring_id) {
+            const rp = { description: base.description.slice(0, 60), amount: base.amount, category_id: base.category_id };
+            if (backend.db.v3) rp.tags = base.tags || [];
+            const rec = await backend.db.update('recurrings', initial.recurring_id, rp);
+            set('recurrings', (l) => l.map((r) => (r.id === rec.id ? rec : r)));
+          }
+          set('transactions', (l) => l.map((t) => updated.find((u) => u.id === t.id) || t).sort(byTx));
+          markFresh(updated.map((u) => u.id));
+          return true;
+        }
         if (initial && initial.id) {
           const patch = { ...base };
           if (initial.group_id) { delete patch.card_id; delete patch.account_id; patch.description = `${base.description} (${initial.installment}/${initial.installments})`; }
@@ -88,7 +125,7 @@ function useLecoData(backend, session, toast) {
         set('transactions', (l) => [...made, ...l].sort(byTx));
         markFresh(made.map((r) => r.id));
         return true;
-      }, initial && initial.id ? 'Transação atualizada' : installments > 1 ? `Compra em ${installments}x registrada` : base.kind === 'in' ? 'Receita registrada' : base.kind === 'transfer' ? 'Transferência registrada' : 'Despesa registrada');
+      }, initial && initial.id ? (scope === 'one' ? 'Transação atualizada' : 'Lançamentos atualizados') : installments > 1 ? `Compra em ${installments}x registrada` : base.kind === 'in' ? 'Receita registrada' : base.kind === 'transfer' ? 'Transferência registrada' : 'Despesa registrada');
     },
     // Transação que se repete (assinatura, aluguel, salário): cria a recorrência e o primeiro lançamento
     async saveTxRepeat(base, frequency, endDate) {
@@ -106,6 +143,25 @@ function useLecoData(backend, session, toast) {
     async deleteTx(t, scope = 'one') {
       if (scope === 'group' && t.group_id) {
         return guard(async () => { await backend.db.removeWhere('transactions', 'group_id', t.group_id); set('transactions', (l) => l.filter((x) => x.group_id !== t.group_id)); }, 'Compra parcelada excluída');
+      }
+      if (scope === 'split' && t.split_id) {
+        return guard(async () => { await backend.db.removeWhere('transactions', 'split_id', t.split_id); set('transactions', (l) => l.filter((x) => x.split_id !== t.split_id)); }, 'Compra dividida excluída');
+      }
+      if (scope === 'next' && t.group_id) {
+        return guard(async () => {
+          const ids = data.transactions.filter((x) => x.group_id === t.group_id && (x.installment || 0) >= (t.installment || 0)).map((x) => x.id);
+          await backend.db.removeIn('transactions', ids); set('transactions', (l) => l.filter((x) => !ids.includes(x.id)));
+        }, 'Parcelas excluídas');
+      }
+      if ((scope === 'next' || scope === 'all') && t.recurring_id) {
+        // encerra a recorrência: apaga este e os próximos lançamentos ainda não pagos
+        return guard(async () => {
+          const ids = data.transactions.filter((x) => x.recurring_id === t.recurring_id && (x.id === t.id || (!x.paid && x.date >= t.date))).map((x) => x.id);
+          await backend.db.removeIn('transactions', ids);
+          if (scope === 'all') { await backend.db.remove('recurrings', t.recurring_id); set('recurrings', (l) => l.filter((r) => r.id !== t.recurring_id)); }
+          else { const rec = await backend.db.update('recurrings', t.recurring_id, { active: false }); set('recurrings', (l) => l.map((r) => (r.id === rec.id ? rec : r))); }
+          set('transactions', (l) => l.filter((x) => !ids.includes(x.id)));
+        }, scope === 'all' ? 'Recorrência excluída' : 'Recorrência encerrada');
       }
       return guard(async () => { await backend.db.remove('transactions', t.id); set('transactions', (l) => l.filter((x) => x.id !== t.id)); }, 'Transação excluída', {
         label: 'Desfazer', run: async () => { try { const made = await backend.db.insert('transactions', [stripRow(t)]); set('transactions', (l) => [...made, ...l].sort(byTx)); } catch (e) { toast(e.message, null, true); } },
@@ -170,6 +226,103 @@ function useLecoData(backend, session, toast) {
         if (table === 'cards') set('transactions', (l) => l.filter((t) => t.card_id !== row.id));
         if (table === 'categories') set('transactions', (l) => l.map((t) => (t.category_id === row.id ? { ...t, category_id: null } : t)));
       }, labels[table]);
+    },
+    // ---------- Leco 3 ----------
+    async saveRow(table, initial, patch, okMsg) {
+      return guard(async () => {
+        if (initial) { const row = await backend.db.update(table, initial.id, patch); set(table, (l) => (l || []).map((a) => (a.id === row.id ? row : a))); return row; }
+        const made = await backend.db.insert(table, [patch]); set(table, (l) => [...(l || []), ...made]); return made[0];
+      }, okMsg);
+    },
+    async removeRow(table, row, okMsg) {
+      return guard(async () => { await backend.db.remove(table, row.id); set(table, (l) => (l || []).filter((x) => x.id !== row.id)); }, okMsg);
+    },
+    async savePlan(month, categoryId, amount) {
+      return guard(async () => {
+        const [row] = await backend.db.upsert('plans', [{ month, category_id: categoryId, amount }], 'user_id,month,category_id');
+        set('plans', (l) => [...(l || []).filter((p) => !(p.month === month && p.category_id === categoryId)), row]);
+      });
+    },
+    async copyPlans(fromMonth, toMonth) {
+      return guard(async () => {
+        const src = (data.plans || []).filter((p) => p.month === fromMonth);
+        const rows = src.length ? src.map((p) => ({ month: toMonth, category_id: p.category_id, amount: p.amount }))
+          : data.categories.filter((c) => c.budget > 0).map((c) => ({ month: toMonth, category_id: c.id, amount: c.budget }));
+        if (!rows.length) throw new Error('Nada para copiar: defina valores neste mês.');
+        const made = await backend.db.upsert('plans', rows, 'user_id,month,category_id');
+        set('plans', (l) => [...(l || []).filter((p) => p.month !== toMonth), ...made]);
+      }, 'Planejamento copiado');
+    },
+    // Ajuste de saldo: lança a diferença (fora dos relatórios). Sem o banco novo, ajusta o saldo inicial.
+    async adjustBalance(acc, real) {
+      const cur = accountBalances(data.accounts, data.transactions)[acc.id] || 0;
+      const diff = real - cur;
+      if (!diff) { toast('O saldo já está certo.'); return true; }
+      return guard(async () => {
+        if (backend.db.v3) {
+          const made = await backend.db.insert('transactions', [{ kind: diff > 0 ? 'in' : 'out', amount: Math.abs(diff), date: todayISO(), account_id: acc.id, paid: true, description: 'Ajuste de saldo', is_adjustment: true, notes: `Saldo corrigido para ${fmtBRL(real)}` }]);
+          set('transactions', (l) => [...made, ...l].sort(byTx)); markFresh(made.map((r) => r.id));
+        } else {
+          const row = await backend.db.update('accounts', acc.id, { initial_balance: (acc.initial_balance || 0) + diff });
+          set('accounts', (l) => l.map((a) => (a.id === row.id ? row : a)));
+        }
+      }, `Saldo de ${acc.name} ajustado para ${fmtBRL(real)}`);
+    },
+    // Compra dividida em várias categorias: um lançamento por parte, ligados pelo split_id
+    async saveSplit(base, parts) {
+      return guard(async () => {
+        const sid = uid();
+        const card = base.card_id ? data.cards.find((c) => c.id === base.card_id) : null;
+        const rows = parts.map((p) => ({ ...base, amount: p.amount, category_id: p.category_id, split_id: sid, invoice: card ? invoiceOf(card, base.date) : null }));
+        const made = await backend.db.insert('transactions', rows);
+        set('transactions', (l) => [...made, ...l].sort(byTx)); markFresh(made.map((r) => r.id));
+      }, `Compra dividida em ${parts.length} categorias`);
+    },
+    async importRows(rows, target) {
+      return guard(async () => {
+        const isCard = target.startsWith('card:');
+        const id = target.slice(isCard ? 5 : 4);
+        const card = isCard ? data.cards.find((c) => c.id === id) : null;
+        const list = rows.map((r) => ({
+          kind: r.kind, amount: r.amount, date: r.date, description: r.description, category_id: r.category_id || null,
+          account_id: isCard ? null : id, card_id: isCard ? id : null, invoice: card ? invoiceOf(card, r.date) : null, paid: true, notes: 'Importado do extrato',
+        }));
+        const made = [];
+        for (let i = 0; i < list.length; i += 300) made.push(...(await backend.db.insert('transactions', list.slice(i, i + 300))));
+        set('transactions', (l) => [...made, ...l].sort(byTx)); markFresh(made.map((r) => r.id));
+        return made.length;
+      }, `${plural(rows.length, 'lançamento importado', 'lançamentos importados')}`);
+    },
+    async payDebt(debt, amount, accountId, date) {
+      return guard(async () => {
+        const tx = { kind: debt.direction === 'owe' ? 'out' : 'in', amount, date, account_id: accountId, paid: true, description: `${debt.direction === 'owe' ? 'Pagamento' : 'Recebido'}: ${debt.name}`.slice(0, 60), debt_id: debt.id, notes: debt.person ? `Com ${debt.person}` : null };
+        const made = await backend.db.insert('transactions', [tx]);
+        const paid = Math.min(debt.total, debt.paid + amount);
+        const row = await backend.db.update('debts', debt.id, { paid, closed: paid >= debt.total });
+        set('transactions', (l) => [...made, ...l].sort(byTx));
+        set('debts', (l) => l.map((x) => (x.id === row.id ? row : x)));
+      }, debt.paid + amount >= debt.total ? (debt.direction === 'owe' ? 'Dívida quitada!' : 'Valor recebido por completo!') : 'Pagamento registrado');
+    },
+    // Guardar na meta: soma ao valor guardado e, se a meta tem conta própria, transfere o dinheiro
+    async contributeGoal(goal, amount, fromAccountId) {
+      return guard(async () => {
+        if (goal.account_id && fromAccountId && fromAccountId !== goal.account_id) {
+          const made = await backend.db.insert('transactions', [{ kind: 'transfer', amount, date: todayISO(), account_id: fromAccountId, to_account_id: goal.account_id, paid: true, description: `Guardar: ${goal.name}`.slice(0, 60), goal_id: goal.id }]);
+          set('transactions', (l) => [...made, ...l].sort(byTx));
+        }
+        const row = await backend.db.update('goals', goal.id, { saved: goal.saved + amount });
+        set('goals', (l) => l.map((g) => (g.id === row.id ? row : g)));
+      }, goal.saved + amount >= goal.target ? `Meta "${goal.name}" concluída!` : 'Valor guardado na meta');
+    },
+    async uploadAttachment(file) {
+      const blob = await shrinkImage(file);
+      const ext = blob.type === 'application/pdf' ? 'pdf' : blob.type === 'image/png' ? 'png' : 'jpg';
+      return backend.files.upload(`${userId}/${uid()}.${ext}`, blob);
+    },
+    async restore(json, mode) {
+      const counts = await restoreBackup(json, mode, { ...data, backend, v3: backend.db.v3, saveProfile: (p) => backend.db.saveProfile(userId, p) });
+      await load();
+      return counts;
     },
     async saveProfile(patch, okMsg, debounce) {
       setData((d) => (d ? { ...d, profile: { ...d.profile, ...patch } } : d));
@@ -334,10 +487,24 @@ const PAGES = {
   contas: { label: 'Contas e cartões', icon: 'card', C: AccountsPage },
   recorrentes: { label: 'Recorrentes', icon: 'repeat', C: RecurringPage },
   relatorios: { label: 'Relatórios', icon: 'chart', C: ReportsPage },
+  planejamento: { label: 'Planejamento', icon: 'layers', C: PlanningPage },
+  dividas: { label: 'Dívidas', icon: 'scale', C: DebtsPage },
   metas: { label: 'Metas', icon: 'target', C: GoalsPage },
   categorias: { label: 'Categorias', icon: 'grid', C: CategoriesPage },
+  modelos: { label: 'Modelos', icon: 'star', C: TemplatesPage, hidden: true },
+  conquistas: { label: 'Conquistas', icon: 'trophy', C: AchievementsPage, hidden: true },
   config: { label: 'Configurações', icon: 'settings', C: SettingsPage },
 };
+
+function TopTools({ withNotif = true }) {
+  const d = useApp();
+  return (
+    <>
+      <button type="button" className="icon-btn size-11" aria-label="Buscar" onClick={() => d.openModal({ kind: 'search' })}><Icon name="search" size={19} /></button>
+      {withNotif && <NotifButton panelWidth={300} />}
+    </>
+  );
+}
 
 function WebLayout() {
   const d = useApp();
@@ -348,7 +515,7 @@ function WebLayout() {
         <div className="px-1 pt-1"><Logo size="md" /></div>
         <button type="button" className="btn btn-primary w-full" onClick={() => d.openModal({ kind: 'tx' })}><Icon name="plus" size={18} strokeWidth={2.4} />Nova transação</button>
         <nav aria-label="Abas principais" className="flex flex-col gap-1">
-          {Object.keys(PAGES).map((id) => {
+          {Object.keys(PAGES).filter((id) => !PAGES[id].hidden).map((id) => {
             const p = PAGES[id];
             const on = d.page === id;
             return (
@@ -368,49 +535,88 @@ function WebLayout() {
         </div>
       </aside>
       <main className="min-w-0">
-        {d.page !== 'inicio' && <div className="mb-4 flex justify-end gap-2"><NotifButton /></div>}
+        <div className="mb-4 flex justify-end gap-2"><TopTools withNotif={d.page !== 'inicio'} /></div>
+        <PageTip id={d.page} />
         <div key={`${d.page}-${d.settingsSub}`} className="rise"><Page /></div>
-        <p className="px-1 pt-6 text-center text-[11px] text-ink/50">Leco · seus dados ficam protegidos e só você tem acesso</p>
+        <p className="px-1 pt-6 text-center text-[11px] text-ink/50">Leco {APP_VERSION} · seus dados ficam protegidos e só você tem acesso</p>
       </main>
     </div>
   );
 }
 
 const MOBILE_MENU = [
-  { id: 'contas', label: 'Contas e cartões', icon: 'card', desc: 'Saldos, faturas e limites' },
-  { id: 'recorrentes', label: 'Recorrentes', icon: 'repeat', desc: 'Contas fixas e lembretes' },
+  { id: 'contas', label: 'Contas e cartões', icon: 'card', desc: 'Saldos, faturas, limites e ajuste de saldo' },
+  { id: 'recorrentes', label: 'Recorrentes', icon: 'repeat', desc: 'Contas fixas, assinaturas e lembretes' },
+  { id: 'planejamento', label: 'Planejamento', icon: 'layers', desc: 'Planejado × realizado, projeção e reserva' },
+  { id: 'dividas', label: 'Dívidas e empréstimos', icon: 'scale', desc: 'O que você deve e o que te devem' },
   { id: 'metas', label: 'Metas', icon: 'target', desc: 'Objetivos de poupança' },
-  { id: 'categorias', label: 'Categorias', icon: 'grid', desc: 'Categorias e orçamentos' },
+  { id: 'categorias', label: 'Categorias', icon: 'grid', desc: 'Categorias, subcategorias e orçamentos' },
+  { id: 'modelos', label: 'Modelos de lançamento', icon: 'star', desc: 'Atalhos para gastos frequentes' },
+  { id: 'conquistas', label: 'Conquistas', icon: 'trophy', desc: 'Seu progresso no Leco' },
 ];
+const MOBILE_ACTIONS = [
+  { id: 'import', label: 'Importar extrato do banco', icon: 'upload', desc: 'Arquivo OFX ou CSV', fn: (d) => d.openModal({ kind: 'import' }) },
+  { id: 'ics', label: 'Exportar para o Google Agenda', icon: 'calendar', desc: 'Contas, faturas e recorrências (.ics)', fn: (d) => d.exportFile('leco-agenda.ics', buildICS(d), 'text/calendar') },
+];
+
+// Puxar a tela para baixo para atualizar
+function usePullRefresh(onRefresh) {
+  const [pull, setPull] = useState(0);
+  const st = useRef(null);
+  useEffect(() => {
+    if (!LITE) return undefined;
+    const start = (e) => { if (window.scrollY <= 0 && e.touches.length === 1 && !document.querySelector('[role=dialog]')) st.current = { y: e.touches[0].clientY, d: 0 }; };
+    const move = (e) => { if (!st.current) return; const dy = e.touches[0].clientY - st.current.y; if (dy <= 0) { st.current.d = 0; setPull(0); return; } st.current.d = Math.min(120, dy * 0.5); setPull(st.current.d); };
+    const end = async () => { const s = st.current; st.current = null; if (s && s.d >= 70) { haptic(); setPull(64); await onRefresh(); } setPull(0); };
+    window.addEventListener('touchstart', start, { passive: true });
+    window.addEventListener('touchmove', move, { passive: true });
+    window.addEventListener('touchend', end);
+    return () => { window.removeEventListener('touchstart', start); window.removeEventListener('touchmove', move); window.removeEventListener('touchend', end); };
+  }, [onRefresh]);
+  return pull;
+}
 
 function MobileLayout() {
   const d = useApp();
   const page = d.page;
-  const TABS = [{ id: 'inicio', label: 'Início', icon: 'home' }, { id: 'transacoes', label: 'Extrato', icon: 'list' }, { id: 'calendario', label: 'Calendário', icon: 'calendar' }, { id: 'relatorios', label: 'Análises', icon: 'pie' }, { id: 'mais', label: 'Ajustes', icon: 'settings' }];
+  const TABS = [{ id: 'inicio', label: 'Início', icon: 'home' }, ...d.prefs.tabs.map((id) => NAV_CHOICES.find((n) => n.id === id)), { id: 'mais', label: 'Ajustes', icon: 'settings' }];
   const isTab = TABS.some((t) => t.id === page);
   const activeTab = isTab ? TABS.findIndex((t) => t.id === page) : page === 'inicio' ? 0 : TABS.length - 1;
-  const tabTitle = { transacoes: 'Extrato', calendario: 'Calendário', relatorios: 'Análises', mais: 'Ajustes' }[page];
-  const title = page === 'config' ? (SETTINGS_TABS.find((t) => t.id === d.settingsSub) || {}).label : tabTitle || (PAGES[page] || {}).label;
+  const tabTitle = page === 'mais' ? 'Ajustes' : (NAV_CHOICES.find((n) => n.id === page) || {}).label;
+  const title = page === 'config' ? (SETTINGS_TABS.find((t) => t.id === d.settingsSub) || {}).label : (isTab && tabTitle) || (PAGES[page] || {}).label;
   const Page = page === 'mais' ? null : (PAGES[page] || PAGES.inicio).C;
   const back = () => d.go(page === 'config' || MOBILE_MENU.some((x) => x.id === page) ? 'mais' : 'inicio');
-  const headerAction = { contas: { icon: 'plus', label: 'Nova conta', fn: () => d.openModal({ kind: 'account' }) }, recorrentes: { icon: 'plus', label: 'Nova recorrência', fn: () => d.openModal({ kind: 'recurring' }) }, metas: { icon: 'plus', label: 'Nova meta', fn: () => d.openModal({ kind: 'goal' }) } }[page];
-  const series = useMemo(() => monthSeries(d.transactions, d.accounts, monthKey(todayISO())), [d.transactions, d.accounts]);
+  const headerAction = { contas: { icon: 'plus', label: 'Nova conta', fn: () => d.openModal({ kind: 'account' }) }, recorrentes: { icon: 'plus', label: 'Nova recorrência', fn: () => d.openModal({ kind: 'recurring' }) }, metas: { icon: 'plus', label: 'Nova meta', fn: () => d.openModal({ kind: 'goal' }) }, dividas: { icon: 'plus', label: 'Nova dívida', fn: () => d.openModal({ kind: 'debt' }) }, modelos: { icon: 'plus', label: 'Novo modelo', fn: () => d.openModal({ kind: 'template' }) } }[page];
+  const series = useMemo(() => monthSeries(d.transactions, d.accounts, finMonthOf(todayISO())), [d.transactions, d.accounts]);
   const totalBal = sum(d.accounts, (a) => d.balances[a.id] || 0);
   const prevBal = series.length > 1 ? series[series.length - 2].bal : 0;
   const balDelta = prevBal ? ((totalBal - prevBal) / Math.abs(prevBal)) * 100 : null;
   const initial = (d.name || d.session.user.email).charAt(0).toUpperCase();
+  const pull = usePullRefresh(useCallback(async () => { await d.reload(); d.toast('Atualizado'); }, []));
   useEffect(() => { window.scrollTo(0, 0); }, [page, d.settingsSub]);
+  const menuRow = (it, fn) => (
+    <li key={it.id}><button type="button" onClick={fn} className="flex w-full items-center gap-3 rounded-2xl px-2 py-3 text-left">
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ink/[0.06]"><Icon name={it.icon} size={18} /></span>
+      <span className="min-w-0 flex-1"><span className="block text-[14px] font-bold">{it.label}</span><span className="block truncate text-xs text-ink/65">{it.desc}</span></span>
+      <Icon name="right" size={16} className="text-ink/45" />
+    </button></li>
+  );
   return (
     <NarrowCtx.Provider value={true}>
-      <div className="relative z-10 min-h-[100dvh] pb-[calc(170px+var(--safe-bottom))] pl-[max(16px,var(--safe-left))] pr-[max(16px,var(--safe-right))] pt-[calc(14px+var(--safe-top))]">
+      {pull > 0 && (
+        <div className="pointer-events-none fixed inset-x-0 z-50 flex justify-center" style={{ top: `calc(${pull - 30}px + var(--safe-top))` }} aria-hidden="true">
+          <span className="grid size-10 place-items-center rounded-full bg-[var(--paper)] text-vivo shadow-lg" style={{ transform: `rotate(${pull * 4}deg)`, opacity: Math.min(1, pull / 60) }}>{pull >= 64 ? <Spinner size={18} /> : <Icon name="refresh" size={18} />}</span>
+        </div>
+      )}
+      <div className="relative z-10 min-h-[100dvh] pb-[calc(170px+var(--safe-bottom))] pl-[max(16px,var(--safe-left))] pr-[max(16px,var(--safe-right))] pt-[calc(14px+var(--safe-top))]" style={pull ? { transform: `translate3d(0,${pull * 0.5}px,0)` } : undefined}>
         <header className="pb-4">
           {page === 'inicio' ? (
             <>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 <button type="button" onClick={() => { d.setSettingsSub('perfil'); d.go('config'); }} aria-label="Abrir perfil" className="grid size-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-vivo to-leco text-[16px] font-extrabold text-white ring-2 ring-ouro/70">{initial}</button>
                 <div className="min-w-0 flex-1"><p className="text-xs text-ink/70">{greeting()},</p><p className="truncate text-[17px] font-extrabold tracking-[-0.02em]">{firstName(d.name) || 'bem-vindo'}</p></div>
                 <button type="button" className="icon-btn size-11" onClick={() => d.saveProfile({ hide_values: !d.hide })} aria-label={d.hide ? 'Mostrar valores' : 'Ocultar valores'} aria-pressed={d.hide}><Icon name={d.hide ? 'eyeOff' : 'eye'} size={19} /></button>
-                <NotifButton panelWidth={300} />
+                <TopTools />
               </div>
               <button type="button" onClick={() => d.go('contas')} className="glass-hero mt-4 flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left">
                 <span className="min-w-0">
@@ -421,9 +627,9 @@ function MobileLayout() {
               </button>
             </>
           ) : isTab ? (
-            <div className="flex items-center gap-3 pt-1">
+            <div className="flex items-center gap-2.5 pt-1">
               <h1 className="min-w-0 flex-1 truncate text-[24px] font-extrabold tracking-[-0.02em]">{title}</h1>
-              {page !== 'mais' && <NotifButton panelWidth={300} />}
+              <TopTools withNotif={page !== 'mais'} />
             </div>
           ) : (
             <div className="flex items-center gap-2 pt-1">
@@ -434,6 +640,8 @@ function MobileLayout() {
           )}
         </header>
         <main>
+          {page === 'inicio' && <UpdateBanner />}
+          {page !== 'mais' && page !== 'config' && <PageTip id={page} />}
           <div key={`${page}-${d.settingsSub}`} className="rise">
             {page === 'mais' ? (
               <div className="space-y-4">
@@ -445,26 +653,11 @@ function MobileLayout() {
                   </span>
                   <Icon name="right" size={18} />
                 </button>
-                <ul className="glass divide-y divide-ink/[0.07] rounded-3xl px-2 py-1">
-                  {MOBILE_MENU.map((it) => (
-                    <li key={it.id}><button type="button" onClick={() => d.go(it.id)} className="flex w-full items-center gap-3 rounded-2xl px-2 py-3 text-left">
-                      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ink/[0.06]"><Icon name={it.icon} size={18} /></span>
-                      <span className="min-w-0 flex-1"><span className="block text-[14px] font-bold">{it.label}</span><span className="block truncate text-xs text-ink/65">{it.desc}</span></span>
-                      <Icon name="right" size={16} className="text-ink/45" />
-                    </button></li>
-                  ))}
-                </ul>
-                <ul className="glass divide-y divide-ink/[0.07] rounded-3xl px-2 py-1">
-                  {SETTINGS_TABS.filter((it) => it.id !== 'perfil').map((it) => (
-                    <li key={it.id}><button type="button" onClick={() => { d.setSettingsSub(it.id); d.go('config'); }} className="flex w-full items-center gap-3 rounded-2xl px-2 py-3 text-left">
-                      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ink/[0.06]"><Icon name={it.icon} size={18} /></span>
-                      <span className="min-w-0 flex-1"><span className="block text-[14px] font-bold">{it.label}</span><span className="block truncate text-xs text-ink/65">{it.desc}</span></span>
-                      <Icon name="right" size={16} className="text-ink/45" />
-                    </button></li>
-                  ))}
-                </ul>
+                <ul className="glass divide-y divide-ink/[0.07] rounded-3xl px-2 py-1">{MOBILE_MENU.filter((it) => !d.prefs.tabs.includes(it.id)).map((it) => menuRow(it, () => d.go(it.id)))}</ul>
+                <ul className="glass divide-y divide-ink/[0.07] rounded-3xl px-2 py-1">{MOBILE_ACTIONS.map((it) => menuRow(it, () => it.fn(d)))}</ul>
+                <ul className="glass divide-y divide-ink/[0.07] rounded-3xl px-2 py-1">{SETTINGS_TABS.filter((it) => it.id !== 'perfil').map((it) => menuRow(it, () => { d.setSettingsSub(it.id); d.go('config'); }))}</ul>
                 <button type="button" className="btn btn-ghost w-full" onClick={d.signOut}><Icon name="logout" size={16} />Sair da conta</button>
-                <p className="text-center text-[11px] text-ink/50">Leco · seus dados ficam protegidos e só você tem acesso</p>
+                <p className="text-center text-[11px] text-ink/50">Leco {APP_VERSION}{APP_BUILD ? ` (build ${APP_BUILD})` : ''} · seus dados ficam protegidos</p>
               </div>
             ) : <Page />}
           </div>
@@ -476,16 +669,16 @@ function MobileLayout() {
           {TABS.map((t, i) => {
             const on = i === activeTab;
             return (
-              <button key={t.id} type="button" onClick={() => d.go(t.id)} aria-current={page === t.id ? 'page' : undefined}
+              <button key={t.id} type="button" onClick={() => { if (page !== t.id) haptic(); d.go(t.id); }} aria-current={page === t.id ? 'page' : undefined}
                 className={`relative flex min-w-0 flex-col items-center gap-1 text-[10px] font-semibold transition-colors duration-300 ${on ? 'text-ink' : 'text-ink/60'}`}>
                 <span className={`grid h-8 w-12 place-items-center rounded-full transition-colors duration-300 ${on ? 'text-white' : ''}`}><Icon name={t.icon} size={19} /></span>
-                {t.label}
+                <span className="max-w-full truncate">{t.label}</span>
               </button>
             );
           })}
         </nav>
         {page !== 'mais' && page !== 'config' && (
-          <button type="button" className="fab-corner fixed right-[max(18px,var(--safe-right))] bottom-[calc(98px+var(--safe-bottom))] z-40 size-[58px]" onClick={() => d.openModal({ kind: 'tx' })} aria-label="Nova transação">
+          <button type="button" className="fab-corner fixed right-[max(18px,var(--safe-right))] bottom-[calc(98px+var(--safe-bottom))] z-40 size-[58px]" onClick={() => { haptic(); d.openModal({ kind: 'tx' }); }} aria-label="Nova transação">
             <Icon name="plus" size={26} strokeWidth={2.6} />
           </button>
         )}
@@ -504,13 +697,31 @@ function Workspace({ backend, session, toast, toastNode }) {
   const [month, setMonth] = useState(monthKey(todayISO()));
   const [modal, setModal] = useState(null);
   const [calm, setCalm] = useLocal('leco.calm', false);
-  const theme = data && data.profile && data.profile.theme === 'dark' ? 'dark' : 'light';
-  useEffect(() => { document.documentElement.dataset.leco = theme; try { if (window.LecoAndroid) window.LecoAndroid.setDarkBars(theme === 'dark'); } catch (e) { /* sem ponte nativa */ } }, [theme]);
+  // Preferências: no banco (Leco 3) ou neste aparelho enquanto o banco não foi atualizado
+  const v3 = !!(data && data.v3);
+  const [localPrefs, setLocalPrefs] = useLocal('leco.prefs', {});
+  const rawPrefs = (v3 ? data.profile.prefs : localPrefs) || {};
+  const prefs = useMemo(() => mergePrefs(rawPrefs), [JSON.stringify(rawPrefs)]);
+  const themeMode = prefs.theme || (data && data.profile && data.profile.theme) || 'light';
+  const [clock, setClock] = useState(0);
+  useEffect(() => { if (themeMode !== 'auto') return undefined; const t = setInterval(() => setClock((c) => c + 1), 5 * 60000); return () => clearInterval(t); }, [themeMode]);
+  const fullTheme = resolveTheme(themeMode, prefs);
+  const theme = fullTheme === 'light' ? 'light' : 'dark';
+  FIN.start = prefs.monthStart; FIN.weekStart = prefs.weekStart; HAPTIC.on = prefs.haptics !== false;
+  useEffect(() => { applyAppearance(prefs, fullTheme); }, [prefs, fullTheme, clock]);
+  const setPrefs = useCallback((patch) => {
+    const next = { ...rawPrefs, ...patch };
+    if (v3) actions.saveProfile({ prefs: next }, null, true);
+    else setLocalPrefs(next);
+    if (patch.theme === 'light' || patch.theme === 'dark') actions.saveProfile({ theme: patch.theme }, null, true);
+  }, [v3, JSON.stringify(rawPrefs)]);
+  const monthInit = useRef(false);
+  useEffect(() => { if (data && !monthInit.current) { monthInit.current = true; setMonth(finMonthOf(todayISO())); } }, [data]);
   useEffect(() => { document.documentElement.dataset.calm = calm ? '1' : '0'; }, [calm]);
   useEffect(() => { if (data && NATIVE) { const t = setTimeout(() => scheduleReminders(data), 1500); return () => clearTimeout(t); } return undefined; }, [data]);
 
   const navRef = useRef({});
-  navRef.current = { page, modal };
+  navRef.current = { page, modal, tabs: prefs.tabs };
   const go = useCallback((id) => { setPage(id); setModal(null); window.scrollTo({ top: 0, behavior: 'auto' }); }, []);
   useEffect(() => {
     const capApp = Native.App;
@@ -518,7 +729,7 @@ function Workspace({ backend, session, toast, toastNode }) {
     const h = capApp.addListener('backButton', () => {
       const st = navRef.current;
       if (st.modal) setModal(null);
-      else if (st.page === 'config' || MOBILE_MENU.some((x) => x.id === st.page)) go('mais');
+      else if (st.page === 'config' || (MOBILE_MENU.some((x) => x.id === st.page) && !st.tabs.includes(st.page))) go('mais');
       else if (st.page !== 'inicio') go('inicio');
       else if (capApp.exitApp) capApp.exitApp();
     });
@@ -528,10 +739,10 @@ function Workspace({ backend, session, toast, toastNode }) {
   const ctx = useMemo(() => {
     if (!data) return null;
     const balances = accountBalances(data.accounts, data.transactions);
-    const alerts = buildAlerts({ txs: data.transactions, cards: data.cards, cats: data.categories, goals: data.goals, profile: data.profile, month: monthKey(todayISO()) });
+    const alerts = buildAlerts({ txs: data.transactions, cards: data.cards, cats: data.categories, goals: data.goals, profile: data.profile, month: finMonthOf(todayISO()), plans: data.plans || [], debts: data.debts || [] });
     return {
       ...data, ...actions, backend, session, toast, freshIds, balances, alerts,
-      name: data.profile.name || '', hide: !!data.profile.hide_values, theme, calm, setCalm,
+      name: data.profile.name || '', hide: !!data.profile.hide_values, theme, fullTheme, themeMode, prefs, setPrefs, v3, calm, setCalm,
       page, go, settingsSub, setSettingsSub, month, setMonth,
       modal, openModal: (m) => setModal({ key: Date.now(), ...m }),
       // Fecha com animação de saída: marca como "fechando" e remove depois de 220 ms
@@ -540,7 +751,24 @@ function Workspace({ backend, session, toast, toastNode }) {
       exportFile: async (name, content, mime) => { try { await exportFile(name, content, mime); toast(NATIVE ? 'Ficheiro pronto para salvar ou enviar' : 'Download iniciado'); } catch (e) { toast('Não foi possível exportar o ficheiro.', null, true); } },
       signOut: async () => { try { await backend.auth.signOut(); } catch (e) { toast(e.message, null, true); } },
     };
-  }, [data, freshIds, page, settingsSub, month, modal, theme, calm]);
+  }, [data, freshIds, page, settingsSub, month, modal, theme, fullTheme, prefs, calm]);
+
+  // Só nos testes automáticos: acesso ao estado do app
+  if (window.LECO_TEST_BACKEND) window.__leco = () => ctx;
+  // Bloqueio com PIN, conquistas e resumo do mês que terminou
+  const [locked, setLocked] = usePinLock();
+  useAchievementToasts(ctx && data.profile.onboarded ? ctx : null);
+  useEffect(() => {
+    if (!ctx || !data.profile.onboarded) return;
+    const cur = finMonthOf(todayISO());
+    let last = ''; try { last = localStorage.getItem('leco.summaryShown') || ''; } catch (e) { /* ok */ }
+    if (!last) { try { localStorage.setItem('leco.summaryShown', cur); } catch (e) { /* ok */ } return; }
+    if (last === cur) return;
+    try { localStorage.setItem('leco.summaryShown', cur); } catch (e) { /* ok */ }
+    const prevM = shiftMonth(cur, -1);
+    const [f, t] = finRange(prevM);
+    if (data.transactions.some((x) => x.date >= f && x.date <= t)) setTimeout(() => setModal({ key: Date.now(), kind: 'monthSummary', month: prevM }), 1200);
+  }, [!!ctx]);
 
   if (error && !data) {
     return (
@@ -562,6 +790,7 @@ function Workspace({ backend, session, toast, toastNode }) {
         {wide ? <WebLayout /> : <MobileLayout />}
         <ModalHost />
         {toastNode(wide ? 24 : 100)}
+        {locked && <PinLock name={ctx.name} onUnlock={() => setLocked(false)} onForgot={async () => { pinSave(null); setLocked(false); await ctx.signOut(); }} />}
       </AppCtx.Provider>
     </ThemeCtx.Provider>
   );
@@ -587,7 +816,7 @@ function Root() {
     const off = backend.auth.onChange((event, s) => {
       if (event === 'PASSWORD_RECOVERY') setRecovery(true);
       setSession(s || null);
-      if (event === 'SIGNED_OUT') { setScreen({ name: 'login' }); document.documentElement.dataset.leco = 'light'; try { if (window.LecoAndroid) window.LecoAndroid.setDarkBars(false); } catch (e) { /* sem ponte nativa */ } }
+      if (event === 'SIGNED_OUT') { setScreen({ name: 'login' }); applyAppearance(mergePrefs({}), 'light'); }
     });
     let linkHandle = null;
     if (Native.App) {

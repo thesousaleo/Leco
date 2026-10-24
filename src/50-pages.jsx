@@ -99,10 +99,10 @@ function UpcomingList({ limit = 6, compact }) {
       date: inv.due,
       el: (
         <li key={`${card.id}-${inv.invoice}`} className="flex items-center gap-3 rounded-2xl px-1.5 py-2">
-          <ColorIcon icon="card" color={card.color} size={36} />
+          <ColorIcon icon={card.icon || 'card'} color={card.color} size={36} />
           <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-2 truncate text-[14px] font-semibold">Fatura {card.name}<span className={`${INVOICE_STATUS[inv.status].cls} !px-2 !py-0 !text-[10.5px]`}>{INVOICE_STATUS[inv.status].label.toLowerCase()}</span></p>
-            <p className="truncate text-xs text-ink/65">vence {relDay(inv.due, today)} · {fmtDate(inv.due)}</p>
+            <p className="truncate text-[14px] font-semibold">Fatura {card.name}</p>
+            <p className="truncate text-xs text-ink/65"><span className={`mr-1.5 ${INVOICE_STATUS[inv.status].cls} !px-1.5 !py-0 !text-[10px]`}>{INVOICE_STATUS[inv.status].label.toLowerCase()}</span>vence {relDay(inv.due, today)}</p>
           </div>
           <button type="button" className="btn btn-ghost shrink-0 !px-3 !py-1.5 text-xs" onClick={() => d.openModal({ kind: 'invoice', card, invoice: inv.invoice })}>{inv.status === 'aberta' ? 'Ver' : 'Pagar'}</button>
           <span className="shrink-0 text-[14px] font-extrabold tabular-nums text-out">{m(inv.remaining)}</span>
@@ -124,7 +124,7 @@ function AccountsMini({ onAll }) {
         {accs.map((a) => (
           <li key={a.id}>
             <button type="button" className="flex w-full items-center gap-3 rounded-2xl px-1.5 py-2.5 text-left hover:bg-ink/[0.03]" onClick={() => d.openModal({ kind: 'account', initial: a })}>
-              <ColorIcon icon={ACCOUNT_KINDS[a.kind].icon} color={a.color} size={36} />
+              <ColorIcon icon={(a.icon || ACCOUNT_KINDS[a.kind].icon)} color={a.color} size={36} />
               <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-semibold">{a.name}</span><span className="block text-xs text-ink/65">{ACCOUNT_KINDS[a.kind].label}</span></span>
               <span className={`text-[14px] font-extrabold tabular-nums ${d.balances[a.id] < 0 ? 'text-out' : ''}`}>{m(d.balances[a.id])}</span>
             </button>
@@ -135,7 +135,7 @@ function AccountsMini({ onAll }) {
           return (
             <li key={c.id}>
               <button type="button" className="flex w-full items-center gap-3 rounded-2xl px-1.5 py-2.5 text-left hover:bg-ink/[0.03]" onClick={() => d.openModal({ kind: 'invoice', card: c })}>
-                <ColorIcon icon="card" color={c.color} size={36} />
+                <ColorIcon icon={c.icon || 'card'} color={c.color} size={36} />
                 <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-semibold">{c.name}</span><span className="block text-xs text-ink/65">Fatura atual · vence {fmtDate(s.current.due)}</span></span>
                 <span className="text-[14px] font-extrabold tabular-nums text-out">{m(s.current.total)}</span>
               </button>
@@ -149,16 +149,27 @@ function AccountsMini({ onAll }) {
 }
 
 /* ---------- Visão geral ---------- */
-/* ---------- Início no celular: só o essencial ---------- */
+/* ---------- Início no celular: blocos que o usuário escolhe e ordena ---------- */
 function MobileHome() {
   const d = useApp();
-  const month = monthKey(todayISO());
-  const sm = periodSummary(d.transactions, `${month}-01`, dayIn(month, 31), d.categories);
-  const recent = d.transactions.filter((t) => t.paid && t.date <= todayISO()).slice(0, 5);
-  const hasPending = d.transactions.some((t) => !t.paid && t.date <= addDays(todayISO(), 30))
+  const m = useMoneyText();
+  const today = todayISO();
+  const month = finMonthOf(today);
+  const sm = periodSummary(d.transactions, ...finRange(month), d.categories);
+  const recent = d.transactions.filter((t) => t.paid && t.date <= today).slice(0, 5);
+  const hasPending = d.transactions.some((t) => !t.paid && t.date <= addDays(today, 30))
     || d.cards.some((c) => !c.archived && cardSummary(c, d.transactions).toPay.some((i) => i.remaining > 0));
-  return (
-    <div className="space-y-6">
+  const week = useMemo(() => calendarEvents(d, today, addDays(today, 6), today).filter((e) => e.group === 'pay' || e.group === 'invoice' || e.group === 'receive'), [d.transactions, d.recurrings, d.cards, d.debts]);
+  const budgets = budgetsFor(d.categories, d.transactions, month, d.plans).slice(0, 3);
+  const goals = d.goals.filter((g) => g.saved < g.target).slice(0, 2);
+  const Head = ({ title, link, go }) => (
+    <div className="mb-3 flex items-center justify-between">
+      <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">{title}</h2>
+      {link && <button type="button" className="text-xs font-bold text-in" onClick={go}>{link}</button>}
+    </div>
+  );
+  const blocks = {
+    resumo: () => (
       <button type="button" onClick={() => d.go('relatorios')} className="glass block w-full rounded-3xl p-4 text-left">
         <span className="flex items-center justify-between">
           <span className="text-[13px] font-bold">Resumo de {monthName(month).toLowerCase()}</span>
@@ -174,59 +185,92 @@ function MobileHome() {
           ))}
         </span>
       </button>
-
+    ),
+    atalhos: () => (
       <div className="grid grid-cols-4 gap-2">
         {[
           { l: 'Receita', i: 'inArrow', fn: () => d.openModal({ kind: 'tx', defaultKind: 'in' }), tone: 'text-in' },
           { l: 'Despesa', i: 'up', fn: () => d.openModal({ kind: 'tx', defaultKind: 'out' }), tone: 'text-out' },
+          { l: 'Rápido', i: 'bolt', fn: () => d.openModal({ kind: 'quick' }), tone: 'text-[#B57406]' },
           { l: 'Transferir', i: 'swap', fn: () => d.openModal({ kind: 'tx', defaultKind: 'transfer' }), tone: 'text-ink' },
-          { l: 'Contas', i: 'card', fn: () => d.go('contas'), tone: 'text-ink' },
         ].map((a) => (
-          <button key={a.l} type="button" onClick={a.fn} className="group flex flex-col items-center gap-2">
+          <button key={a.l} type="button" onClick={() => { haptic(); a.fn(); }} className="group flex flex-col items-center gap-2">
             <span className={`glass grid size-14 place-items-center rounded-2xl transition-transform group-active:scale-95 ${a.tone}`}><Icon name={a.i} size={21} strokeWidth={2} /></span>
             <span className="text-[11.5px] font-semibold text-ink/80">{a.l}</span>
           </button>
         ))}
       </div>
-
-      {hasPending && (
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">A pagar e a receber</h2>
-            <button type="button" className="text-xs font-bold text-in" onClick={() => d.go('calendario')}>Calendário</button>
-          </div>
-          <div className="glass rounded-3xl px-3 py-1"><UpcomingList limit={4} compact /></div>
-        </section>
-      )}
-
+    ),
+    semana: () => (
       <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">Últimas transações</h2>
-          <button type="button" className="text-xs font-bold text-in" onClick={() => d.go('transacoes')}>Ver extrato</button>
+        <Head title="Próximos 7 dias" link="Calendário" go={() => d.go('calendario')} />
+        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+          {Array.from({ length: 7 }, (_, i) => addDays(today, i)).map((iso) => {
+            const list = week.filter((e) => e.date === iso);
+            const out = sum(list.filter((e) => e.group !== 'receive'), (e) => e.amount);
+            const inc = sum(list.filter((e) => e.group === 'receive'), (e) => e.amount);
+            return (
+              <button key={iso} type="button" onClick={() => d.go('calendario')} className={`glass flex w-[84px] shrink-0 flex-col items-center rounded-2xl px-2 py-2.5 ${iso === today ? 'ring-2 ring-ouro/70' : ''}`}>
+                <span className="text-[10.5px] font-bold uppercase text-ink/60">{iso === today ? 'Hoje' : WEEKDAYS_LONG[weekdayOf(iso)].slice(0, 3)}</span>
+                <span className="text-[18px] font-extrabold tabular-nums">{Number(iso.slice(8, 10))}</span>
+                <span className="mt-0.5 h-4 truncate text-[10.5px] font-bold tabular-nums text-out">{out ? m(out).replace(',00', '') : ''}</span>
+                <span className="h-4 truncate text-[10.5px] font-bold tabular-nums text-in">{inc ? `+${m(inc).replace(',00', '')}` : ''}</span>
+              </button>
+            );
+          })}
         </div>
+      </section>
+    ),
+    apagar: () => hasPending && (
+      <section>
+        <Head title="A pagar e a receber" link="Calendário" go={() => d.go('calendario')} />
+        <div className="glass rounded-3xl px-3 py-1"><UpcomingList limit={4} compact /></div>
+      </section>
+    ),
+    orcamento: () => (
+      <section>
+        <Head title="Orçamento do mês" link={budgets.length ? 'Planejar' : 'Definir'} go={() => d.go(d.v3 ? 'planejamento' : 'categorias')} />
+        <div className="glass rounded-3xl p-4"><BudgetList budgets={budgets} limit={3} /></div>
+      </section>
+    ),
+    metas: () => (
+      <section>
+        <Head title="Metas" link="Ver todas" go={() => d.go('metas')} />
+        <div className="glass rounded-3xl p-4">
+          {goals.length ? <ul className="space-y-3">{goals.map((g) => { const pct = Math.min(100, Math.round((g.saved / g.target) * 100)); return (
+            <li key={g.id}><div className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2 text-[13.5px] font-bold"><Icon name={g.icon} size={16} /><span className="truncate">{g.name}</span></span><span className="badge-gold">{pct}%</span></div>
+              <div className="track mt-2"><i style={{ width: `${pct}%` }} /></div><p className="mt-1 text-xs tabular-nums text-ink/60">{m(g.saved)} de {m(g.target)}</p></li>); })}</ul>
+            : <p className="text-sm text-ink/65">Nenhuma meta em andamento. <button type="button" className="font-bold text-in" onClick={() => d.openModal({ kind: 'goal' })}>Criar meta</button></p>}
+        </div>
+      </section>
+    ),
+    ultimas: () => (
+      <section>
+        <Head title="Últimas transações" link="Ver extrato" go={() => d.go('transacoes')} />
         <div className="glass rounded-3xl px-3 py-1">
           {recent.length ? <ul className="divide-y divide-ink/[0.07]">{recent.map((t) => <TxItem key={t.id} t={t} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} />)}</ul>
             : <p className="px-1 py-5 text-center text-sm text-ink/65">Nada registrado ainda. Toque no <b>+</b> para começar.</p>}
         </div>
       </section>
-    </div>
-  );
+    ),
+  };
+  return <div className="space-y-6">{d.prefs.home.filter((b) => b.on && blocks[b.id]).map((b) => <React.Fragment key={b.id}>{blocks[b.id]()}</React.Fragment>)}</div>;
 }
 
 function OverviewPage() {
   const d = useApp();
   const narrow = useNarrow();
   const month = d.month;
-  const from = `${month}-01`, to = dayIn(month, 31);
+  const [from, to] = finRange(month);
   const sm = periodSummary(d.transactions, from, to, d.categories);
   const prevK = shiftMonth(month, -1);
-  const prev = periodSummary(d.transactions, `${prevK}-01`, dayIn(prevK, 31), d.categories);
+  const prev = periodSummary(d.transactions, ...finRange(prevK), d.categories);
   const pct = (a, b) => (b ? ((a - b) / b) * 100 : null);
   const series = useMemo(() => monthSeries(d.transactions, d.accounts, month), [d.transactions, d.accounts, month]);
   const totalBal = sum(d.accounts, (a) => d.balances[a.id] || 0);
   const cardsDue = sum(d.cards.filter((c) => !c.archived), (c) => { const s = cardSummary(c, d.transactions); return Math.max(0, s.current.remaining) + sum(s.toPay.filter((i) => i.invoice !== s.current.invoice), (i) => i.remaining); });
   const recent = d.transactions.filter((t) => t.date <= to && t.paid).slice(0, 6);
-  const budgets = budgetsFor(d.categories, d.transactions, month);
+  const budgets = budgetsFor(d.categories, d.transactions, month, d.plans);
   if (narrow) return <MobileHome />;
   return (
     <div className="space-y-5">
@@ -285,15 +329,18 @@ function TransactionsPage() {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('recent');
   const [showFilters, setShowFilters] = useState(false);
+  const [tag, setTag] = useState('all');
+  const allTags = useMemo(() => [...new Set(d.transactions.flatMap((t) => t.tags || []))].sort(), [d.transactions]);
   const [limit, setLimit] = useState(30);
-  useEffect(() => setLimit(30), [scope, type, src, cat, status, q, d.month, sort]);
+  useEffect(() => setLimit(30), [scope, type, src, cat, status, q, d.month, sort, tag]);
   const rows = useMemo(() => {
     const qq = q.trim().toLowerCase();
     const list = d.transactions.filter((t) => {
-      if (scope === 'month' && monthKey(t.date) !== d.month) return false;
+      if (scope === 'month' && finMonthOf(t.date) !== d.month) return false;
       if (type !== 'all' && t.kind !== type) return false;
       if (src !== 'all') { const [k, id] = src.split(':'); if (k === 'acc' && t.account_id !== id && t.to_account_id !== id) return false; if (k === 'card' && t.card_id !== id) return false; }
-      if (cat !== 'all' && t.category_id !== cat) return false;
+      if (cat !== 'all' && t.category_id !== cat && (d.categories.find((c) => c.id === t.category_id) || {}).parent_id !== cat) return false;
+      if (tag !== 'all' && !(t.tags || []).includes(tag)) return false;
       if (status === 'paid' && !t.paid) return false;
       if (status === 'pending' && t.paid) return false;
       if (qq) { const meta = txMeta(t, d); if (!`${meta.title} ${meta.sub} ${t.notes || ''}`.toLowerCase().includes(qq)) return false; }
@@ -301,12 +348,12 @@ function TransactionsPage() {
     });
     const by = { recent: (a, b) => (a.date === b.date ? (a.created_at < b.created_at ? 1 : -1) : a.date < b.date ? 1 : -1), old: (a, b) => (a.date < b.date ? -1 : 1), high: (a, b) => b.amount - a.amount, low: (a, b) => a.amount - b.amount };
     return list.sort(by[sort]);
-  }, [d.transactions, d.categories, d.accounts, d.cards, scope, d.month, type, src, cat, status, q, sort]);
+  }, [d.transactions, d.categories, d.accounts, d.cards, scope, d.month, type, src, cat, status, q, sort, tag]);
   const inc = sum(rows.filter(countsAsIncome), (t) => t.amount);
   const exp = sum(rows.filter(countsAsExpense), (t) => t.amount);
   const groups = [];
   if (sort === 'recent' || sort === 'old') rows.slice(0, limit).forEach((t) => { const g = groups[groups.length - 1]; if (g && g.date === t.date) g.items.push(t); else groups.push({ date: t.date, items: [t] }); });
-  const filtered = type !== 'all' || src !== 'all' || cat !== 'all' || status !== 'all' || q;
+  const filtered = type !== 'all' || src !== 'all' || cat !== 'all' || status !== 'all' || tag !== 'all' || q;
   const [pdfBusy, setPdfBusy] = useState(false);
   const exportPdf = async () => {
     setPdfBusy(true);
@@ -357,6 +404,12 @@ function TransactionsPage() {
             <option value="all">Todas as categorias</option>
             {d.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          {allTags.length > 0 && (
+            <select id="f-tag" aria-label="Etiqueta" className="field !rounded-full !py-2 text-[13px]" value={tag} onChange={(e) => setTag(e.target.value)}>
+              <option value="all">Todas as etiquetas</option>
+              {allTags.map((g) => <option key={g} value={g}>#{g}</option>)}
+            </select>
+          )}
           <select id="f-status" aria-label="Situação" className="field !rounded-full !py-2 text-[13px]" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="all">Pagas e pendentes</option><option value="paid">Só pagas</option><option value="pending">Só pendentes</option>
           </select>
@@ -419,15 +472,16 @@ function AccountsPage() {
         {accs.length === 0 ? <EmptyState icon="bank" title="Nenhuma conta" text="Cadastre onde o seu dinheiro fica: conta do banco, carteira, poupança." /> : (
           <ul className={`grid gap-3 ${narrow ? '' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>
             {accs.map((a) => (
-              <li key={a.id}>
+              <li key={a.id} className="relative">
+                {!a.archived && <button type="button" className="absolute bottom-4 right-4 z-[1] rounded-full border border-ink/10 bg-ink/[0.04] px-3 py-1.5 text-[12px] font-bold" onClick={() => d.openModal({ kind: 'adjust', account: a })}><span className="flex items-center gap-1"><Icon name="scale" size={13} />Ajustar saldo</span></button>}
                 <button type="button" onClick={() => d.openModal({ kind: 'account', initial: a })} className={`glass w-full rounded-3xl p-4 text-left transition-transform hover:-translate-y-0.5 ${a.archived ? 'opacity-60' : ''}`}>
                   <div className="flex items-center gap-3">
-                    <ColorIcon icon={ACCOUNT_KINDS[a.kind].icon} color={a.color} size={42} />
+                    <ColorIcon icon={(a.icon || ACCOUNT_KINDS[a.kind].icon)} color={a.color} size={42} />
                     <div className="min-w-0 flex-1"><p className="truncate text-[15px] font-extrabold">{a.name}</p><p className="text-xs text-ink/65">{ACCOUNT_KINDS[a.kind].label}{a.archived ? ' · arquivada' : ''}</p></div>
                     <Icon name="edit" size={16} className="text-ink/45" />
                   </div>
                   <p className={`mt-4 text-[24px] font-extrabold tracking-[-0.02em] tabular-nums ${d.balances[a.id] < 0 ? 'text-out' : ''}`}>{m(d.balances[a.id])}</p>
-                  <p className="text-xs text-ink/60">saldo atual</p>
+                  <p className="text-xs text-ink/60">saldo atual{a.is_reserve ? ' · reserva de emergência' : ''}</p>
                 </button>
               </li>
             ))}
@@ -523,12 +577,12 @@ const PERIODS = [
   { value: '6m', label: 'Últimos 6 meses' }, { value: 'year', label: 'Este ano' }, { value: '12m', label: 'Últimos 12 meses' }, { value: 'custom', label: 'Personalizado' },
 ];
 function periodRange(p, custom) {
-  const t = todayISO(), k = monthKey(t);
-  if (p === 'this') return [`${k}-01`, dayIn(k, 31)];
-  if (p === 'last') { const l = shiftMonth(k, -1); return [`${l}-01`, dayIn(l, 31)]; }
-  if (p === '3m') return [`${shiftMonth(k, -2)}-01`, dayIn(k, 31)];
-  if (p === '6m') return [`${shiftMonth(k, -5)}-01`, dayIn(k, 31)];
-  if (p === '12m') return [`${shiftMonth(k, -11)}-01`, dayIn(k, 31)];
+  const t = todayISO(), k = finMonthOf(t);
+  if (p === 'this') return finRange(k);
+  if (p === 'last') return finRange(shiftMonth(k, -1));
+  if (p === '3m') return [finRange(shiftMonth(k, -2))[0], finRange(k)[1]];
+  if (p === '6m') return [finRange(shiftMonth(k, -5))[0], finRange(k)[1]];
+  if (p === '12m') return [finRange(shiftMonth(k, -11))[0], finRange(k)[1]];
   if (p === 'year') return [`${k.slice(0, 4)}-01-01`, `${k.slice(0, 4)}-12-31`];
   return [custom.from, custom.to];
 }
@@ -546,12 +600,13 @@ function ReportsPage() {
   const months = useMemo(() => {
     if (!valid) return [];
     const list = []; let k = monthKey(from);
-    while (k <= monthKey(to) && list.length < 36) { const s = periodSummary(d.transactions, `${k}-01`, dayIn(k, 31), d.categories); list.push({ k, short: monthShort(k), full: monthLabel(k), in: s.income, out: s.expense }); k = shiftMonth(k, 1); }
+    k = finMonthOf(from);
+    while (k <= finMonthOf(to) && list.length < 36) { const s = periodSummary(d.transactions, ...finRange(k), d.categories); list.push({ k, short: monthShort(k), full: monthLabel(k), in: s.income, out: s.expense }); k = shiftMonth(k, 1); }
     return list;
   }, [d.transactions, from, to, valid]);
   const byAccount = useMemo(() => {
     if (!valid) return [];
-    const rows = [...d.accounts.map((a) => ({ key: a.id, name: a.name, icon: ACCOUNT_KINDS[a.kind].icon, color: a.color, in: 0, out: 0 })), ...d.cards.map((c) => ({ key: c.id, name: `${c.name} (cartão)`, icon: 'card', color: c.color, in: 0, out: 0 }))];
+    const rows = [...d.accounts.map((a) => ({ key: a.id, name: a.name, icon: (a.icon || ACCOUNT_KINDS[a.kind].icon), color: a.color, in: 0, out: 0 })), ...d.cards.map((c) => ({ key: c.id, name: `${c.name} (cartão)`, icon: 'card', color: c.color, in: 0, out: 0 }))];
     d.transactions.forEach((t) => {
       if (t.date < from || t.date > to) return;
       if (countsAsIncome(t)) { const r = rows.find((x) => x.key === t.account_id); if (r) r.in += t.amount; }
@@ -573,7 +628,7 @@ function ReportsPage() {
   };
   const top = sm ? sm.expenseTx.slice().sort((a, b) => b.amount - a.amount).slice(0, 10) : [];
   const [pdfBusy, setPdfBusy] = useState(false);
-  const exportPdf = async () => { setPdfBusy(true); await d.exportPDF(`leco-relatorio-${from}-a-${to}.pdf`, () => summaryPDF({ d, from, to, sm, months, byAccount, budgets: budgetsFor(d.categories, d.transactions, monthKey(to)) })); setPdfBusy(false); };
+  const exportPdf = async () => { setPdfBusy(true); await d.exportPDF(`leco-relatorio-${from}-a-${to}.pdf`, () => summaryPDF({ d, from, to, sm, months, byAccount, budgets: budgetsFor(d.categories, d.transactions, finMonthOf(to), d.plans) })); setPdfBusy(false); };
   const pdfBtn = (cls) => <button type="button" className={`btn btn-primary ${cls}`} onClick={exportPdf} disabled={!valid || pdfBusy}>{pdfBusy ? <Spinner size={14} /> : <Icon name="file" size={16} />}Gerar PDF</button>;
   return (
     <div className="space-y-5">
@@ -609,6 +664,14 @@ function ReportsPage() {
           </div>
           {months.length > 1 && <Card title="Mês a mês" sub="Receitas e despesas"><BarChart points={months} height={narrow ? 200 : 260} label="Receitas e despesas por mês" /></Card>}
           <div className="grid gap-5 xl:grid-cols-2">
+            <Card title="Saldo ao longo do período" sub="Soma de todas as contas"><BalanceTimeline d={d} from={from} to={to} height={narrow ? 190 : 230} /></Card>
+            <Card title="Mapa de calor dos gastos" sub="Quanto mais forte, mais gasto no dia"><SpendHeatmap txs={d.transactions} from={from} to={to} /></Card>
+          </div>
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Card title="Ano a ano" sub="Despesas por mês, comparadas com o ano passado"><YearOverYear d={d} height={narrow ? 190 : 230} /></Card>
+            {d.v3 && <Card title="Por etiqueta" sub="Despesas do período"><TagReport txs={d.transactions.filter((t) => t.date >= from && t.date <= to)} /></Card>}
+          </div>
+          <div className="grid gap-5 xl:grid-cols-2">
             <Card title="Por categoria" action={<Segmented size="sm" label="Tipo" value={catTab} onChange={setCatTab} options={[{ value: 'out', label: 'Despesas' }, { value: 'in', label: 'Receitas' }]} />}>
               <CategoryBreakdown items={catTab === 'out' ? sm.byCatOut : sm.byCatIn} compact={narrow} donutSize={narrow ? 180 : 196} emptyText={catTab === 'out' ? 'Nenhuma despesa no período.' : 'Nenhuma receita no período.'} />
             </Card>
@@ -630,7 +693,7 @@ function ReportsPage() {
             </Card>
           </div>
           <Card title={`Orçamentos de ${monthName(monthKey(to)).toLowerCase()}`} action={<button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => d.go('categorias')}>Ajustar</button>}>
-            <BudgetList budgets={budgetsFor(d.categories, d.transactions, monthKey(to))} />
+            <BudgetList budgets={budgetsFor(d.categories, d.transactions, finMonthOf(to), d.plans)} />
           </Card>
           <Card title="Maiores despesas" sub="Top 10 do período">
             {top.length ? <ol className="divide-y divide-ink/[0.07]">{top.map((t) => <TxItem key={t.id} t={t} dense onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} />)}</ol> : <p className="py-6 text-center text-sm text-ink/65">Nenhuma despesa no período.</p>}
@@ -638,6 +701,90 @@ function ReportsPage() {
         </>
       )}
     </div>
+  );
+}
+
+/* ---------- Gráficos extras das Análises ---------- */
+function SpendHeatmap({ txs, from, to }) {
+  const m = useMoneyText();
+  const [sel, setSel] = useState(null);
+  const end = to > todayISO() ? todayISO() : to;
+  const start = diffDays(end, from) > 83 ? addDays(end, -83) : from;
+  const first = addDays(start, -((weekdayOf(start) - FIN.weekStart + 7) % 7));
+  const days = diffDays(end, first) + 1;
+  const weeks = Math.ceil(days / 7);
+  const byDay = {};
+  txs.filter(countsAsExpense).forEach((t) => { if (t.date >= start && t.date <= end) byDay[t.date] = (byDay[t.date] || 0) + t.amount; });
+  const max = Math.max(1, ...Object.values(byDay));
+  const wk = [...WEEKDAYS_SHORT.slice(FIN.weekStart), ...WEEKDAYS_SHORT.slice(0, FIN.weekStart)];
+  const avg = Math.round(sum(Object.values(byDay)) / Math.max(1, diffDays(end, start) + 1));
+  return (
+    <div>
+      <div className="flex gap-1.5">
+        <div className="grid shrink-0 grid-rows-7 gap-1 pr-0.5 text-[9.5px] font-bold text-ink/50">{wk.map((w, i) => <span key={i} className="grid h-[18px] place-items-center">{w}</span>)}</div>
+        <div className="no-scrollbar flex min-w-0 flex-1 gap-1 overflow-x-auto">
+          {Array.from({ length: weeks }, (_, w) => (
+            <div key={w} className="grid shrink-0 grid-rows-7 gap-1">
+              {Array.from({ length: 7 }, (_, i) => {
+                const iso = addDays(first, w * 7 + i);
+                const v = byDay[iso] || 0;
+                const out = iso < start || iso > end;
+                const k = v ? 0.18 + 0.82 * Math.sqrt(v / max) : 0;
+                return <button key={i} type="button" aria-label={`${fmtDate(iso)}: ${fmtBRL(v)}`} disabled={out} onClick={() => setSel(iso)}
+                  className={`size-[18px] rounded-[5px] ${out ? 'opacity-0' : ''} ${sel === iso ? 'ring-2 ring-ink' : ''}`}
+                  style={{ background: v ? `color-mix(in srgb, var(--out) ${Math.round(k * 100)}%, transparent)` : 'color-mix(in srgb, var(--ink) 6%, transparent)' }} />;
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-ink/70">{sel ? <><b className="text-ink">{fmtDate(sel)}</b>: {byDay[sel] ? m(byDay[sel]) : 'sem gastos'}</> : <>Média de <b className="text-ink">{m(avg)}</b> por dia. Toque num quadrado para ver o valor.</>}</p>
+    </div>
+  );
+}
+
+function BalanceTimeline({ d, from, to, height }) {
+  const theme = useContext(ThemeCtx);
+  const P = PALETTES[theme];
+  const end = to > todayISO() ? todayISO() : to;
+  const span = Math.max(1, diffDays(end, from));
+  const n = Math.min(24, span + 1);
+  const pts = Array.from({ length: n }, (_, i) => addDays(from, Math.round((i * span) / (n - 1 || 1))));
+  const vals = pts.map((iso) => { const b = accountBalances(d.accounts, d.transactions, iso); return sum(d.accounts, (a) => b[a.id] || 0); });
+  return <AreaChart height={height} zeroBase={false} label="Saldo total ao longo do período" points={pts.map((iso) => ({ k: iso, short: fmtDate(iso).slice(0, 5), full: fmtDate(iso) }))} series={[{ key: 'bal', label: 'Saldo', color: P.in, values: vals }]} />;
+}
+
+function YearOverYear({ d, height }) {
+  const theme = useContext(ThemeCtx);
+  const P = PALETTES[theme];
+  const y = Number(todayISO().slice(0, 4));
+  const exp = (year) => Array.from({ length: 12 }, (_, i) => { const k = `${year}-${pad2(i + 1)}`; return periodSummary(d.transactions, `${k}-01`, dayIn(k, 31), d.categories).expense; });
+  const cur = exp(y), prev = exp(y - 1);
+  const totalCur = sum(cur), totalPrevSame = sum(prev.slice(0, Number(todayISO().slice(5, 7))));
+  const totalCurSame = sum(cur.slice(0, Number(todayISO().slice(5, 7))));
+  return (
+    <div>
+      <AreaChart height={height} label={`Despesas por mês: ${y} e ${y - 1}`} points={MONTHS_SHORT.map((s, i) => ({ k: String(i), short: s, full: `${MONTHS[i]}` }))}
+        series={[{ key: 'prev', label: String(y - 1), color: '#9AA9A4', values: prev }, { key: 'cur', label: String(y), color: P.out, values: cur }]} />
+      {totalPrevSame > 0 && <p className="mt-2 text-xs text-ink/70">Até {MONTHS[Number(todayISO().slice(5, 7)) - 1].toLowerCase()}, você gastou <b className={totalCurSame > totalPrevSame ? 'text-out' : 'text-in'}>{Math.abs(Math.round((totalCurSame / totalPrevSame - 1) * 100))}% {totalCurSame > totalPrevSame ? 'a mais' : 'a menos'}</b> que no mesmo período de {y - 1}. Total {y}: {fmtBRL(totalCur)}.</p>}
+    </div>
+  );
+}
+
+function TagReport({ txs }) {
+  const m = useMoneyText();
+  const by = {};
+  txs.filter(countsAsExpense).forEach((t) => (t.tags || []).forEach((g) => { by[g] = (by[g] || 0) + t.amount; }));
+  const list = Object.entries(by).sort((a, b) => b[1] - a[1]);
+  if (!list.length) return <p className="py-4 text-sm text-ink/65">Nenhuma despesa com etiqueta no período. Use etiquetas (#viagem, #casa…) em "Mais opções" ao lançar.</p>;
+  const max = list[0][1];
+  return (
+    <ul className="space-y-2.5">
+      {list.slice(0, 10).map(([g, v]) => (
+        <li key={g}><div className="flex justify-between text-[13px]"><span className="font-bold">#{g}</span><span className="font-extrabold tabular-nums">{m(v)}</span></div>
+          <div className="track mt-1"><i style={{ width: `${(v / max) * 100}%` }} /></div></li>
+      ))}
+    </ul>
   );
 }
 
@@ -662,8 +809,11 @@ function GoalCard({ g }) {
       </div>
       <div className="track mt-4"><i style={{ width: `${pct}%` }} /></div>
       <p className="mt-2 flex justify-between text-xs tabular-nums text-ink/70"><span><b className="font-bold text-ink">{m(g.saved)}</b> guardados</span><span>meta {m(g.target)}</span></p>
-      {perMonth > 0 && <p className="mt-2 text-xs text-ink/65">Guardando {m(perMonth)} por mês você chega lá no prazo.</p>}
-      {adding ? (
+      {g.monthly_amount > 0 ? <p className="mt-2 text-xs text-ink/65">Guardar {m(g.monthly_amount)} por mês{g.remind_day ? `, lembrete todo dia ${g.remind_day}` : ''}{g.account_id ? ` · conta ${(d.accounts.find((a) => a.id === g.account_id) || {}).name || ''}` : ''}.</p>
+        : perMonth > 0 && <p className="mt-2 text-xs text-ink/65">Guardando {m(perMonth)} por mês você chega lá no prazo.</p>}
+      {d.v3 ? (
+        <div className="mt-4 flex justify-end"><button type="button" className="btn btn-ghost !px-3.5 !py-2 text-[13px]" onClick={() => d.openModal({ kind: 'goalSave', goal: g })}><Icon name="plus" size={15} />Guardar valor</button></div>
+      ) : adding ? (
         <form className="mt-4 flex gap-2" onSubmit={async (e) => { e.preventDefault(); if (val > 0 && await d.saveGoal(g, { saved: g.saved + val })) { setVal(0); setAdding(false); } }}>
           <MoneyInput id={`goal-add-${g.id}`} label={`Valor para ${g.name}`} cents={val} onChange={setVal} className="!rounded-full !py-2 text-sm font-bold" />
           <button type="submit" className="btn btn-primary !px-4 !py-2 text-[13px]" disabled={val <= 0}>Guardar</button>
@@ -710,7 +860,7 @@ function CategoriesPage() {
       if (!t.category_id) return;
       const s = o[t.category_id] || (o[t.category_id] = { count: 0, month: 0 });
       s.count += 1;
-      if (monthKey(t.date) === month && (countsAsExpense(t) || countsAsIncome(t))) s.month += t.amount;
+      if (finMonthOf(t.date) === month && (countsAsExpense(t) || countsAsIncome(t))) s.month += t.amount;
     });
     return o;
   }, [d.transactions, month]);

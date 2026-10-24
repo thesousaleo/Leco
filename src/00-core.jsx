@@ -162,6 +162,26 @@ const ICONS = {
   x: <path d="M6 6l12 12M18 6L6 18" />,
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   monitor: <><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></>,
+  scale: <><path d="M12 3v18M7 21h10M5 7h14" /><path d="M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z" /></>,
+  upload: <><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></>,
+  copy: <><rect x="8" y="8" width="12" height="12" rx="2.5" /><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" /></>,
+  camera: <><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13" r="3.5" /></>,
+  clip: <path d="M20 11.5l-7.8 7.8a5 5 0 0 1-7.1-7.1l8.1-8.1a3.3 3.3 0 0 1 4.7 4.7l-8.1 8.1a1.7 1.7 0 0 1-2.4-2.4l7.4-7.4" />,
+  hash: <path d="M5 9h15M4 15h15M10 3 8 21M16 3l-2 18" />,
+  split: <><path d="M12 21v-7l-6-6M12 14l6-6" /><path d="M3 5V3h2M21 5V3h-2M6 8V3M18 8V3" /></>,
+  trophy: <><path d="M8 4h8v5a4 4 0 0 1-8 0z" /><path d="M8 6H5a2 2 0 0 0 0 4h3M16 6h3a2 2 0 0 1 0 4h-3M12 13v4M8 21h8M9.5 17h5" /></>,
+  help: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.6V14M12 17h.01" /></>,
+  filter: <path d="M4 5h16l-6 8v5l-4 2v-7z" />,
+  star: <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" />,
+  layers: <><path d="M12 3l9 5-9 5-9-5z" /><path d="M3 13l9 5 9-5" /></>,
+  image: <><rect x="3" y="4" width="18" height="16" rx="2.5" /><circle cx="9" cy="10" r="1.8" /><path d="M21 16l-5-5-9 9" /></>,
+  bolt: <path d="M13 2 4 14h7l-1 8 9-12h-7z" />,
+  chevUp: <path d="M6 15l6-6 6 6" />,
+  chevDown: <path d="M6 9l6 6 6-6" />,
+  textSize: <><path d="M4 7V5h10v2M9 5v14M7 19h4" /><path d="M14 12v-1.5h7V12M17.5 10.5V19M16 19h3" /></>,
+  contrast: <><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none" /></>,
+  whatsapp: <><path d="M20.5 11.6a8.5 8.5 0 0 1-12.4 7.5L3.5 20.5l1.4-4.4A8.5 8.5 0 1 1 20.5 11.6z" /><path d="M8.8 8.6c.3-.6.6-.6.9-.6h.5c.2 0 .4 0 .6.5l.7 1.6c.1.2.1.4 0 .6l-.5.6c-.1.2-.2.3 0 .6.6 1 1.4 1.8 2.5 2.4.3.2.4.1.6-.1l.6-.7c.2-.2.3-.2.6-.1l1.6.8c.2.1.4.2.4.4 0 .5-.2 1.2-.8 1.5-.7.4-1.6.5-3.4-.3-2.3-1-3.8-3.4-3.9-3.6-.2-.2-.9-1.2-.9-2.3 0-.9.3-1.4.5-1.7z" fill="currentColor" stroke="none" /></>,
+  rocket: <><path d="M12 15l-3-3c1-4 4-8 10-9-1 6-5 9-9 10z" /><path d="M9 12l-4 .5L3 15l4 1M12 15l-.5 4L9 21l-1-4M15.5 8.5h.01" /></>,
   chat: <><path d="M20.5 11.6a8.5 8.5 0 0 1-12.4 7.5L3.5 20.5l1.4-4.4A8.5 8.5 0 1 1 20.5 11.6z" /><path d="M8.5 10.5h7M8.5 13.5h4.5" /></>,
   phone: <><rect x="7" y="2.5" width="10" height="19" rx="2.5" /><path d="M11 18.5h2" /></>,
   utensils: <><path d="M5 3v7a2 2 0 0 0 4 0V3M7 3v18" /><path d="M17 21V3c-2.5 1.5-3.5 4.5-3.5 8H17" /></>,
@@ -212,6 +232,10 @@ const ICONS = {
 };
 
 function Icon({ name, size = 20, className = '', strokeWidth = 1.8 }) {
+  // Emojis escolhidos pelo usuário (categorias, contas) aparecem como texto
+  if (name && !ICONS[name] && /\p{Extended_Pictographic}/u.test(name)) {
+    return <span className={`inline-grid place-items-center leading-none ${className}`} style={{ width: size, height: size, fontSize: Math.round(size * 0.92) }} aria-hidden="true">{name}</span>;
+  }
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth}
       strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">

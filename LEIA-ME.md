@@ -19,12 +19,24 @@ App de finanças pessoais com contas de usuário (e-mail e senha ou Google), dad
 - Tema claro (fundo branco) e escuro, ocultar valores
 - **Assistente no WhatsApp**: registra gastos e receitas por texto, áudio ou foto da nota/comprovante e responde perguntas (saldo, gastos, vencimentos, faturas, orçamentos)
 
+## Novidades do Leco 3
+- Bloqueio com PIN, restaurar cópia (JSON), aviso de nova versão no app
+- Temas claro, escuro, preto (AMOLED) e automático; 6 cores de destaque; tamanho do texto; alto contraste
+- Lançamentos: editar parcelas/recorrências em grupo, ajustar saldo, foto do comprovante, etiquetas, dividir em categorias, lançamento rápido por texto, modelos, duplicar, outra moeda
+- Importar extrato (OFX/CSV) e exportar a agenda (.ics) para o Google Agenda
+- Planejamento (planejado × realizado, projeção de saldo, reserva de emergência, assinaturas, alertas inteligentes), dívidas e metas automáticas
+- Personalização: mês financeiro, primeiro dia da semana, blocos do Início, abas do menu, subcategorias, emojis
+- Busca global, gestos (arrastar para pagar/excluir, puxar para atualizar), gráficos novos, vibração, conquistas e dicas
+- Testes automáticos antes de cada publicação (`npm test`)
+
 ## Estrutura
 | Caminho | Para que serve |
 |---|---|
 | `src/00-core.jsx` … `src/70-shell.jsx` | O app em React, dividido por assunto (juntado em ordem no build). |
 | `src/styles.css` | Cores e vidro líquido (Tailwind CSS). |
 | `supabase/schema.sql` | Tabelas, segurança por usuário e categorias padrão. |
+| `supabase/v3.sql` | Atualização do Leco 3: dívidas, modelos, planejamento, etiquetas, comprovantes e preferências. |
+| `tests/` | Testes automáticos (app e agente do WhatsApp). |
 | `supabase/whatsapp.sql` | Tabelas do assistente do WhatsApp (vínculo, códigos, desfazer). |
 | `supabase/functions/whatsapp/` | O assistente: recebe as mensagens da Meta, entende com o Gemini e grava no Leco. |
 | `leco.config.json` | Endereço e chave **pública** do Supabase e endereço do site. |
@@ -33,7 +45,7 @@ App de finanças pessoais com contas de usuário (e-mail e senha ou Google), dad
 | `.github/workflows/gerar-apk.yml` | Gera o APK assinado e publica o site. |
 
 ## Configuração do Supabase (uma vez)
-1. **SQL Editor › New query**: cole todo o `supabase/schema.sql` e clique em **Run**.
+1. **SQL Editor › New query**: cole todo o `supabase/schema.sql` e clique em **Run**. Depois, numa nova query, cole e rode `supabase/v3.sql`.
 2. **Authentication › URL Configuration**:
    - *Site URL*: `https://thesousaleo.github.io/Leco/`
    - *Redirect URLs*: adicione `https://thesousaleo.github.io/Leco/**` e `br.com.leco.app://auth`
@@ -61,3 +73,6 @@ Nunca perca a chave de assinatura (`leco-release.jks` e a senha): sem ela o Andr
 7. Em `leco.config.json`, preencha `whatsappNumber` com o número do assistente (só dígitos, com 55) para o app mostrar o botão “Enviar pelo WhatsApp”.
 
 O número de teste da Meta só conversa com os números cadastrados no passo 2. Para abrir a todos, registre um número próprio e verifique a empresa na Meta.
+
+## Suporte
+Em `leco.config.json`, preencha `supportWhatsapp` com o número do suporte (só dígitos, com 55 e DDD). O botão "Chamar no WhatsApp" aparece em Configurações › Ajuda e suporte.

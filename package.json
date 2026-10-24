@@ -1,13 +1,14 @@
 {
   "name": "leco",
-  "version": "2.6.0",
+  "version": "3.0.0",
   "private": true,
   "description": "Leco · controle financeiro (Android com Capacitor + site, dados no Supabase)",
   "type": "module",
   "scripts": {
     "build:native": "node scripts/build-web.mjs native",
     "build:site": "node scripts/build-web.mjs web",
-    "build:test": "node scripts/build-web.mjs test teste-local.html"
+    "build:test": "node scripts/build-web.mjs test teste-local.html",
+    "test": "node tests/whatsapp-agent.mjs && node tests/app.e2e.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",
@@ -18,13 +19,15 @@
     "@capacitor/local-notifications": "^6.1.0",
     "@capacitor/share": "^6.0.0",
     "@supabase/supabase-js": "^2.50.0",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.1",
+    "@capacitor/haptics": "^6.0.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.2.0",
     "esbuild": "0.28.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "tailwindcss": "4.3.3"
+    "tailwindcss": "4.3.3",
+    "playwright": "^1.56.0"
   }
 }

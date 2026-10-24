@@ -4,10 +4,12 @@
 const SETTINGS_TABS = [
   { id: 'perfil', label: 'Perfil', icon: 'user', desc: 'Nome e e-mail' },
   { id: 'seguranca', label: 'Acesso e segurança', icon: 'lock', desc: 'Senha, login e sessões' },
-  { id: 'preferencias', label: 'Preferências', icon: 'palette', desc: 'Tema, privacidade, poupança' },
+  { id: 'preferencias', label: 'Aparência', icon: 'palette', desc: 'Tema, cores, texto e privacidade' },
+  { id: 'personalizar', label: 'Personalizar', icon: 'layers', desc: 'Início, menu, mês financeiro' },
   { id: 'notificacoes', label: 'Notificações', icon: 'bell', desc: 'Lembretes e alertas' },
   // A aba do WhatsApp só aparece quando o número do assistente estiver no leco.config.json
   ...(String((window.LECO_CONFIG || {}).whatsappNumber || '').replace(/\D/g, '') ? [{ id: 'whatsapp', label: 'WhatsApp', icon: 'chat', desc: 'Registre pelo chat' }] : []),
+  { id: 'suporte', label: 'Ajuda e suporte', icon: 'help', desc: 'Dúvidas, contato e versão' },
   { id: 'dados', label: 'Seus dados', icon: 'file', desc: 'Exportar e excluir conta' },
 ];
 
@@ -100,6 +102,7 @@ function SecuritySettings() {
   ];
   return (
     <div className="space-y-5">
+      <PinSettingsPanel />
       <Panel title="Dados de acesso">
         <dl className="mt-2 divide-y divide-ink/[0.07] text-[13px]">
           {rows.map(([k, v, ic]) => (
@@ -134,31 +137,160 @@ function SecuritySettings() {
 function PrefsSettings() {
   const d = useApp();
   const p = d.profile;
+  const pr = d.prefs;
+  const THEMES = [
+    { v: 'light', l: 'Claro', i: 'sun', bg: '#FFFFFF', fg: '#0B2F29' },
+    { v: 'dark', l: 'Escuro', i: 'moon', bg: '#0B2F29', fg: '#E4EFEA' },
+    { v: 'black', l: 'Preto', i: 'contrast', bg: '#000000', fg: '#EEF5F2' },
+    { v: 'auto', l: 'Automático', i: 'clock', bg: 'linear-gradient(135deg,#FFFFFF 50%,#0B2F29 50%)', fg: '#14806B' },
+  ];
+  const acc = ACCENTS[pr.accent] || ACCENTS.esmeralda;
   return (
     <div className="space-y-5">
-      <Panel title="Aparência" sub="O tema claro usa fundo branco; o escuro usa o Verde Noite da marca.">
-        <div className="mt-4 grid max-w-md grid-cols-2 gap-3">
-          {[{ v: 'light', l: 'Claro', i: 'sun', bg: '#FFFFFF', fg: '#0B2F29' }, { v: 'dark', l: 'Escuro', i: 'moon', bg: '#0B2F29', fg: '#E4EFEA' }].map((o) => (
-            <button key={o.v} type="button" aria-pressed={p.theme === o.v} onClick={() => d.saveProfile({ theme: o.v })}
-              className={`rounded-2xl border p-2 text-left transition-all ${p.theme === o.v ? 'border-vivo shadow-[0_0_0_3px_rgba(20,128,107,.18)]' : 'border-ink/15 hover:border-ink/30'}`}>
-              <span className="block h-16 rounded-xl p-2" style={{ background: o.bg, boxShadow: 'inset 0 0 0 1px rgba(11,47,41,.1)' }}>
+      <Panel title="Tema" sub={d.themeMode === 'auto' ? `Automático: escuro das ${pr.autoDarkFrom}h às ${pr.autoDarkTo}h.` : 'O preto economiza bateria em telas AMOLED.'}>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {THEMES.map((o) => (
+            <button key={o.v} type="button" aria-pressed={d.themeMode === o.v} onClick={() => d.setPrefs({ theme: o.v })}
+              className={`rounded-2xl border p-2 text-left transition-all ${d.themeMode === o.v ? 'border-vivo shadow-[0_0_0_3px_rgba(20,128,107,.18)]' : 'border-ink/15 hover:border-ink/30'}`}>
+              <span className="block h-14 rounded-xl p-2" style={{ background: o.bg, boxShadow: 'inset 0 0 0 1px rgba(11,47,41,.12)' }}>
                 <span className="block h-2 w-10 rounded-full" style={{ background: o.fg, opacity: 0.8 }} />
-                <span className="mt-1.5 block h-6 rounded-lg" style={{ background: 'linear-gradient(135deg,#14806B,#0F5C4D)' }} />
+                <span className="mt-1.5 block h-5 rounded-lg" style={{ background: `linear-gradient(135deg,${acc.vivo},${acc.leco})` }} />
               </span>
               <span className="mt-2 flex items-center gap-1.5 px-1 text-[13px] font-bold"><Icon name={o.i} size={15} />{o.l}</span>
             </button>
           ))}
         </div>
+        {d.themeMode === 'auto' && (
+          <div className="mt-3 grid max-w-sm grid-cols-2 gap-3">
+            <Field label="Escuro a partir de"><select id="auto-from" className="field" value={pr.autoDarkFrom} onChange={(e) => d.setPrefs({ autoDarkFrom: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{h}h</option>)}</select></Field>
+            <Field label="Claro a partir de"><select id="auto-to" className="field" value={pr.autoDarkTo} onChange={(e) => d.setPrefs({ autoDarkTo: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{h}h</option>)}</select></Field>
+          </div>
+        )}
       </Panel>
-      <Panel title="Privacidade e conforto">
+      <Panel title="Cor de destaque" sub="Muda botões, menu e gráficos. Verde e ouro continuam sendo a marca do Leco.">
+        <div className="mt-4 flex flex-wrap gap-3">
+          {Object.entries(ACCENTS).map(([k, a]) => (
+            <button key={k} type="button" aria-pressed={pr.accent === k} onClick={() => d.setPrefs({ accent: k })} className="flex flex-col items-center gap-1.5">
+              <span className="grid size-12 place-items-center rounded-2xl" style={{ background: `linear-gradient(135deg,${a.vivo},${a.leco})`, boxShadow: pr.accent === k ? `0 0 0 2px var(--paper), 0 0 0 4px ${a.vivo}` : 'none' }}>{pr.accent === k && <Icon name="check" size={18} className="text-white" strokeWidth={2.6} />}</span>
+              <span className="text-[11.5px] font-semibold">{a.label}</span>
+            </button>
+          ))}
+        </div>
+      </Panel>
+      <Panel title="Texto e leitura">
+        <div className="mt-3">
+          <span className="lbl">Tamanho do texto</span>
+          <div className="mt-2 max-w-md"><Segmented full size="sm" label="Tamanho do texto" value={String(pr.fontScale)} onChange={(v) => d.setPrefs({ fontScale: Number(v) })} options={[{ value: '0.9', label: 'Menor' }, { value: '1', label: 'Normal' }, { value: '1.1', label: 'Grande' }, { value: '1.2', label: 'Maior' }]} /></div>
+        </div>
+        <div className="mt-2 divide-y divide-ink/[0.07]">
+          <Toggle id="pref-contrast" icon="contrast" label="Alto contraste" desc="Textos sólidos, bordas mais fortes e fundo sem transparência." checked={!!pr.contrast} onChange={(v) => d.setPrefs({ contrast: v })} />
+          <Toggle id="pref-calm" icon="sparkle" label="Reduzir animações" desc="Desliga movimentos e transições neste aparelho." checked={d.calm} onChange={d.setCalm} />
+          {LITE && <Toggle id="pref-haptics" icon="phone" label="Vibração ao tocar" desc="Uma vibração leve ao salvar, pagar ou excluir." checked={pr.haptics !== false} onChange={(v) => { d.setPrefs({ haptics: v }); if (v) setTimeout(() => haptic('success'), 50); }} />}
+        </div>
+      </Panel>
+      <Panel title="Privacidade">
         <div className="divide-y divide-ink/[0.07]">
           <Toggle id="pref-hide" icon="eyeOff" label="Ocultar valores" desc="Esconde saldos e valores em todo o app. Útil em lugares públicos." checked={!!p.hide_values} onChange={(v) => d.saveProfile({ hide_values: v })} />
-          <Toggle id="pref-calm" icon="sparkle" label="Reduzir animações" desc="Desliga os movimentos do fundo e das transições neste aparelho." checked={d.calm} onChange={d.setCalm} />
         </div>
       </Panel>
       <Panel title="Meta de poupança mensal" sub="Parte da renda que você quer guardar todo mês." action={<span className="badge-gold text-sm">{p.savings_goal}%</span>}>
         <input id="pref-goal" type="range" min="0" max="60" step="5" defaultValue={p.savings_goal} onChange={(e) => d.saveProfile({ savings_goal: Number(e.target.value) }, null, true)} className="mt-4 w-full" aria-label="Meta de poupança em porcentagem" />
         <div className="mt-1 flex justify-between text-[11px] tabular-nums text-ink/60"><span>0%</span><span>60%</span></div>
+      </Panel>
+      {!d.v3 && <p className="rounded-2xl bg-ouro/10 px-4 py-3 text-xs text-ink/75">Enquanto o banco não for atualizado, estas preferências ficam salvas só neste aparelho.</p>}
+    </div>
+  );
+}
+
+function PersonalizeSettings() {
+  const d = useApp();
+  const pr = d.prefs;
+  const move = (i, dir) => { const l = pr.home.slice(); const j = i + dir; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; d.setPrefs({ home: l }); haptic(); };
+  const toggle = (id) => d.setPrefs({ home: pr.home.map((b) => (b.id === id ? { ...b, on: !b.on } : b)) });
+  const setTab = (i, id) => { const t = pr.tabs.slice(); const k = t.indexOf(id); if (k >= 0) t[k] = t[i]; t[i] = id; d.setPrefs({ tabs: t }); };
+  return (
+    <div className="space-y-5">
+      <Panel title="Mês financeiro" sub="Se você recebe no dia 5, o seu mês pode ir do dia 5 ao dia 4. Resumos, orçamentos e relatórios passam a seguir esse período.">
+        <Field label="O mês começa no dia" className="mt-3 max-w-xs">
+          <select id="pz-start" className="field" value={pr.monthStart} onChange={(e) => d.setPrefs({ monthStart: Number(e.target.value) })}>{Array.from({ length: 28 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? 'Dia 1 (mês do calendário)' : `Dia ${n}`}</option>)}</select>
+        </Field>
+        {pr.monthStart > 1 && <p className="mt-2 text-xs text-ink/65">Mês atual: {fmtDate(finRange(finMonthOf(todayISO()))[0])} a {fmtDate(finRange(finMonthOf(todayISO()))[1])}.</p>}
+      </Panel>
+      <Panel title="Primeiro dia da semana" sub="Usado no calendário.">
+        <div className="mt-3 max-w-xs"><Segmented full size="sm" label="Primeiro dia da semana" value={String(pr.weekStart)} onChange={(v) => d.setPrefs({ weekStart: Number(v) })} options={[{ value: '0', label: 'Domingo' }, { value: '1', label: 'Segunda' }]} /></div>
+      </Panel>
+      <Panel title="Tela inicial (celular)" sub="Escolha os blocos e a ordem.">
+        <ul className="mt-3 divide-y divide-ink/[0.07]">
+          {pr.home.map((b, i) => {
+            const info = HOME_BLOCKS.find((h) => h.id === b.id);
+            return (
+              <li key={b.id} className="flex items-center gap-2 py-2">
+                <button type="button" role="switch" aria-checked={b.on} aria-label={`Mostrar ${info.label}`} onClick={() => toggle(b.id)} className={`switch ${b.on ? 'on' : ''}`}><span /></button>
+                <span className={`min-w-0 flex-1 text-[13.5px] font-semibold ${b.on ? '' : 'text-ink/50'}`}>{info.label}</span>
+                <button type="button" className="icon-btn size-9" aria-label={`Subir ${info.label}`} disabled={i === 0} onClick={() => move(i, -1)}><Icon name="chevUp" size={16} /></button>
+                <button type="button" className="icon-btn size-9" aria-label={`Descer ${info.label}`} disabled={i === pr.home.length - 1} onClick={() => move(i, 1)}><Icon name="chevDown" size={16} /></button>
+              </li>
+            );
+          })}
+        </ul>
+      </Panel>
+      <Panel title="Menu de baixo (celular)" sub="Início e Ajustes ficam fixos. Escolha as 3 abas do meio.">
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Field key={i} label={`Aba ${i + 2}`}>
+              <select id={`pz-tab-${i}`} className="field" value={pr.tabs[i]} onChange={(e) => setTab(i, e.target.value)}>{NAV_CHOICES.map((n) => <option key={n.id} value={n.id}>{n.label}</option>)}</select>
+            </Field>
+          ))}
+        </div>
+      </Panel>
+      <Panel title="Restaurar padrão">
+        <button type="button" className="btn btn-ghost mt-3" onClick={() => d.setPrefs({ home: DEFAULT_PREFS.home, tabs: DEFAULT_PREFS.tabs, monthStart: 1, weekStart: 0 })}><Icon name="refresh" size={16} />Voltar ao padrão</button>
+      </Panel>
+    </div>
+  );
+}
+
+const FAQ = [
+  ['Como lanço uma compra parcelada?', 'Toque no +, depois em "Parcelada". No cartão, cada parcela cai na fatura do mês certo; numa conta (boleto, carnê), as próximas ficam "a pagar".'],
+  ['Como cadastro uma assinatura?', 'Toque no + e em "Assinatura", ou ligue "Repetir" em qualquer lançamento. O Leco lança sozinho todo mês e mostra no calendário.'],
+  ['O saldo do Leco está diferente do banco', 'Em Contas e cartões, toque em "Ajustar saldo" e informe o valor real. O ajuste não entra nos relatórios.'],
+  ['Como importo o extrato do banco?', 'Ajustes › Importar extrato. Baixe o extrato no app do banco em OFX ou CSV. O Leco sugere as categorias e marca o que já existe.'],
+  ['Como mando as contas para o Google Agenda?', 'No Calendário, toque em "Exportar para o Google Agenda" e abra o arquivo com o Google Agenda (ou importe em calendar.google.com).'],
+  ['Esqueci o PIN', 'Na tela do PIN, toque em "Esqueci o PIN". Você sai da conta e entra de novo com e-mail e senha (ou Google). Nada é perdido.'],
+  ['Troquei de celular. Perco meus dados?', 'Não. Tudo fica na nuvem: é só entrar com a mesma conta. Para ter uma cópia extra, use Seus dados › Cópia completa.'],
+  ['Como atualizo o app?', 'Quando houver versão nova, aparece um aviso no Início com o botão Baixar. O APK novo instala por cima, sem perder nada.'],
+];
+function SupportSettings() {
+  const d = useApp();
+  const [open, setOpen] = useState(null);
+  const wa = String(CFG.supportWhatsapp || '').replace(/\D/g, '');
+  const info = useUpdateCheck();
+  const msg = encodeURIComponent(`Olá! Preciso de ajuda com o Leco (versão ${APP_VERSION}${APP_BUILD ? ` build ${APP_BUILD}` : ''}, ${NATIVE ? 'Android' : 'site'}).`);
+  const openWa = () => { const url = `https://wa.me/${wa}?text=${msg}`; if (Native.Browser) Native.Browser.open({ url }).catch(() => window.open(url, '_blank')); else window.open(url, '_blank', 'noopener'); };
+  return (
+    <div className="space-y-5">
+      <Panel title="Falar com o suporte" sub={wa ? 'Atendimento pelo WhatsApp. Conte o que aconteceu; se puder, mande um print.' : 'O contato do suporte será disponibilizado em breve.'}>
+        {wa && <button type="button" className="btn btn-primary mt-3" onClick={openWa}><Icon name="whatsapp" size={17} />Chamar no WhatsApp</button>}
+      </Panel>
+      <Panel title="Perguntas frequentes">
+        <ul className="mt-2 divide-y divide-ink/[0.07]">
+          {FAQ.map(([q, a], i) => (
+            <li key={q}>
+              <button type="button" aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)} className="flex w-full items-center justify-between gap-3 py-3 text-left text-[13.5px] font-bold">{q}<Icon name={open === i ? 'chevUp' : 'chevDown'} size={16} className="shrink-0 text-ink/55" /></button>
+              {open === i && <p className="pb-3 text-[13px] leading-relaxed text-ink/75">{a}</p>}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+      <Panel title="Sobre o app">
+        <dl className="mt-2 divide-y divide-ink/[0.07] text-[13px]">
+          <div className="flex justify-between gap-3 py-2"><dt className="text-ink/65">Versão</dt><dd className="font-semibold">{APP_VERSION || '—'}{APP_BUILD ? ` (build ${APP_BUILD})` : ''}</dd></div>
+          <div className="flex justify-between gap-3 py-2"><dt className="text-ink/65">Plataforma</dt><dd className="font-semibold">{NATIVE ? 'Android (APK)' : 'Site'}</dd></div>
+          <div className="flex justify-between gap-3 py-2"><dt className="text-ink/65">Banco de dados</dt><dd className="font-semibold">{d.v3 ? 'Atualizado (Leco 3)' : 'Precisa de atualização'}</dd></div>
+        </dl>
+        {NATIVE && info && <button type="button" className="btn btn-primary mt-3" onClick={() => openUpdate(info)}><Icon name="rocket" size={16} />Baixar versão {info.version}</button>}
+        {NATIVE && !info && <p className="mt-2 text-xs text-ink/60">Você está na versão mais recente.</p>}
+        <p className="mt-3 text-xs text-ink/60"><a className="font-bold text-in" href={`${CFG.siteUrl || ''}privacidade.html`} target="_blank" rel="noopener">Política de privacidade</a></p>
       </Panel>
     </div>
   );
@@ -203,7 +335,7 @@ function DataSettings() {
   const exportAll = () => d.exportFile(`leco-todas-as-transacoes-${todayISO()}.csv`, transactionsCSV(d.transactions, d));
   const backup = () => {
     const pick = (o) => { const { user_id, ...rest } = o; return rest; };
-    const json = JSON.stringify({ app: 'Leco', exportado_em: new Date().toISOString(), perfil: pick(d.profile), contas: d.accounts.map(pick), cartoes: d.cards.map(pick), categorias: d.categories.map(pick), recorrencias: d.recurrings.map(pick), transacoes: d.transactions.map(pick), metas: d.goals.map(pick) }, null, 2);
+    const json = JSON.stringify({ app: 'Leco', exportado_em: new Date().toISOString(), perfil: pick(d.profile), contas: d.accounts.map(pick), cartoes: d.cards.map(pick), categorias: d.categories.map(pick), recorrencias: d.recurrings.map(pick), transacoes: d.transactions.map(pick), metas: d.goals.map(pick), dividas: (d.debts || []).map(pick), modelos: (d.templates || []).map(pick), planejamento: (d.plans || []).map(pick), versao: 3 }, null, 2);
     d.exportFile(`leco-backup-${todayISO()}.json`, json, 'application/json');
   };
   const del = async () => {
@@ -216,8 +348,20 @@ function DataSettings() {
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className="btn btn-primary" onClick={exportAll}><Icon name="download" size={16} />Transações para Excel (CSV)</button>
           <button type="button" className="btn btn-ghost" onClick={backup}><Icon name="file" size={16} />Cópia completa (JSON)</button>
+          <button type="button" className="btn btn-ghost" onClick={() => d.exportFile('leco-agenda.ics', buildICS(d), 'text/calendar')}><Icon name="calendar" size={16} />Agenda (.ics)</button>
         </div>
       </Panel>
+      <Panel title="Importar e restaurar" sub="Traga o extrato do banco ou volte uma cópia completa do Leco.">
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" className="btn btn-ghost" onClick={() => d.openModal({ kind: 'import' })}><Icon name="upload" size={16} />Importar extrato (OFX/CSV)</button>
+          <button type="button" className="btn btn-ghost" onClick={() => d.openModal({ kind: 'restore' })}><Icon name="refresh" size={16} />Restaurar cópia (JSON)</button>
+        </div>
+      </Panel>
+      {!d.v3 && (
+        <Panel title="Atualização do banco pendente" sub="Para usar etiquetas, comprovantes, modelos, dívidas, planejamento e preferências na nuvem, o administrador precisa rodar o arquivo supabase/v3.sql no Supabase.">
+          <p className="mt-2 text-xs text-ink/60">Supabase › SQL Editor › New query › colar o conteúdo › Run. Depois, feche e abra o app.</p>
+        </Panel>
+      )}
       <Panel tone="danger" title="Excluir minha conta" sub="Apaga a conta e todos os dados (transações, contas, cartões, metas) de forma definitiva. Não dá para desfazer.">
         {confirm ? (
           <div className="mt-3 space-y-3">
@@ -337,7 +481,7 @@ function WhatsAppSettings() {
   );
 }
 
-const SETTINGS_VIEWS = { perfil: ProfileSettings, seguranca: SecuritySettings, preferencias: PrefsSettings, notificacoes: NotifSettings, whatsapp: WhatsAppSettings, dados: DataSettings };
+const SETTINGS_VIEWS = { perfil: ProfileSettings, seguranca: SecuritySettings, preferencias: PrefsSettings, personalizar: PersonalizeSettings, notificacoes: NotifSettings, whatsapp: WhatsAppSettings, suporte: SupportSettings, dados: DataSettings };
 
 function SettingsPage() {
   const d = useApp();

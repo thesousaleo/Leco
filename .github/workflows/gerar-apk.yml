@@ -17,6 +17,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  testes:
+    # Testes automáticos: se algo falhar, o APK e o site não são publicados
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+      - name: Instalar o navegador de testes
+        run: npx playwright install --with-deps chromium
+      - name: Testar o agente do WhatsApp
+        run: node tests/whatsapp-agent.mjs
+      - name: Testar o app (celular simulado)
+        run: |
+          set -o pipefail
+          node tests/app.e2e.mjs 2>&1 | tee e2e.log || { echo "::error title=Testes do app falharam::$(grep -E '✗|falha|erro' e2e.log | tail -20 | sed -e 's/%/%25/g' | sed ':a;N;$!ba;s/\n/%0A/g')"; exit 1; }
+
 
   whatsapp:
     # Publica o agente do WhatsApp no Supabase (só roda se o segredo SUPABASE_ACCESS_TOKEN existir)
@@ -45,6 +64,7 @@ jobs:
           supabase functions deploy whatsapp --project-ref "$REF" --no-verify-jwt --use-api || { echo "::error::Falha ao publicar a função do WhatsApp no Supabase (confira o SUPABASE_ACCESS_TOKEN)."; exit 1; }
           echo "::notice::Agente do WhatsApp publicado em https://$REF.supabase.co/functions/v1/whatsapp"
   site:
+    needs: testes
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -66,6 +86,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
   apk:
+    needs: testes
     runs-on: ubuntu-latest
     steps:
       - name: Baixar o código
@@ -99,7 +120,7 @@ jobs:
       - name: Montar o app (React + Tailwind + Supabase)
         run: |
           set -o pipefail
-          npm run build:native 2>&1 | tee web.log || { echo "::error title=Falha ao montar o app::$(tail -40 web.log | sed -e 's/%/%25/g' -e 's/\r//g' | sed ':a;N;$!ba;s/\n/%0A/g')"; exit 1; }
+          LECO_BUILD=${{ github.run_number }} npm run build:native 2>&1 | tee web.log || { echo "::error title=Falha ao montar o app::$(tail -40 web.log | sed -e 's/%/%25/g' -e 's/\r//g' | sed ':a;N;$!ba;s/\n/%0A/g')"; exit 1; }
 
       - name: Criar o projeto Android
         run: |

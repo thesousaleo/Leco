@@ -66,6 +66,26 @@ function calendarEvents(d, from, to, today = todayISO()) {
       guard += 1;
     }
   });
+  // Parcelas de dívidas (todo mês no dia de vencimento, até quitar)
+  (d.debts || []).filter((x) => !x.closed && x.due_day && x.paid < x.total).forEach((x) => {
+    let left = x.total - x.paid;
+    let k = monthKey(today);
+    for (let i = 0; i < 24 && left > 0; i++, k = shiftMonth(k, 1)) {
+      const dt = dayIn(k, x.due_day);
+      if (dt < today && k === monthKey(today)) continue;
+      const v = x.installment_amount ? Math.min(left, x.installment_amount) : left;
+      if (dt >= from && dt <= to) ev.push({ id: `d-${x.id}-${dt}`, date: dt, group: x.direction === 'owe' ? 'pay' : 'receive', forecast: true, debt: x, title: x.direction === 'owe' ? `Parcela: ${x.name}` : `Receber: ${x.name}`, sub: `Dívida${x.person ? ` · ${x.person}` : ''}`, icon: 'scale', color: x.direction === 'owe' ? '#D9644A' : '#14806B', amount: v, sign: x.direction === 'owe' ? '−' : '+', tone: x.direction === 'owe' ? 'text-out' : 'text-in' });
+      left -= v;
+      if (dt > to) break;
+    }
+  });
+  // Lembrete mensal de guardar na meta
+  d.goals.filter((g) => g.remind_day && g.monthly_amount > 0 && g.saved < g.target).forEach((g) => {
+    for (let k = monthKey(from); k <= monthKey(to); k = shiftMonth(k, 1)) {
+      const dt = dayIn(k, g.remind_day);
+      if (dt >= from && dt <= to && dt >= today) ev.push({ id: `gr-${g.id}-${dt}`, date: dt, group: 'info', goal: g, title: `Guardar para ${g.name}`, sub: 'Meta automática', icon: 'piggy', color: '#E8A317', amount: g.monthly_amount, sign: '', tone: 'text-ink/70' });
+    }
+  });
   d.goals.forEach((g) => {
     if (g.due && g.due >= from && g.due <= to) {
       ev.push({ id: `g-${g.id}`, date: g.due, group: 'info', goal: g, title: `Prazo da meta: ${g.name}`, sub: `${fmtBRL(g.saved)} de ${fmtBRL(g.target)}`, icon: 'target', color: '#E8A317', amount: g.target, sign: '', tone: 'text-ink/70' });
@@ -83,7 +103,8 @@ function CalendarEvent({ e }) {
   const open = () => {
     if (e.tx) d.openModal({ kind: 'tx', initial: e.tx });
     else if (e.rec) d.openModal({ kind: 'recurring', initial: e.rec });
-    else if (e.goal) d.openModal({ kind: 'goal', initial: e.goal });
+    else if (e.debt) d.openModal({ kind: 'debtPay', debt: e.debt });
+    else if (e.goal) d.openModal(e.id.startsWith('gr-') && d.v3 ? { kind: 'goalSave', goal: e.goal } : { kind: 'goal', initial: e.goal });
     else if (e.cardObj) d.openModal({ kind: 'invoice', card: e.cardObj, invoice: e.invoice.invoice });
   };
   const action = e.tx && !e.tx.paid ? { label: e.tx.kind === 'in' ? 'Recebi' : 'Paguei', fn: () => d.confirmTx(e.tx) }
@@ -120,10 +141,10 @@ function CalendarPage() {
   const first = `${month}-01`;
   const last = dayIn(month, 31);
   // grade de 6 semanas começando no domingo
-  const gridStart = addDays(first, -weekdayOf(first));
+  const gridStart = addDays(first, -((weekdayOf(first) - FIN.weekStart + 7) % 7));
   const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
   const weeks = cells[35] > last ? 5 : 6;
-  const events = useMemo(() => calendarEvents(d, cells[0], cells[weeks * 7 - 1], today), [d.transactions, d.cards, d.recurrings, d.goals, d.categories, d.accounts, month]);
+  const events = useMemo(() => calendarEvents(d, cells[0], cells[weeks * 7 - 1], today), [d.transactions, d.cards, d.recurrings, d.goals, d.categories, d.accounts, d.debts, month, FIN.weekStart]);
   const shown = events.filter((e) => passFilter(e, filter));
   const byDay = useMemo(() => { const o = {}; shown.forEach((e) => { (o[e.date] = o[e.date] || []).push(e); }); return o; }, [shown]);
   const monthEv = events.filter((e) => e.date >= first && e.date <= last);
@@ -153,6 +174,8 @@ function CalendarPage() {
   const agendaDays = [];
   agenda.forEach((e) => { const g = agendaDays[agendaDays.length - 1]; if (g && g.date === e.date) g.items.push(e); else agendaDays.push({ date: e.date, items: [e] }); });
   const addOn = (date) => d.openModal({ kind: 'tx', presetDate: date, defaultKind: 'out' });
+  // Exporta para Google Agenda / Outlook / Apple: abra o arquivo .ics no celular ou importe em calendar.google.com
+  const exportIcs = () => d.exportFile('leco-agenda.ics', buildICS(d), 'text/calendar');
 
   const dots = (list) => {
     const has = (g) => list.some((e) => e.group === g);
@@ -168,7 +191,7 @@ function CalendarPage() {
 
   const grid = (
     <div onPointerDown={onDown} onPointerUp={onUp} className="touch-pan-y select-none">
-      <div className="grid grid-cols-7 pb-1 text-center text-[11px] font-bold uppercase text-ink/55">{WEEKDAYS_SHORT.map((w, i) => <span key={i}>{w}</span>)}</div>
+      <div className="grid grid-cols-7 pb-1 text-center text-[11px] font-bold uppercase text-ink/55">{[...WEEKDAYS_SHORT.slice(FIN.weekStart), ...WEEKDAYS_SHORT.slice(0, FIN.weekStart)].map((w, i) => <span key={i}>{w}</span>)}</div>
       <div key={month} className={`grid grid-cols-7 gap-1 ${dir > 0 ? 'cal-next' : dir < 0 ? 'cal-prev' : ''}`}>
         {cells.slice(0, weeks * 7).map((iso) => {
           const inMonth = iso.slice(0, 7) === month;
@@ -276,12 +299,15 @@ function CalendarPage() {
         </div>
         {summary}
         <div className="glass rise rounded-3xl px-3 py-3" key={`${view}-${sel}-${filter}`}>{view === 'mes' ? dayPanel : agendaList}</div>
+        <button type="button" className="btn btn-ghost w-full !py-2.5 text-[13px]" onClick={exportIcs}><Icon name="download" size={15} />Exportar para o Google Agenda</button>
+        <p className="-mt-2 px-2 text-center text-[11px] leading-relaxed text-ink/55">Abra o arquivo baixado com o Google Agenda, ou importe em calendar.google.com › Configurações › Importar.</p>
       </div>
     );
   }
   return (
     <div className="space-y-5">
       <PageHeader eyebrow="Calendário" title={monthLabel(month)}>
+        <button type="button" className="btn btn-ghost" onClick={exportIcs}><Icon name="download" size={17} />Google Agenda</button>
         <button type="button" className="btn btn-ghost" onClick={goToday}><Icon name="calendar" size={17} />Hoje</button>
         <button type="button" className="btn btn-primary" onClick={() => addOn(sel)}><Icon name="plus" size={18} strokeWidth={2.4} />Nova conta</button>
       </PageHeader>

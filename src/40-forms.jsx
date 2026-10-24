@@ -9,6 +9,7 @@ function txMeta(t, d) {
   const acc = d.accounts.find((a) => a.id === t.account_id);
   const to = d.accounts.find((a) => a.id === t.to_account_id);
   const card = d.cards.find((c) => c.id === t.card_id);
+  if (t.is_adjustment) return { icon: 'scale', color: '#5E8CA6', title: t.description || 'Ajuste de saldo', sub: `${acc ? acc.name : 'Conta'} · ajuste (fora dos relatórios)`, tone: 'text-ink', sign: t.kind === 'in' ? '+' : '−' };
   if (t.kind === 'transfer') return { icon: 'swap', color: '#5E8CA6', title: t.description || 'Transferência', sub: `${acc ? acc.name : '?'} → ${to ? to.name : '?'}`, tone: 'text-ink', sign: '' };
   if (t.kind === 'card_payment') return { icon: 'card', color: card ? card.color : '#0F5C4D', title: t.description || `Pagamento da fatura ${card ? card.name : ''}`, sub: `${acc ? acc.name : 'Conta'} · fatura de ${t.invoice ? invoiceLabel(t.invoice) : ''}`, tone: 'text-ink', sign: '−' };
   const where = card ? `${card.name}${t.invoice ? ` · fatura ${monthShort(t.invoice).toLowerCase()}` : ''}` : acc ? acc.name : 'Sem conta';
@@ -23,24 +24,55 @@ function TxItem({ t, onOpen, onConfirm, showDate = true, dense = false }) {
   const d = useApp();
   const m = useMoneyText();
   const meta = txMeta(t, d);
+  // Gestos (celular): arrastar para a esquerda exclui, para a direita marca como pago
+  const inner = useRef(null);
+  const g = useRef(null);
+  const [dx, setDx] = useState(0);
+  const canSwipe = LITE && !!onOpen && t.kind !== 'card_payment';
+  const down = (e) => { if (!canSwipe || e.pointerType === 'mouse') return; g.current = { x: e.clientX, y: e.clientY, on: false }; };
+  const move = (e) => {
+    const s = g.current; if (!s) return;
+    const mx = e.clientX - s.x, my = e.clientY - s.y;
+    if (!s.on) { if (Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.4) { s.on = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) { /* ok */ } } else if (Math.abs(my) > 10) { g.current = null; return; } else return; }
+    const lim = !t.paid && onConfirm ? 120 : 0;
+    setDx(Math.max(-120, Math.min(lim, mx)));
+  };
+  const up = () => {
+    const s = g.current; g.current = null;
+    if (!s || !s.on) return;
+    if (dx <= -90) { haptic('heavy'); setDx(-400); setTimeout(() => d.deleteTx(t, 'one'), 160); return; }
+    if (dx >= 90 && !t.paid && onConfirm) { haptic('success'); onConfirm(t); }
+    setDx(0);
+  };
+  const tagLine = (t.tags && t.tags.length ? ` · ${t.tags.map((x) => `#${x}`).join(' ')}` : '') + (t.orig_currency ? ` · ${fmtForeign(t.orig_amount, t.orig_currency)}` : '');
   return (
-    <li className={`group flex items-center gap-3 rounded-2xl px-1.5 ${dense ? 'py-2' : 'py-2.5'} transition-colors hover:bg-ink/[0.03] ${d.freshIds.includes(t.id) ? 'flash' : ''}`}>
-      <button type="button" onClick={() => onOpen && onOpen(t)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={`Abrir ${meta.title}`}>
-        <ColorIcon icon={meta.icon} color={meta.color} size={dense ? 36 : 40} />
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
-            <span className="truncate text-[14px] font-semibold">{meta.title}</span>
-            {!t.paid && <span className={`shrink-0 ${t.date < todayISO() ? 'pill pill-bad' : 'badge-gold'} !px-2 !py-0 !text-[10.5px]`}>{t.kind === 'in' ? 'a receber' : 'a pagar'}</span>}
-          </span>
-          <span className="block truncate text-xs text-ink/65">{meta.sub}{showDate ? ` · ${fmtDate(t.date)}` : ''}</span>
-        </span>
-      </button>
-      {!t.paid && onConfirm && (
-        <button type="button" className="btn btn-ghost shrink-0 !px-3 !py-1.5 text-xs" onClick={() => onConfirm(t)}>
-          <Icon name="check" size={14} strokeWidth={2.4} />{t.kind === 'in' ? 'Recebi' : 'Paguei'}
-        </button>
+    <li className={`relative overflow-hidden rounded-2xl ${d.freshIds.includes(t.id) ? 'flash' : ''}`}>
+      {dx !== 0 && (
+        <div className="absolute inset-0 flex items-center justify-between px-4 text-[12.5px] font-bold" aria-hidden="true">
+          <span className={`flex items-center gap-1.5 text-in ${dx > 0 ? 'opacity-100' : 'opacity-0'}`}><Icon name="check" size={16} strokeWidth={2.4} />{t.kind === 'in' ? 'Recebi' : 'Paguei'}</span>
+          <span className={`flex items-center gap-1.5 text-out ${dx < 0 ? 'opacity-100' : 'opacity-0'}`}>Excluir<Icon name="trash" size={16} /></span>
+        </div>
       )}
-      <span className={`shrink-0 whitespace-nowrap text-[14px] font-extrabold tabular-nums ${meta.tone} ${!t.paid ? 'opacity-60' : ''}`}>{meta.sign}{meta.sign ? ' ' : ''}{m(t.amount)}</span>
+      <div ref={inner} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        className={`group relative flex items-center gap-3 rounded-2xl px-1.5 ${dense ? 'py-2' : 'py-2.5'} transition-colors hover:bg-ink/[0.03] ${dx !== 0 ? 'bg-[var(--paper)]' : ''}`}
+        style={{ transform: dx ? `translate3d(${dx}px,0,0)` : undefined, transition: g.current ? 'none' : 'transform .25s cubic-bezier(.2,.8,.2,1)', touchAction: 'pan-y' }}>
+        <button type="button" onClick={() => onOpen && onOpen(t)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={`Abrir ${meta.title}`}>
+          <ColorIcon icon={meta.icon} color={meta.color} size={dense ? 36 : 40} />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5">
+              <span className="truncate text-[14px] font-semibold">{meta.title}</span>
+              {t.attachment && <Icon name="clip" size={13} className="shrink-0 text-ink/50" />}
+            </span>
+            <span className="block truncate text-xs text-ink/65">{!t.paid && <span className={`mr-1.5 ${t.date < todayISO() ? 'pill pill-bad' : 'badge-gold'} !px-1.5 !py-0 !text-[10px]`}>{t.date < todayISO() ? 'atrasado' : t.kind === 'in' ? 'a receber' : 'a pagar'}</span>}{meta.sub}{showDate ? ` · ${fmtDate(t.date)}` : ''}{tagLine}</span>
+          </span>
+        </button>
+        {!t.paid && onConfirm && (
+          <button type="button" className={`btn btn-ghost shrink-0 text-xs ${LITE ? '!size-9 !p-0' : '!px-3 !py-1.5'}`} aria-label={t.kind === 'in' ? 'Recebi' : 'Paguei'} onClick={() => onConfirm(t)}>
+            <Icon name="check" size={14} strokeWidth={2.4} />{LITE ? null : t.kind === 'in' ? 'Recebi' : 'Paguei'}
+          </button>
+        )}
+        <span className={`shrink-0 whitespace-nowrap text-[14px] font-extrabold tabular-nums ${meta.tone} ${!t.paid ? 'opacity-60' : ''}`}>{meta.sign}{meta.sign ? ' ' : ''}{m(t.amount)}</span>
+      </div>
     </li>
   );
 }
@@ -131,6 +163,16 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
+  // Leco 3
+  const [tags, setTags] = useState(initial && initial.tags ? initial.tags : []);
+  const [split, setSplit] = useState(false);
+  const [parts, setParts] = useState([{ key: 'a', category_id: '', amount: 0 }, { key: 'b', category_id: '', amount: 0 }]);
+  const [foreign, setForeign] = useState(() => (initial && initial.orig_currency ? { on: true, currency: initial.orig_currency, orig: initial.orig_amount, origText: String((initial.orig_amount || 0) / 100).replace('.', ','), rate: initial.orig_amount ? initial.amount / initial.orig_amount : 0, rateText: initial.orig_amount ? (initial.amount / initial.orig_amount).toFixed(4).replace('.', ',') : '' } : { on: false, currency: 'USD', orig: 0, origText: '', rate: 0, rateText: '' }));
+  const [attachment, setAttachment] = useState(initial && initial.attachment ? initial.attachment : null);
+  const [pendingFile, setPendingFile] = useState(null);
+  const [askScope, setAskScope] = useState(false);
+  const [more, setMore] = useState(!!(initial && ((initial.tags && initial.tags.length) || initial.attachment || initial.orig_currency || initial.notes)));
+  const v3 = d.v3;
   const titleId = cleanId(useId());
   const isCard = source.startsWith('card:');
   const card = isCard ? cards.find((c) => c.id === source.slice(5)) : null;
@@ -149,6 +191,10 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
   const switchKind = (k) => { setKind(k); if (cat && (d.categories.find((c) => c.id === cat) || {}).kind !== k) setCat(null); };
   const fallbackCat = (k) => { const n = k === 'in' ? 'outras receitas' : 'outros gastos'; const c = d.categories.find((x) => x.kind === k && x.name.toLowerCase() === n); return c ? c.id : firstCat(k); };
   const catList = d.categories.filter((c) => c.kind === kind && (!c.archived || c.id === cat));
+  const catTop = catList.filter((c) => !c.parent_id || !catList.some((p) => p.id === c.parent_id));
+  const selCat = catList.find((c) => c.id === cat);
+  const selTop = selCat ? (selCat.parent_id && catList.some((p) => p.id === selCat.parent_id) ? selCat.parent_id : selCat.id) : null;
+  const subCats = selTop ? catList.filter((c) => c.parent_id === selTop) : [];
 
   const createQuickCat = async () => {
     const name = (quickCat || '').trim();
@@ -157,8 +203,26 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
     if (row) { setCat(row.id); setQuickCat(null); }
   };
 
-  const submit = async (e) => {
-    e.preventDefault();
+  const applyTemplate = (t) => {
+    switchKind(t.kind); if (t.amount) setAmount(t.amount); setDesc(t.description || t.name); setCat(t.category_id);
+    if (t.card_id && cards.some((c) => c.id === t.card_id)) setSource(`card:${t.card_id}`); else if (t.account_id && accounts.some((a) => a.id === t.account_id)) setSource(`acc:${t.account_id}`);
+    if (t.tags && t.tags.length) { setTags(t.tags); setMore(true); }
+    d.backend.db.update('templates', t.id, { uses: (t.uses || 0) + 1 }).catch(() => {});
+    haptic();
+  };
+  const saveTemplate = async () => {
+    if (kind === 'transfer') return;
+    const name = (desc.trim() || (d.categories.find((c) => c.id === cat) || {}).name || '').slice(0, 40);
+    if (!name) { d.toast('Escreva uma descrição para o modelo.', null, true); return; }
+    await d.saveRow('templates', null, { name, kind, amount, description: desc.trim(), category_id: cat, account_id: source.startsWith('acc:') ? source.slice(4) : null, card_id: isCard ? card.id : null, tags }, `Modelo "${name}" salvo`);
+  };
+  const duplicate = () => {
+    const { id, created_at, group_id, installment, installments: _n, recurring_id, split_id, attachment: _a, ...copy } = initial;
+    onClose();
+    setTimeout(() => d.openModal({ kind: 'tx', initial: { ...copy, description: initial.installments ? desc : initial.description, date: todayISO(), paid: copy.card_id ? true : copy.paid } }), 240);
+  };
+  const submit = async (e, scopeArg) => {
+    if (e) e.preventDefault();
     if (quickCat != null) { await createQuickCat(); return; }
     const er = {};
     if (amount <= 0) er.amount = 'Informe um valor maior que zero.';
@@ -168,9 +232,21 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
       if (!toAcc || `acc:${toAcc}` === source) er.to = 'Escolha uma conta de destino diferente.';
     } else if (!source) er.source = 'Escolha de onde sai (ou para onde vai) o dinheiro.';
     if (repeat && endDate && endDate < date) er.end = 'O fim precisa ser depois da primeira data.';
+    if (split && !editing && kind !== 'transfer') {
+      if (parts.some((p) => !p.category_id || !p.amount)) er.split = 'Escolha a categoria e o valor de cada parte.';
+      else if (sum(parts, (p) => p.amount) !== amount) er.split = 'A soma das partes precisa ser igual ao valor total.';
+    }
+    if (foreign.on && kind !== 'transfer' && !(foreign.orig > 0)) er.foreign = 'Informe o valor na outra moeda.';
     setErrors(er);
     if (Object.keys(er).length) return;
+    // Parcelas ou recorrência: perguntar se a mudança vale para as outras também
+    if (editing && (initial.group_id || initial.recurring_id) && !scopeArg) { setAskScope(true); return; }
     setBusy(true);
+    let attach = attachment;
+    if (pendingFile) {
+      try { attach = await d.uploadAttachment(pendingFile); } catch (x) { setBusy(false); d.toast(`Não foi possível enviar o comprovante: ${x.message}`, null, true); return; }
+    }
+    if (initial && initial.attachment && initial.attachment !== attach) d.backend.files.remove([initial.attachment]).catch(() => {});
     const base = {
       kind, amount, description: desc.trim() || (kind === 'transfer' ? 'Transferência' : (d.categories.find((c) => c.id === (cat || fallbackCat(kind))) || {}).name || (kind === 'in' ? 'Receita' : 'Despesa')),
       date, notes: notes.trim() || null,
@@ -180,7 +256,14 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
       card_id: isCard && kind === 'out' ? card.id : null,
       paid: isCard ? true : paid,
     };
-    const ok = repeat && canRepeat ? await d.saveTxRepeat(base, freq, endDate) : await d.saveTx(initial, base, canSplit ? installments : 1);
+    if (v3) {
+      base.tags = tags;
+      base.attachment = attach || null;
+      base.orig_currency = foreign.on && kind !== 'transfer' ? foreign.currency : null;
+      base.orig_amount = foreign.on && kind !== 'transfer' ? foreign.orig : null;
+    }
+    const ok = split && !editing && kind !== 'transfer' ? await d.saveSplit(base, parts)
+      : repeat && canRepeat ? await d.saveTxRepeat(base, freq, endDate) : await d.saveTx(initial, base, canSplit ? installments : 1, scopeArg || 'one');
     setBusy(false);
     if (ok) onClose();
   };
@@ -199,6 +282,12 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
   return (
     <Sheet variant={sheetVariant()} onClose={onClose} titleId={titleId} onSubmit={submit}>
       <SheetHead id={titleId} title={editing ? 'Editar transação' : 'Nova transação'} sub={editing && initial.installments ? `Parcela ${initial.installment} de ${initial.installments}. A edição vale só para esta parcela.` : undefined} onClose={onClose} />
+      {!editing && (
+        <div className="-mt-2 mb-1 flex items-start gap-1.5">
+          <button type="button" onClick={() => { onClose(); setTimeout(() => d.openModal({ kind: 'quick' }), 240); }} className="flex shrink-0 items-center gap-1 rounded-full border border-ouro/60 bg-ouro/15 py-1.5 pl-2 pr-3 text-[12.5px] font-bold text-ink"><Icon name="bolt" size={14} />Rápido</button>
+          {v3 && <div className="min-w-0 flex-1"><TemplateChips kind={kind} onPick={applyTemplate} /></div>}
+        </div>
+      )}
       {initial && initial.kind === 'card_payment' ? (
         <p className="rounded-2xl bg-ink/[0.04] p-4 text-[13px] text-ink/75">Pagamentos de fatura não podem ser editados. Exclua e registre de novo, se precisar.</p>
       ) : (
@@ -246,10 +335,10 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
             <>
               <fieldset className="mt-4">
                 <legend className="lbl">Categoria{!cat ? <span className="ml-1 normal-case tracking-normal text-ink/50">(se não escolher: Outros)</span> : null}</legend>
-                <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
-                  {catList.map((c) => (
-                    <button key={c.id} type="button" aria-pressed={cat === c.id} onClick={() => setCat(c.id)}
-                      className={`flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1 py-2.5 text-[11.5px] font-semibold transition-all ${cat === c.id ? 'border-vivo/60 bg-vivo/15 text-ink shadow-[0_0_0_3px_rgba(20,128,107,.12)]' : 'border-ink/10 bg-ink/[0.03] text-ink/75 hover:bg-ink/[0.06]'}`}>
+                <div className={`mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 ${split ? 'hidden' : ''}`}>
+                  {catTop.map((c) => (
+                    <button key={c.id} type="button" aria-pressed={selTop === c.id} onClick={() => setCat(c.id)}
+                      className={`flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1 py-2.5 text-[11.5px] font-semibold transition-all ${selTop === c.id ? 'border-vivo/60 bg-vivo/15 text-ink shadow-[0_0_0_3px_rgba(20,128,107,.12)]' : 'border-ink/10 bg-ink/[0.03] text-ink/75 hover:bg-ink/[0.06]'}`}>
                       <span style={{ color: c.color }}><Icon name={c.icon} size={18} /></span>
                       <span className="w-full truncate text-center">{c.name}</span>
                     </button>
@@ -260,12 +349,26 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
                     </button>
                   )}
                 </div>
+                {!split && subCats.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Subcategoria">
+                    {[{ id: selTop, name: 'Geral' }, ...subCats].map((c) => (
+                      <button key={c.id} type="button" role="radio" aria-checked={cat === c.id} onClick={() => setCat(c.id)}
+                        className={`rounded-full border px-3 py-1.5 text-[12px] font-bold ${cat === c.id ? 'border-vivo/60 bg-vivo/15 text-ink' : 'border-ink/10 bg-ink/[0.03] text-ink/70'}`}>{c.name}</button>
+                    ))}
+                  </div>
+                )}
+                {split && <div className="mt-2"><SplitEditor kind={kind} total={amount} parts={parts} setParts={setParts} />{errors.split && <p className="mt-1.5 text-xs font-semibold text-out">{errors.split}</p>}</div>}
                 {quickCat != null && (
                   <div className="mt-2 flex gap-2">
                     <input id="tx-newcat" autoFocus className="field !rounded-full !py-2 text-sm" placeholder="Nome da nova categoria" value={quickCat} maxLength={30} onChange={(e) => setQuickCat(e.target.value)} />
                     <button type="button" className="btn btn-primary !px-4 !py-2 text-[13px]" onClick={createQuickCat} disabled={!quickCat.trim()}>Criar</button>
                     <button type="button" className="icon-btn size-10 shrink-0" aria-label="Cancelar nova categoria" onClick={() => setQuickCat(null)}><Icon name="x" size={16} /></button>
                   </div>
+                )}
+                {!editing && installments === 1 && !repeat && (
+                  <button type="button" className="mt-2 flex items-center gap-1.5 text-[12.5px] font-bold text-in" onClick={() => { setSplit((v) => !v); if (!split) setParts([{ key: 'a', category_id: cat || '', amount: amount }, { key: 'b', category_id: '', amount: 0 }]); }}>
+                    <Icon name="split" size={14} />{split ? 'Voltar para uma categoria' : 'Dividir em várias categorias'}
+                  </button>
                 )}
               </fieldset>
               <Field label={kind === 'in' ? 'Entra em' : 'Pago com'} error={errors.source} className="mt-4">
@@ -313,19 +416,60 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
               )}
             </div>
           )}
-          <Field label="Observações" className="mt-4">
-            <textarea id="tx-notes" className="field min-h-[64px]" maxLength={200} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
-          </Field>
+          <button type="button" className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-ink/[0.08] bg-ink/[0.02] px-3.5 py-2.5 text-left" aria-expanded={more} onClick={() => setMore((v) => !v)}>
+            <Icon name="layers" size={17} className="shrink-0" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13.5px] font-bold">Mais opções</span>
+              <span className="block truncate text-xs text-ink/60">{[tags.length ? `${tags.length} etiqueta${tags.length > 1 ? 's' : ''}` : '', attachment || pendingFile ? 'comprovante' : '', foreign.on ? foreign.currency : '', notes ? 'observação' : ''].filter(Boolean).join(' · ') || 'Etiquetas, comprovante, outra moeda, observação'}</span>
+            </span>
+            <Icon name={more ? 'chevUp' : 'chevDown'} size={16} className="shrink-0" />
+          </button>
+          {more && (
+            <div className="mt-3 space-y-4">
+              {v3 ? (
+                <>
+                  <div><span className="lbl">Etiquetas</span><div className="mt-2"><TagInput tags={tags} onChange={setTags} /></div></div>
+                  <div><span className="lbl">Comprovante</span><div className="mt-2"><AttachmentField path={attachment} pending={pendingFile} onPick={(f) => setPendingFile(f)} onRemove={() => { setPendingFile(null); setAttachment(null); }} /></div></div>
+                  {kind !== 'transfer' && (
+                    <div>
+                      <Toggle id="tx-foreign" icon="plane" label="Outra moeda" desc="Gasto em viagem: informe o valor e a cotação; o Leco guarda em reais." checked={foreign.on} onChange={(v) => setForeign((f) => ({ ...f, on: v }))} />
+                      {foreign.on && <ForeignAmount value={foreign} onChange={setForeign} setAmount={setAmount} />}
+                      {errors.foreign && <p className="mt-1.5 text-xs font-semibold text-out">{errors.foreign}</p>}
+                    </div>
+                  )}
+                </>
+              ) : <p className="rounded-2xl bg-ouro/10 px-3.5 py-2.5 text-xs text-ink/75">Etiquetas, comprovantes e outras moedas ficam disponíveis depois da atualização do banco (Configurações › Seus dados).</p>}
+              <Field label="Observações">
+                <textarea id="tx-notes" className="field min-h-[64px]" maxLength={200} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Opcional" />
+              </Field>
+            </div>
+          )}
         </>
       )}
-      {confirmDel ? (
+      {askScope ? (
+        <ScopeChoice what={initial.group_id ? `Esta é a parcela ${initial.installment} de ${initial.installments}.` : 'Este lançamento faz parte de uma recorrência. "Esta e as próximas" também muda o valor da recorrência.'} busy={busy}
+          onCancel={() => setAskScope(false)} onPick={(sc) => { setAskScope(false); submit(null, sc); }} />
+      ) : confirmDel && initial.recurring_id ? (
+        <ScopeChoice danger what={'Lançamento de uma recorrência. "Esta e as próximas" encerra a recorrência; "Todas" também apaga a recorrência.'} busy={busy} onCancel={() => setConfirmDel(false)} onPick={(sc) => remove(sc)} />
+      ) : confirmDel && initial.split_id ? (
+        <div className="mt-6 rounded-2xl border border-coral/40 bg-coral/10 p-4">
+          <p className="text-sm font-bold">Excluir compra dividida?</p>
+          <p className="mt-1 text-xs text-ink/75">Você pode excluir só esta parte ou a compra inteira.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <button type="button" className="btn btn-ghost !py-2" onClick={() => setConfirmDel(false)}>Cancelar</button>
+            <button type="button" className="btn btn-ghost !py-2" disabled={busy} onClick={() => remove('one')}>Só esta parte</button>
+            <button type="button" className="btn btn-danger !py-2" disabled={busy} onClick={() => remove('split')}>Compra inteira</button>
+          </div>
+        </div>
+      ) : confirmDel ? (
         initial.group_id ? (
           <div className="mt-6 rounded-2xl border border-coral/40 bg-coral/10 p-4">
             <p className="text-sm font-bold">Excluir compra parcelada?</p>
-            <p className="mt-1 text-xs text-ink/75">Você pode excluir só esta parcela ou todas as {initial.installments} parcelas.</p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <p className="mt-1 text-xs text-ink/75">Parcela {initial.installment} de {initial.installments}.</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-4">
               <button type="button" className="btn btn-ghost !py-2" onClick={() => setConfirmDel(false)}>Cancelar</button>
               <button type="button" className="btn btn-ghost !py-2" disabled={busy} onClick={() => remove('one')}>Só esta</button>
+              <button type="button" className="btn btn-ghost !py-2" disabled={busy} onClick={() => remove('next')}>Esta e as próximas</button>
               <button type="button" className="btn btn-danger !py-2" disabled={busy} onClick={() => remove('group')}>Todas</button>
             </div>
           </div>
@@ -333,11 +477,32 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
       ) : (
         <div className="mt-6 flex gap-2">
           {editing && <button type="button" className="icon-btn size-11 shrink-0" aria-label="Excluir transação" onClick={() => setConfirmDel(true)}><Icon name="trash" size={17} /></button>}
+          {editing && initial.kind !== 'card_payment' && <button type="button" className="icon-btn size-11 shrink-0" aria-label="Duplicar transação" onClick={duplicate}><Icon name="copy" size={17} /></button>}
+          {!editing && v3 && kind !== 'transfer' && <button type="button" className="icon-btn size-11 shrink-0" aria-label="Salvar como modelo" title="Salvar como modelo" onClick={saveTemplate}><Icon name="star" size={17} /></button>}
           <button type="button" className="btn btn-ghost flex-1" onClick={onClose}>Cancelar</button>
           {!(initial && initial.kind === 'card_payment') && <SubmitButton busy={busy} className="flex-[1.6]"><Icon name="check" size={17} strokeWidth={2.4} />{editing ? 'Salvar' : kind === 'in' ? 'Adicionar receita' : kind === 'out' ? 'Adicionar despesa' : 'Transferir'}</SubmitButton>}
         </div>
       )}
     </Sheet>
+  );
+}
+
+/* ---------- Ícone ou emoji ---------- */
+const EMOJI_CHOICES = ['🏦', '💳', '💰', '🐷', '👛', '📈', '🏠', '🛒', '🍔', '☕', '🚗', '⛽', '🚌', '✈️', '💊', '🎓', '🎮', '🎬', '🐶', '👶', '🎁', '💡', '📱', '👕', '💼', '🏋️', '🍺', '🧾'];
+function IconPicker({ value, onChange, choices = ICON_CHOICES, label = 'Ícone' }) {
+  const [custom, setCustom] = useState('');
+  return (
+    <fieldset>
+      <legend className="lbl">{label}</legend>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {[...choices, ...EMOJI_CHOICES].map((ic) => (
+          <button key={ic} type="button" aria-pressed={value === ic} aria-label={`Ícone ${ic}`} onClick={() => onChange(ic)}
+            className={`grid size-9 place-items-center rounded-xl border transition-colors ${value === ic ? 'border-vivo bg-vivo/15' : 'border-ink/10 bg-ink/[0.03]'}`}><Icon name={ic} size={17} /></button>
+        ))}
+        <input aria-label="Outro emoji" className="field !w-[92px] !rounded-xl !px-2 !py-1.5 text-center text-[13px]" placeholder="emoji…" value={custom} maxLength={4}
+          onChange={(e) => { setCustom(e.target.value); if (/\p{Extended_Pictographic}/u.test(e.target.value)) onChange(e.target.value.trim()); }} />
+      </div>
+    </fieldset>
   );
 }
 
@@ -349,6 +514,8 @@ function AccountForm({ initial, onClose }) {
   const [kind, setKind] = useState(initial ? initial.kind : 'corrente');
   const [balance, setBalance] = useState(initial ? initial.initial_balance : 0);
   const [color, setColor] = useState(initial ? initial.color : SWATCHES[0]);
+  const [icon, setIcon] = useState(initial && initial.icon ? initial.icon : null);
+  const [reserve, setReserve] = useState(!!(initial && initial.is_reserve));
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -359,7 +526,7 @@ function AccountForm({ initial, onClose }) {
     e.preventDefault();
     if (!name.trim()) { setErr('Dê um nome para a conta.'); return; }
     setBusy(true);
-    const ok = await d.saveAccount(initial, { name: name.trim(), kind, initial_balance: balance, color });
+    const ok = await d.saveAccount(initial, { name: name.trim(), kind, initial_balance: balance, color, ...(d.v3 ? { icon, is_reserve: reserve } : {}) });
     setBusy(false);
     if (ok) onClose();
   };
@@ -374,6 +541,8 @@ function AccountForm({ initial, onClose }) {
       <fieldset className="mt-4"><legend className="lbl">Cor</legend>
         <div className="mt-2 flex flex-wrap gap-2">{SWATCHES.map((c) => <button key={c} type="button" aria-pressed={color === c} aria-label={`Cor ${c}`} onClick={() => setColor(c)} className="size-8 rounded-full transition-transform hover:scale-105" style={{ background: c, boxShadow: color === c ? `0 0 0 2px var(--paper), 0 0 0 4px ${c}` : 'none' }} />)}</div>
       </fieldset>
+      {d.v3 && <div className="mt-4"><IconPicker value={icon || ACCOUNT_KINDS[kind].icon} onChange={setIcon} choices={['bank', 'wallet', 'piggy', 'trend', 'card', 'briefcase', 'home', 'shield']} /></div>}
+      {d.v3 && <div className="mt-2"><Toggle id="acc-reserve" icon="shield" label="Reserva de emergência" desc="O saldo desta conta conta como reserva no Planejamento." checked={reserve} onChange={setReserve} /></div>}
       <div className="mt-4"><ErrorNote>{err}</ErrorNote></div>
       {confirm ? (
         <div className="mt-6 rounded-2xl border border-coral/40 bg-coral/10 p-4">
@@ -406,6 +575,7 @@ function CardForm({ initial, onClose }) {
   const [due, setDue] = useState(initial ? initial.due_day : 10);
   const [payAcc, setPayAcc] = useState(initial ? initial.pay_account_id || '' : (d.accounts[0] || {}).id || '');
   const [color, setColor] = useState(initial ? initial.color : SWATCHES[1]);
+  const [icon, setIcon] = useState(initial && initial.icon ? initial.icon : null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -415,7 +585,7 @@ function CardForm({ initial, onClose }) {
     e.preventDefault();
     if (!name.trim()) { setErr('Dê um nome para o cartão.'); return; }
     setBusy(true);
-    const ok = await d.saveCard(initial, { name: name.trim(), limit_amount: limit, closing_day: closing, due_day: due, pay_account_id: payAcc || null, color });
+    const ok = await d.saveCard(initial, { name: name.trim(), limit_amount: limit, closing_day: closing, due_day: due, pay_account_id: payAcc || null, color, ...(d.v3 ? { icon } : {}) });
     setBusy(false);
     if (ok) onClose();
   };
@@ -430,7 +600,7 @@ function CardForm({ initial, onClose }) {
         <Field label="Fecha no"><DaySelect id="card-closing" value={closing} onChange={setClosing} /></Field>
         <Field label="Vence no"><DaySelect id="card-due" value={due} onChange={setDue} /></Field>
       </div>
-      <p className="mt-2 text-xs text-ink/65">Compras feitas hoje entram na fatura de {invoiceLabel(inv)}, que vence em {fmtDate(invoiceDue(preview, inv))}.</p>
+      <p className="mt-2 text-xs text-ink/65">Compras feitas hoje entram na fatura de {invoiceLabel(inv)}, que vence em {fmtDate(invoiceDue(preview, inv))}. <b className="text-ink">Melhor dia para comprar: dia {closing}</b> (a compra só é paga na fatura seguinte).</p>
       <Field label="Conta que paga a fatura" className="mt-4">
         <select id="card-pay" className="field" value={payAcc} onChange={(e) => setPayAcc(e.target.value)}>
           <option value="">Escolher na hora de pagar</option>
@@ -440,6 +610,7 @@ function CardForm({ initial, onClose }) {
       <fieldset className="mt-4"><legend className="lbl">Cor</legend>
         <div className="mt-2 flex flex-wrap gap-2">{SWATCHES.map((c) => <button key={c} type="button" aria-pressed={color === c} aria-label={`Cor ${c}`} onClick={() => setColor(c)} className="size-8 rounded-full transition-transform hover:scale-105" style={{ background: c, boxShadow: color === c ? `0 0 0 2px var(--paper), 0 0 0 4px ${c}` : 'none' }} />)}</div>
       </fieldset>
+      {d.v3 && <div className="mt-4"><IconPicker value={icon || 'card'} onChange={setIcon} choices={['card', 'bank', 'wallet', 'star', 'plane', 'bag']} /></div>}
       <div className="mt-4"><ErrorNote>{err}</ErrorNote></div>
       {confirm ? (
         <div className="mt-6 rounded-2xl border border-coral/40 bg-coral/10 p-4">
@@ -631,6 +802,9 @@ function CategoryForm({ initial, initialKind = 'out', onClose }) {
   const [icon, setIcon] = useState(initial ? initial.icon : 'tag');
   const [color, setColor] = useState(initial ? initial.color : SWATCHES[4]);
   const [budget, setBudget] = useState(initial ? initial.budget || 0 : 0);
+  const [parent, setParent] = useState(initial && initial.parent_id ? initial.parent_id : '');
+  const parents = d.categories.filter((c) => c.kind === kind && !c.parent_id && !c.archived && (!initial || c.id !== initial.id));
+  const hasChildren = editing && d.categories.some((c) => c.parent_id === initial.id);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -642,7 +816,7 @@ function CategoryForm({ initial, initialKind = 'out', onClose }) {
     if (!n) { setErr('Dê um nome para a categoria.'); return; }
     if (d.categories.some((c) => c.id !== (initial && initial.id) && c.kind === kind && c.name.toLowerCase() === n.toLowerCase())) { setErr('Já existe uma categoria com esse nome.'); return; }
     setBusy(true);
-    const row = await d.saveCategory(initial, { name: n, kind, icon, color, budget: kind === 'out' ? budget : 0 });
+    const row = await d.saveCategory(initial, { name: n, kind, icon, color, budget: kind === 'out' ? budget : 0, ...(d.v3 ? { parent_id: parent || null } : {}) });
     setBusy(false);
     if (row) onClose();
   };
@@ -656,14 +830,15 @@ function CategoryForm({ initial, initialKind = 'out', onClose }) {
       <Field label="Nome" className="mt-4"><input id="cat-name" className="field" value={name} maxLength={30} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Mercado do bairro" /></Field>
       <div className="mt-4"><span className="lbl">Tipo</span><div className="mt-2"><Segmented full label="Tipo da categoria" value={kind} onChange={(v) => { if (!used) setKind(v); }} options={[{ value: 'out', label: 'Despesa' }, { value: 'in', label: 'Receita' }]} /></div>
         {used > 0 && <p className="mt-1.5 text-xs text-ink/60">O tipo não muda enquanto houver transações nesta categoria.</p>}</div>
-      <fieldset className="mt-4"><legend className="lbl">Ícone</legend>
-        <div className="mt-2 grid grid-cols-10 gap-1.5 max-sm:grid-cols-5">
-          {ICON_CHOICES.map((ic) => (
-            <button key={ic} type="button" aria-pressed={icon === ic} aria-label={`Ícone ${ic}`} onClick={() => setIcon(ic)}
-              className={`grid aspect-square place-items-center rounded-xl border transition-all ${icon === ic ? 'border-vivo/70 bg-vivo/15 text-ink' : 'border-ink/10 text-ink/70 hover:bg-ink/[0.05]'}`}><Icon name={ic} size={17} /></button>
-          ))}
-        </div>
-      </fieldset>
+      {d.v3 && !hasChildren && (
+        <Field label="Subcategoria de" className="mt-4" hint={parent ? 'Os gastos daqui também contam no orçamento da categoria principal.' : 'Opcional. Ex.: "Delivery" dentro de "Alimentação".'}>
+          <select id="cat-parent" className="field" value={parent} onChange={(e) => setParent(e.target.value)}>
+            <option value="">Nenhuma (categoria principal)</option>
+            {parents.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </Field>
+      )}
+      <div className="mt-4"><IconPicker value={icon} onChange={setIcon} /></div>
       <fieldset className="mt-4"><legend className="lbl">Cor</legend>
         <div className="mt-2 flex flex-wrap gap-2">{SWATCHES.map((c) => <button key={c} type="button" aria-pressed={color === c} aria-label={`Cor ${c}`} onClick={() => setColor(c)} className="size-8 rounded-full transition-transform hover:scale-105" style={{ background: c, boxShadow: color === c ? `0 0 0 2px var(--paper), 0 0 0 4px ${c}` : 'none' }} />)}</div>
       </fieldset>
@@ -691,16 +866,21 @@ function GoalForm({ initial, onClose }) {
   const [saved, setSaved] = useState(initial ? initial.saved : 0);
   const [due, setDue] = useState(initial && initial.due ? initial.due : addMonthsISO(todayISO(), 12));
   const [icon, setIcon] = useState(initial ? initial.icon : 'target');
+  const [monthly, setMonthly] = useState(initial ? initial.monthly_amount || 0 : 0);
+  const [remind, setRemind] = useState(initial && initial.remind_day ? initial.remind_day : '');
+  const [goalAcc, setGoalAcc] = useState(initial && initial.account_id ? initial.account_id : '');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const titleId = cleanId(useId());
+  const months = due ? Math.max(1, (Number(due.slice(0, 4)) - Number(todayISO().slice(0, 4))) * 12 + Number(due.slice(5, 7)) - Number(todayISO().slice(5, 7))) : 0;
+  const suggested = months && target > saved ? Math.ceil((target - saved) / months) : 0;
   const submit = async (e) => {
     e.preventDefault();
     if (!name.trim()) { setErr('Dê um nome para a meta.'); return; }
     if (target <= 0) { setErr('Informe quanto você quer juntar.'); return; }
     setBusy(true);
-    const ok = await d.saveGoal(initial, { name: name.trim(), target, saved, due: due || null, icon });
+    const ok = await d.saveGoal(initial, { name: name.trim(), target, saved, due: due || null, icon, ...(d.v3 ? { monthly_amount: monthly, remind_day: remind ? Number(remind) : null, account_id: goalAcc || null } : {}) });
     setBusy(false);
     if (ok) onClose();
   };
@@ -716,6 +896,20 @@ function GoalForm({ initial, onClose }) {
       <div className="mt-4"><span className="lbl">Ícone</span><div className="mt-2 flex flex-wrap gap-1.5">{['target', 'shield', 'plane', 'home', 'car', 'laptop', 'book', 'gift', 'heart', 'piggy'].map((ic) => (
         <button key={ic} type="button" aria-pressed={icon === ic} aria-label={`Ícone ${ic}`} onClick={() => setIcon(ic)} className={`grid size-10 place-items-center rounded-xl border ${icon === ic ? 'border-vivo/70 bg-vivo/15' : 'border-ink/10 text-ink/70'}`}><Icon name={ic} size={18} /></button>
       ))}</div></div>
+      {d.v3 && (
+        <div className="mt-4 rounded-2xl border border-ink/[0.08] bg-ink/[0.02] p-3.5">
+          <p className="text-[13px] font-bold">Guardar todo mês (automático)</p>
+          <p className="mt-0.5 text-xs text-ink/65">{suggested ? `Para chegar no prazo: ${fmtBRL(suggested)} por mês.` : 'Defina um valor mensal e o dia do lembrete.'}</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Field label="Valor por mês"><MoneyInput id="goal-monthly" label="Valor por mês" cents={monthly} onChange={setMonthly} className="font-bold" /></Field>
+            <Field label="Lembrar no dia"><select id="goal-remind" className="field" value={remind} onChange={(e) => setRemind(e.target.value)}><option value="">Sem lembrete</option>{Array.from({ length: 28 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>Dia {n}</option>)}</select></Field>
+          </div>
+          {suggested > 0 && monthly !== suggested && <button type="button" className="mt-2 text-xs font-bold text-in" onClick={() => setMonthly(suggested)}>Usar {fmtBRL(suggested)}</button>}
+          <Field label="Conta da meta (opcional)" className="mt-3" hint="Ao guardar, o Leco transfere o valor para esta conta.">
+            <select id="goal-acc" className="field" value={goalAcc} onChange={(e) => setGoalAcc(e.target.value)}><option value="">Sem conta própria</option>{d.accounts.filter((a) => !a.archived).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
+          </Field>
+        </div>
+      )}
       <div className="mt-4"><ErrorNote>{err}</ErrorNote></div>
       {confirm ? (
         <ConfirmBlock title={`Excluir a meta “${initial.name}”?`} confirmLabel="Excluir" onConfirm={async () => { if (await d.deleteRow('goals', initial)) onClose(); }} onCancel={() => setConfirm(false)} />
@@ -739,6 +933,7 @@ function ModalHost() {
 
 function ModalBody({ m, close }) {
   switch (m.kind) {
+    case 'quick': return <QuickAddSheet key={m.key} onClose={close} />;
     case 'tx': return <TxForm key={m.key} initial={m.initial} defaultKind={m.defaultKind} presetSource={m.presetSource} presetDate={m.presetDate} onClose={close} />;
     case 'account': return <AccountForm key={m.key} initial={m.initial} onClose={close} />;
     case 'card': return <CardForm key={m.key} initial={m.initial} onClose={close} />;
@@ -746,6 +941,16 @@ function ModalBody({ m, close }) {
     case 'recurring': return <RecurringForm key={m.key} initial={m.initial} onClose={close} />;
     case 'category': return <CategoryForm key={m.key} initial={m.initial} initialKind={m.initialKind} onClose={close} />;
     case 'goal': return <GoalForm key={m.key} initial={m.initial} onClose={close} />;
+    case 'adjust': return <AdjustSheet key={m.key} account={m.account} onClose={close} />;
+    case 'template': return <TemplateForm key={m.key} initial={m.initial} onClose={close} />;
+    case 'debt': return <DebtForm key={m.key} initial={m.initial} onClose={close} />;
+    case 'debtPay': return <DebtPaySheet key={m.key} debt={m.debt} onClose={close} />;
+    case 'goalSave': return <GoalSaveSheet key={m.key} goal={m.goal} onClose={close} />;
+    case 'import': return <ImportSheet key={m.key} onClose={close} />;
+    case 'restore': return <RestoreSheet key={m.key} onClose={close} />;
+    case 'search': return <SearchSheet key={m.key} onClose={close} />;
+    case 'monthSummary': return <MonthSummarySheet key={m.key} month={m.month} onClose={close} />;
+    case 'pin': return <PinSetupSheet key={m.key} onClose={close} />;
     default: return null;
   }
 }
