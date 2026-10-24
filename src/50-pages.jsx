@@ -4,7 +4,7 @@
    ===================================================================== */
 function KpiCard({ label, icon, children, foot, spark, sparkColor, hero, delay = 0, extra }) {
   return (
-    <article className={`${hero ? 'glass-hero' : 'glass'} rise flex min-w-0 flex-col gap-4 p-5 sm:p-6`} style={{ animationDelay: `${delay}ms` }}>
+    <article className={`${hero ? 'glass-hero' : 'glass'} rise flex min-w-0 flex-col gap-4 p-4 sm:p-6`} style={{ animationDelay: `${delay}ms` }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${hero ? 'bg-ouro/25 text-ouro' : 'bg-ink/[0.06] text-ink'}`}><Icon name={icon} size={18} /></span>
@@ -12,7 +12,7 @@ function KpiCard({ label, icon, children, foot, spark, sparkColor, hero, delay =
         </div>
         {extra}
       </div>
-      <div className="whitespace-nowrap text-[26px] font-extrabold leading-none tracking-[-0.02em] sm:text-[28px]">{children}</div>
+      <div className="min-w-0 truncate text-[clamp(17px,5.2vw,26px)] font-extrabold leading-tight tracking-[-0.02em] sm:text-[28px]">{children}</div>
       <div className="flex items-end justify-between gap-4">
         <span className="min-w-0 text-xs text-ink/70">{foot}</span>
         {spark && <div className="w-24 shrink-0"><Spark values={spark} color={sparkColor} height={32} /></div>}
@@ -470,7 +470,7 @@ function AccountsPage() {
       </PageHeader>}
       <Card title="Contas" sub="Banco, carteira, poupança e investimentos" action={<button type="button" className="btn btn-primary !py-2 text-[13px]" onClick={() => d.openModal({ kind: 'account' })}><Icon name="plus" size={16} />Nova conta</button>}>
         {accs.length === 0 ? <EmptyState icon="bank" title="Nenhuma conta" text="Cadastre onde o seu dinheiro fica: conta do banco, carteira, poupança." /> : (
-          <ul className={`grid gap-3 ${narrow ? '' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>
+          <ul className={`grid gap-3 ${narrow ? 'grid-cols-1' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>
             {accs.map((a) => (
               <li key={a.id} className="relative">
                 {!a.archived && <button type="button" className="absolute bottom-4 right-4 z-[1] rounded-full border border-ink/10 bg-ink/[0.04] px-3 py-1.5 text-[12px] font-bold" onClick={() => d.openModal({ kind: 'adjust', account: a })}><span className="flex items-center gap-1"><Icon name="scale" size={13} />Ajustar saldo</span></button>}
@@ -490,7 +490,7 @@ function AccountsPage() {
       </Card>
       <Card title="Cartões de crédito" sub="Limite, fatura atual e vencimentos" action={<button type="button" className="btn btn-primary !py-2 text-[13px]" onClick={() => d.openModal({ kind: 'card' })}><Icon name="plus" size={16} />Novo cartão</button>}>
         {cards.length === 0 ? <EmptyState icon="card" title="Nenhum cartão" text="Cadastre seus cartões para acompanhar faturas, parcelas e o limite disponível." /> : (
-          <ul className={`grid gap-3 ${narrow ? '' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>
+          <ul className={`grid gap-3 ${narrow ? 'grid-cols-1' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>
             {cards.map((c) => {
               const s = cardSummary(c, d.transactions);
               const usedPct = c.limit_amount ? Math.min(100, Math.round((s.used / c.limit_amount) * 100)) : 0;
@@ -678,7 +678,7 @@ function ReportsPage() {
             <Card title="Por conta e cartão">
               {byAccount.length === 0 ? <p className="py-6 text-center text-sm text-ink/65">Sem movimentação no período.</p> : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[300px] text-left text-[13px]">
+                  <table className="w-full text-left text-[13px]">
                     <thead><tr className="text-[11px] uppercase tracking-wider text-ink/60"><th className="py-2 pr-3 font-semibold">Conta</th><th className="py-2 pr-3 text-right font-semibold">Entradas</th><th className="py-2 text-right font-semibold">Saídas</th></tr></thead>
                     <tbody>{byAccount.map((r) => (
                       <tr key={r.key} className="border-t border-ink/[0.07]">
@@ -840,7 +840,7 @@ function GoalsPage() {
       ) : (
         <>
           {narrow && <button type="button" className="btn btn-primary w-full" onClick={() => d.openModal({ kind: 'goal' })}><Icon name="plus" size={16} />Nova meta</button>}
-          <ul className={`grid gap-4 ${narrow ? '' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>{d.goals.map((g) => <GoalCard key={g.id} g={g} />)}</ul>
+          <ul className={`grid gap-4 ${narrow ? 'grid-cols-1' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>{d.goals.map((g) => <GoalCard key={g.id} g={g} />)}</ul>
         </>
       )}
     </div>
@@ -873,7 +873,7 @@ function CategoriesPage() {
           <Segmented size="sm" label="Tipo" value={kind} onChange={setKind} options={[{ value: 'out', label: `Despesas (${d.categories.filter((c) => c.kind === 'out').length})` }, { value: 'in', label: `Receitas (${d.categories.filter((c) => c.kind === 'in').length})` }]} />
           <button type="button" className="btn btn-primary !py-2.5 text-[13px]" onClick={() => d.openModal({ kind: 'category', initialKind: kind })}><Icon name="plus" size={16} strokeWidth={2.4} />Nova categoria</button>
         </div>
-        <ul className={`mt-5 grid gap-3 ${narrow ? '' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>
+        <ul className={`mt-5 grid gap-3 ${narrow ? 'grid-cols-1' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>
           {list.map((c) => {
             const s = stats[c.id] || { count: 0, month: 0 };
             const pct = c.budget ? Math.round((s.month / c.budget) * 100) : null;

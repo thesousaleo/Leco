@@ -179,7 +179,7 @@ function DebtsPage() {
         {narrow && <button type="button" className="btn btn-primary !py-2 text-[13px]" onClick={() => d.openModal({ kind: 'debt' })}><Icon name="plus" size={15} />Nova</button>}
       </div>
       {list.length === 0 ? <Card><EmptyState icon="scale" title={show === 'open' ? 'Nenhuma dívida em aberto' : 'Nenhuma dívida quitada ainda'} text="Cadastre empréstimos, financiamentos, parcelamentos com pessoas ou dinheiro que você emprestou." /></Card> : (
-        <ul className={`grid gap-4 ${narrow ? '' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>
+        <ul className={`grid gap-4 ${narrow ? 'grid-cols-1' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>
           {list.map((x) => {
             const left = Math.max(0, x.total - x.paid);
             const pct = Math.min(100, Math.round((x.paid / x.total) * 100));

@@ -353,8 +353,8 @@ function DataSettings() {
       </Panel>
       <Panel title="Importar e restaurar" sub="Traga o extrato do banco ou volte uma cópia completa do Leco.">
         <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" className="btn btn-ghost" onClick={() => d.openModal({ kind: 'import' })}><Icon name="upload" size={16} />Importar extrato (OFX/CSV)</button>
-          <button type="button" className="btn btn-ghost" onClick={() => d.openModal({ kind: 'restore' })}><Icon name="refresh" size={16} />Restaurar cópia (JSON)</button>
+          <button type="button" className="btn btn-ghost" onClick={() => d.openModal({ kind: 'import' })}><Icon name="upload" size={16} />Importar extrato</button>
+          <button type="button" className="btn btn-ghost" onClick={() => d.openModal({ kind: 'restore' })}><Icon name="refresh" size={16} />Restaurar cópia</button>
         </div>
       </Panel>
       {!d.v3 && (

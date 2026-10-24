@@ -480,7 +480,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, onClos
           {editing && initial.kind !== 'card_payment' && <button type="button" className="icon-btn size-11 shrink-0" aria-label="Duplicar transação" onClick={duplicate}><Icon name="copy" size={17} /></button>}
           {!editing && v3 && kind !== 'transfer' && <button type="button" className="icon-btn size-11 shrink-0" aria-label="Salvar como modelo" title="Salvar como modelo" onClick={saveTemplate}><Icon name="star" size={17} /></button>}
           <button type="button" className="btn btn-ghost flex-1" onClick={onClose}>Cancelar</button>
-          {!(initial && initial.kind === 'card_payment') && <SubmitButton busy={busy} className="flex-[1.6]"><Icon name="check" size={17} strokeWidth={2.4} />{editing ? 'Salvar' : kind === 'in' ? 'Adicionar receita' : kind === 'out' ? 'Adicionar despesa' : 'Transferir'}</SubmitButton>}
+          {!(initial && initial.kind === 'card_payment') && <SubmitButton busy={busy} className="flex-[1.6]"><Icon name="check" size={17} strokeWidth={2.4} />{editing ? 'Salvar' : kind === 'transfer' ? 'Transferir' : window.innerWidth < 380 ? 'Adicionar' : kind === 'in' ? 'Adicionar receita' : 'Adicionar despesa'}</SubmitButton>}
         </div>
       )}
     </Sheet>
