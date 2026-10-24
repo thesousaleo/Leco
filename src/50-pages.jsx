@@ -656,11 +656,47 @@ function ReportsPage() {
       </Card>
       {sm && (
         <>
-          <div className="grid gap-4 grid-cols-2 min-[1500px]:grid-cols-4">
-            <KpiCard label="Receitas" icon="inArrow" foot={plural(sm.incomeTx.length, 'lançamento', 'lançamentos')}><Money cents={sm.income} className="text-in" /></KpiCard>
-            <KpiCard label="Despesas" icon="up" delay={40} foot={plural(sm.expenseTx.length, 'lançamento', 'lançamentos')}><Money cents={sm.expense} className="text-out" /></KpiCard>
-            <KpiCard label="Resultado" icon="sparkle" delay={80} foot={sm.net >= 0 ? 'sobrou no período' : 'gastou mais do que recebeu'}><Money cents={sm.net} className={sm.net < 0 ? 'text-out' : ''} /></KpiCard>
-            <KpiCard label="Taxa de poupança" icon="piggy" delay={120} foot={`meta ${d.profile.savings_goal}%`}><Percent value={sm.rate} className={sm.rate < d.profile.savings_goal ? 'text-out' : 'text-in'} /></KpiCard>
+          {narrow ? (
+            <div className="glass rounded-3xl px-4 py-1">
+              {[
+                { l: 'Receitas', sub: plural(sm.incomeTx.length, 'lançamento', 'lançamentos'), v: <Money cents={sm.income} />, c: 'text-in', i: 'inArrow' },
+                { l: 'Despesas', sub: plural(sm.expenseTx.length, 'lançamento', 'lançamentos'), v: <Money cents={sm.expense} />, c: 'text-out', i: 'up' },
+                { l: 'Resultado', sub: sm.net >= 0 ? 'sobrou no período' : 'gastou mais do que recebeu', v: <Money cents={sm.net} />, c: sm.net < 0 ? 'text-out' : '', i: 'sparkle', strong: true },
+                { l: 'Taxa de poupança', sub: `meta ${d.profile.savings_goal}%`, v: <Percent value={sm.rate} />, c: sm.rate < d.profile.savings_goal ? 'text-out' : 'text-in', i: 'piggy' },
+              ].map((x, i) => (
+                <div key={x.l} className={`flex items-center gap-3 py-3 ${i ? 'border-t border-ink/[0.07]' : ''}`}>
+                  <span className={`grid size-9 shrink-0 place-items-center rounded-xl bg-ink/[0.05] ${x.c}`}><Icon name={x.i} size={17} /></span>
+                  <span className="min-w-0 flex-1"><span className={`block text-[13.5px] ${x.strong ? 'font-bold' : 'font-semibold'}`}>{x.l}</span><span className="block truncate text-[11.5px] text-ink/60">{x.sub}</span></span>
+                  <span className={`shrink-0 font-extrabold tabular-nums ${x.strong ? 'text-[18px]' : 'text-[16px]'} ${x.c}`}>{x.v}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-4 grid-cols-2 min-[1500px]:grid-cols-4">
+              <KpiCard label="Receitas" icon="inArrow" foot={plural(sm.incomeTx.length, 'lançamento', 'lançamentos')}><Money cents={sm.income} className="text-in" /></KpiCard>
+              <KpiCard label="Despesas" icon="up" delay={40} foot={plural(sm.expenseTx.length, 'lançamento', 'lançamentos')}><Money cents={sm.expense} className="text-out" /></KpiCard>
+              <KpiCard label="Resultado" icon="sparkle" delay={80} foot={sm.net >= 0 ? 'sobrou no período' : 'gastou mais do que recebeu'}><Money cents={sm.net} className={sm.net < 0 ? 'text-out' : ''} /></KpiCard>
+              <KpiCard label="Taxa de poupança" icon="piggy" delay={120} foot={`meta ${d.profile.savings_goal}%`}><Percent value={sm.rate} className={sm.rate < d.profile.savings_goal ? 'text-out' : 'text-in'} /></KpiCard>
+            </div>
+          )}
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Card title="Por categoria">
+              <div className="-mt-1 mb-4"><Segmented size="sm" full={narrow} label="Tipo" value={catTab} onChange={setCatTab} options={[{ value: 'out', label: 'Despesas' }, { value: 'in', label: 'Receitas' }]} /></div>
+              <CategoryBreakdown items={catTab === 'out' ? sm.byCatOut : sm.byCatIn} compact={narrow} donutSize={narrow ? 180 : 196} emptyText={catTab === 'out' ? 'Nenhuma despesa no período.' : 'Nenhuma receita no período.'} />
+            </Card>
+            <Card title="Por conta e cartão">
+              {byAccount.length === 0 ? <p className="py-6 text-center text-sm text-ink/65">Sem movimentação no período.</p> : (
+                <ul className="divide-y divide-ink/[0.07]">
+                  {byAccount.map((r) => (
+                    <li key={r.key} className="flex items-center gap-3 py-2.5">
+                      <ColorIcon icon={r.icon} color={r.color} size={34} />
+                      <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold">{r.name}</span>
+                      <span className="shrink-0 text-right text-[13px] font-bold tabular-nums"><span className="block text-in">+{m(r.in)}</span><span className="block text-out">−{m(r.out)}</span></span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
           </div>
           {months.length > 1 && <Card title="Mês a mês" sub="Receitas e despesas"><BarChart points={months} height={narrow ? 200 : 260} label="Receitas e despesas por mês" /></Card>}
           <div className="grid gap-5 xl:grid-cols-2">
@@ -668,33 +704,12 @@ function ReportsPage() {
             <Card title="Mapa de calor dos gastos" sub="Quanto mais forte, mais gasto no dia"><SpendHeatmap txs={d.transactions} from={from} to={to} /></Card>
           </div>
           <div className="grid gap-5 xl:grid-cols-2">
-            <Card title="Ano a ano" sub="Despesas por mês, comparadas com o ano passado"><YearOverYear d={d} height={narrow ? 190 : 230} /></Card>
+            <Card title={`Orçamentos de ${monthName(finMonthOf(to)).toLowerCase()}`} action={<button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => d.go(d.v3 ? 'planejamento' : 'categorias')}>Ajustar</button>}>
+              <BudgetList budgets={budgetsFor(d.categories, d.transactions, finMonthOf(to), d.plans)} />
+            </Card>
             {d.v3 && <Card title="Por etiqueta" sub="Despesas do período"><TagReport txs={d.transactions.filter((t) => t.date >= from && t.date <= to)} /></Card>}
           </div>
-          <div className="grid gap-5 xl:grid-cols-2">
-            <Card title="Por categoria" action={<Segmented size="sm" label="Tipo" value={catTab} onChange={setCatTab} options={[{ value: 'out', label: 'Despesas' }, { value: 'in', label: 'Receitas' }]} />}>
-              <CategoryBreakdown items={catTab === 'out' ? sm.byCatOut : sm.byCatIn} compact={narrow} donutSize={narrow ? 180 : 196} emptyText={catTab === 'out' ? 'Nenhuma despesa no período.' : 'Nenhuma receita no período.'} />
-            </Card>
-            <Card title="Por conta e cartão">
-              {byAccount.length === 0 ? <p className="py-6 text-center text-sm text-ink/65">Sem movimentação no período.</p> : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[13px]">
-                    <thead><tr className="text-[11px] uppercase tracking-wider text-ink/60"><th className="py-2 pr-3 font-semibold">Conta</th><th className="py-2 pr-3 text-right font-semibold">Entradas</th><th className="py-2 text-right font-semibold">Saídas</th></tr></thead>
-                    <tbody>{byAccount.map((r) => (
-                      <tr key={r.key} className="border-t border-ink/[0.07]">
-                        <td className="py-2.5 pr-3"><span className="flex items-center gap-2 font-semibold"><ColorIcon icon={r.icon} color={r.color} size={28} /><span className="truncate">{r.name}</span></span></td>
-                        <td className="py-2.5 pr-3 text-right font-bold tabular-nums text-in">{m(r.in)}</td>
-                        <td className="py-2.5 text-right font-bold tabular-nums text-out">{m(r.out)}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              )}
-            </Card>
-          </div>
-          <Card title={`Orçamentos de ${monthName(monthKey(to)).toLowerCase()}`} action={<button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => d.go('categorias')}>Ajustar</button>}>
-            <BudgetList budgets={budgetsFor(d.categories, d.transactions, finMonthOf(to), d.plans)} />
-          </Card>
+          <Card title="Ano a ano" sub="Despesas por mês, comparadas com o ano passado"><YearOverYear d={d} height={narrow ? 190 : 230} /></Card>
           <Card title="Maiores despesas" sub="Top 10 do período">
             {top.length ? <ol className="divide-y divide-ink/[0.07]">{top.map((t) => <TxItem key={t.id} t={t} dense onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} />)}</ol> : <p className="py-6 text-center text-sm text-ink/65">Nenhuma despesa no período.</p>}
           </Card>
@@ -721,17 +736,17 @@ function SpendHeatmap({ txs, from, to }) {
   return (
     <div>
       <div className="flex gap-1.5">
-        <div className="grid shrink-0 grid-rows-7 gap-1 pr-0.5 text-[9.5px] font-bold text-ink/50">{wk.map((w, i) => <span key={i} className="grid h-[18px] place-items-center">{w}</span>)}</div>
-        <div className="no-scrollbar flex min-w-0 flex-1 gap-1 overflow-x-auto">
+        <div className="grid w-4 shrink-0 grid-rows-7 gap-1 text-[9.5px] font-bold text-ink/50">{wk.map((w, i) => <span key={i} className="grid place-items-center">{w}</span>)}</div>
+        <div className="grid min-w-0 flex-1 gap-1" style={{ gridTemplateColumns: `repeat(${weeks}, minmax(0, ${weeks < 6 ? '34px' : '1fr'}))` }}>
           {Array.from({ length: weeks }, (_, w) => (
-            <div key={w} className="grid shrink-0 grid-rows-7 gap-1">
+            <div key={w} className="grid grid-rows-7 gap-1">
               {Array.from({ length: 7 }, (_, i) => {
                 const iso = addDays(first, w * 7 + i);
                 const v = byDay[iso] || 0;
                 const out = iso < start || iso > end;
                 const k = v ? 0.18 + 0.82 * Math.sqrt(v / max) : 0;
                 return <button key={i} type="button" aria-label={`${fmtDate(iso)}: ${fmtBRL(v)}`} disabled={out} onClick={() => setSel(iso)}
-                  className={`size-[18px] rounded-[5px] ${out ? 'opacity-0' : ''} ${sel === iso ? 'ring-2 ring-ink' : ''}`}
+                  className={`aspect-square w-full rounded-[5px] ${out ? 'opacity-0' : ''} ${sel === iso ? 'ring-2 ring-ink' : ''}`}
                   style={{ background: v ? `color-mix(in srgb, var(--out) ${Math.round(k * 100)}%, transparent)` : 'color-mix(in srgb, var(--ink) 6%, transparent)' }} />;
               })}
             </div>

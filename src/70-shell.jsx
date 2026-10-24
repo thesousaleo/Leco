@@ -559,6 +559,53 @@ const MOBILE_ACTIONS = [
   { id: 'ics', label: 'Exportar para o Google Agenda', icon: 'calendar', desc: 'Contas, faturas e recorrências (.ics)', fn: (d) => d.exportFile('leco-agenda.ics', buildICS(d), 'text/calendar') },
 ];
 
+// Menu lateral (gaveta) com as demais funções do app
+function SideDrawer({ open, onClose }) {
+  const d = useApp();
+  const panel = useRef(null);
+  const drag = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const k = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [open]);
+  const go = (fn) => { haptic(); onClose(); setTimeout(fn, 160); };
+  const start = (e) => { drag.current = { x: e.touches[0].clientX, dx: 0 }; if (panel.current) panel.current.style.transition = 'none'; };
+  const move = (e) => { if (!drag.current) return; drag.current.dx = Math.min(0, e.touches[0].clientX - drag.current.x); if (panel.current) panel.current.style.transform = `translate3d(${drag.current.dx}px,0,0)`; };
+  const end = () => { const s = drag.current; drag.current = null; if (!panel.current) return; panel.current.style.transition = ''; panel.current.style.transform = ''; if (s && s.dx < -70) onClose(); };
+  const row = (it, on, fn) => (
+    <li key={it.id}>
+      <button type="button" onClick={fn} aria-current={on ? 'page' : undefined}
+        className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors ${on ? 'bg-gradient-to-br from-vivo to-leco text-white' : 'active:bg-ink/[0.06]'}`}>
+        <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${on ? 'bg-white/15' : 'bg-ink/[0.06]'}`}><Icon name={it.icon} size={17} /></span>
+        <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-bold">{it.label}</span><span className={`block truncate text-[11.5px] ${on ? 'text-white/75' : 'text-ink/60'}`}>{it.desc}</span></span>
+      </button>
+    </li>
+  );
+  return (
+    <div className={`fixed inset-0 z-[80] ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
+      <div className={`absolute inset-0 bg-[var(--scrim)] transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'}`} onClick={onClose} />
+      <nav ref={panel} aria-label="Menu" onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+        className={`drawer absolute inset-y-0 left-0 flex w-[86%] max-w-[340px] flex-col overflow-y-auto bg-[var(--paper)] pb-[calc(16px+var(--safe-bottom))] pl-[max(14px,var(--safe-left))] pr-3.5 pt-[calc(16px+var(--safe-top))] shadow-[20px_0_60px_-20px_rgba(2,16,13,.45)] ${open ? 'drawer-open' : ''}`}>
+        <div className="flex items-center justify-between px-1"><Logo size="sm" /><button type="button" className="icon-btn size-10" aria-label="Fechar menu" onClick={onClose}><Icon name="x" size={18} /></button></div>
+        <button type="button" onClick={() => go(() => { d.setSettingsSub('perfil'); d.go('config'); })} className="mt-5 flex items-center gap-3 rounded-2xl bg-ink/[0.04] p-3 text-left">
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-vivo to-leco text-[16px] font-extrabold text-white ring-2 ring-ouro/70">{(d.name || d.session.user.email).charAt(0).toUpperCase()}</span>
+          <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-extrabold">{d.name || 'Sua conta'}</span><span className="block truncate text-xs text-ink/60">{d.session.user.email}</span></span>
+        </button>
+        <p className="mb-1 mt-5 px-3 text-[11px] font-bold uppercase tracking-wider text-ink/50">Funções</p>
+        <ul className="space-y-0.5">{MOBILE_MENU.map((it) => row(it, d.page === it.id, () => go(() => d.go(it.id))))}</ul>
+        <p className="mb-1 mt-5 px-3 text-[11px] font-bold uppercase tracking-wider text-ink/50">Ferramentas</p>
+        <ul className="space-y-0.5">{MOBILE_ACTIONS.map((it) => row(it, false, () => go(() => it.fn(d))))}</ul>
+        <div className="mt-auto pt-6">
+          <button type="button" className="btn btn-ghost w-full" onClick={() => go(() => d.go('mais'))}><Icon name="settings" size={16} />Ajustes</button>
+          <p className="mt-3 text-center text-[11px] text-ink/45">Leco {APP_VERSION}{APP_BUILD ? ` (build ${APP_BUILD})` : ''}</p>
+        </div>
+      </nav>
+    </div>
+  );
+}
+
 // Puxar a tela para baixo para atualizar
 function usePullRefresh(onRefresh) {
   const [pull, setPull] = useState(0);
@@ -585,7 +632,7 @@ function MobileLayout() {
   const tabTitle = page === 'mais' ? 'Ajustes' : (NAV_CHOICES.find((n) => n.id === page) || {}).label;
   const title = page === 'config' ? (SETTINGS_TABS.find((t) => t.id === d.settingsSub) || {}).label : (isTab && tabTitle) || (PAGES[page] || {}).label;
   const Page = page === 'mais' ? null : (PAGES[page] || PAGES.inicio).C;
-  const back = () => d.go(page === 'config' || MOBILE_MENU.some((x) => x.id === page) ? 'mais' : 'inicio');
+  const back = () => d.go(page === 'config' ? 'mais' : 'inicio');
   const headerAction = { contas: { icon: 'plus', label: 'Nova conta', fn: () => d.openModal({ kind: 'account' }) }, recorrentes: { icon: 'plus', label: 'Nova recorrência', fn: () => d.openModal({ kind: 'recurring' }) }, metas: { icon: 'plus', label: 'Nova meta', fn: () => d.openModal({ kind: 'goal' }) }, dividas: { icon: 'plus', label: 'Nova dívida', fn: () => d.openModal({ kind: 'debt' }) }, modelos: { icon: 'plus', label: 'Novo modelo', fn: () => d.openModal({ kind: 'template' }) } }[page];
   const series = useMemo(() => monthSeries(d.transactions, d.accounts, finMonthOf(todayISO())), [d.transactions, d.accounts]);
   const totalBal = sum(d.accounts, (a) => d.balances[a.id] || 0);
@@ -593,6 +640,19 @@ function MobileLayout() {
   const balDelta = prevBal ? ((totalBal - prevBal) / Math.abs(prevBal)) * 100 : null;
   const initial = (d.name || d.session.user.email).charAt(0).toUpperCase();
   const pull = usePullRefresh(useCallback(async () => { await d.reload(); d.toast('Atualizado'); }, []));
+  const [drawer, setDrawerState] = useState(false);
+  const setDrawer = (v) => { setDrawerState(v); window.__lecoDrawer = v ? () => setDrawerState(false) : null; };
+  useEffect(() => { setDrawer(false); }, [page]);
+  useEffect(() => {
+    // deslizar da borda esquerda abre o menu
+    let s = null;
+    const ts = (e) => { const x = e.touches[0].clientX; s = x < 22 && !document.querySelector('[role=dialog]') ? { x, y: e.touches[0].clientY } : null; };
+    const tm = (e) => { if (s && e.touches[0].clientX - s.x > 60 && Math.abs(e.touches[0].clientY - s.y) < 40) { s = null; haptic(); setDrawer(true); } };
+    window.addEventListener('touchstart', ts, { passive: true });
+    window.addEventListener('touchmove', tm, { passive: true });
+    return () => { window.removeEventListener('touchstart', ts); window.removeEventListener('touchmove', tm); };
+  }, []);
+  const menuBtn = <button type="button" className="icon-btn size-11 shrink-0" aria-label="Abrir menu" aria-expanded={drawer} onClick={() => { haptic(); setDrawer(true); }}><Icon name="menu" size={19} /></button>;
   useEffect(() => { window.scrollTo(0, 0); }, [page, d.settingsSub]);
   const menuRow = (it, fn) => (
     <li key={it.id}><button type="button" onClick={fn} className="flex w-full items-center gap-3 rounded-2xl px-2 py-3 text-left">
@@ -612,9 +672,9 @@ function MobileLayout() {
         <header className="pb-4">
           {page === 'inicio' ? (
             <>
-              <div className="flex items-center gap-2.5">
-                <button type="button" onClick={() => { d.setSettingsSub('perfil'); d.go('config'); }} aria-label="Abrir perfil" className="grid size-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-vivo to-leco text-[16px] font-extrabold text-white ring-2 ring-ouro/70">{initial}</button>
-                <div className="min-w-0 flex-1"><p className="text-xs text-ink/70">{greeting()},</p><p className="truncate text-[17px] font-extrabold tracking-[-0.02em]">{firstName(d.name) || 'bem-vindo'}</p></div>
+              <div className="flex items-center gap-2">
+                {menuBtn}
+                <div className="min-w-0 flex-1 pl-0.5"><p className="text-xs text-ink/70">{greeting()},</p><p className="truncate text-[17px] font-extrabold tracking-[-0.02em]">{firstName(d.name) || 'bem-vindo'}</p></div>
                 <button type="button" className="icon-btn size-11" onClick={() => d.saveProfile({ hide_values: !d.hide })} aria-label={d.hide ? 'Mostrar valores' : 'Ocultar valores'} aria-pressed={d.hide}><Icon name={d.hide ? 'eyeOff' : 'eye'} size={19} /></button>
                 <TopTools />
               </div>
@@ -628,7 +688,8 @@ function MobileLayout() {
             </>
           ) : isTab ? (
             <div className="flex items-center gap-2.5 pt-1">
-              <h1 className="min-w-0 flex-1 truncate text-[24px] font-extrabold tracking-[-0.02em]">{title}</h1>
+              {menuBtn}
+              <h1 className="min-w-0 flex-1 truncate text-[22px] font-extrabold tracking-[-0.02em]">{title}</h1>
               <TopTools withNotif={page !== 'mais'} />
             </div>
           ) : (
@@ -653,8 +714,6 @@ function MobileLayout() {
                   </span>
                   <Icon name="right" size={18} />
                 </button>
-                <ul className="glass divide-y divide-ink/[0.07] rounded-3xl px-2 py-1">{MOBILE_MENU.filter((it) => !d.prefs.tabs.includes(it.id)).map((it) => menuRow(it, () => d.go(it.id)))}</ul>
-                <ul className="glass divide-y divide-ink/[0.07] rounded-3xl px-2 py-1">{MOBILE_ACTIONS.map((it) => menuRow(it, () => it.fn(d)))}</ul>
                 <ul className="glass divide-y divide-ink/[0.07] rounded-3xl px-2 py-1">{SETTINGS_TABS.filter((it) => it.id !== 'perfil').map((it) => menuRow(it, () => { d.setSettingsSub(it.id); d.go('config'); }))}</ul>
                 <button type="button" className="btn btn-ghost w-full" onClick={d.signOut}><Icon name="logout" size={16} />Sair da conta</button>
                 <p className="text-center text-[11px] text-ink/50">Leco {APP_VERSION}{APP_BUILD ? ` (build ${APP_BUILD})` : ''} · seus dados ficam protegidos</p>
@@ -677,6 +736,7 @@ function MobileLayout() {
             );
           })}
         </nav>
+        <SideDrawer open={drawer} onClose={() => setDrawer(false)} />
         {page !== 'mais' && page !== 'config' && (
           <button type="button" className="fab-corner fixed right-[max(18px,var(--safe-right))] bottom-[calc(98px+var(--safe-bottom))] z-40 size-[58px]" onClick={() => { haptic(); d.openModal({ kind: 'tx' }); }} aria-label="Nova transação">
             <Icon name="plus" size={26} strokeWidth={2.6} />
@@ -728,8 +788,9 @@ function Workspace({ backend, session, toast, toastNode }) {
     if (!capApp) return undefined;
     const h = capApp.addListener('backButton', () => {
       const st = navRef.current;
-      if (st.modal) setModal(null);
-      else if (st.page === 'config' || (MOBILE_MENU.some((x) => x.id === st.page) && !st.tabs.includes(st.page))) go('mais');
+      if (window.__lecoDrawer) window.__lecoDrawer();
+      else if (st.modal) setModal(null);
+      else if (st.page === 'config') go('mais');
       else if (st.page !== 'inicio') go('inicio');
       else if (capApp.exitApp) capApp.exitApp();
     });

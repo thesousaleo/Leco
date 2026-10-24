@@ -330,6 +330,8 @@ html { touch-action: manipulation; }
 @keyframes pinShake { 10%, 90% { transform: translateX(-2px); } 20%, 80% { transform: translateX(4px); } 30%, 50%, 70% { transform: translateX(-8px); } 40%, 60% { transform: translateX(8px); } }
 /* itens de grade nunca maiores que a coluna (evita rolagem lateral no celular) */
 .grid > * { min-width: 0; }
+.drawer { transform: translate3d(-104%, 0, 0); transition: transform .34s cubic-bezier(.32, .72, 0, 1); will-change: transform; }
+.drawer.drawer-open { transform: none; }
 :root[data-calm="1"] *, :root[data-calm="1"] *::before, :root[data-calm="1"] *::after { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }

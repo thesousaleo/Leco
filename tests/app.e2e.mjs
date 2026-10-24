@@ -31,7 +31,7 @@ const money = async (sel, cents) => { await page.fill(sel, ''); await page.type(
 const save = async () => { await dlg().getByRole('button', { name: /Adicionar|Salvar|Transferir/ }).last().click(); await wait(700); };
 const txs = () => page.evaluate(() => window.__leco && window.__leco().transactions);
 const nav = async (name) => { await page.getByRole('navigation').getByRole('button', { name }).click(); await wait(450); };
-const goMenu = async (label) => { await nav('Ajustes'); await page.getByRole('button', { name: new RegExp(label) }).first().click(); await wait(450); };
+const goMenu = async (label) => { await page.getByRole('button', { name: 'Abrir menu' }).first().click(); await wait(450); await page.getByRole('navigation', { name: 'Menu' }).getByRole('button', { name: new RegExp(label) }).first().click(); await wait(500); };
 const back = async () => { await page.getByRole('button', { name: 'Voltar' }).click(); await wait(350); };
 
 try {
@@ -165,9 +165,7 @@ try {
   await back();
 
   step('Importar extrato CSV');
-  await nav('Ajustes');
-  await page.getByRole('button', { name: /Importar extrato/ }).click();
-  await wait(400);
+  await goMenu('Importar extrato');
   const csvPath = path.join(tmp, 'extrato.csv');
   fs.writeFileSync(csvPath, 'Data;Descrição;Valor\n10/10/2026;Posto Ipiranga;-200,00\n11/10/2026;Farmácia Drogasil;-35,50\n12/10/2026;Pix recebido;300,00\n');
   await dlg().locator('input[type=file]').setInputFiles(csvPath);
@@ -286,7 +284,7 @@ try {
 
   step('Layout no celular (sem rolagem lateral)');
   await page.setViewportSize({ width: 360, height: 760 });
-  for (const id of ['inicio', 'transacoes', 'calendario', 'relatorios', 'planejamento', 'dividas', 'contas', 'mais']) {
+  for (const id of ['inicio', 'transacoes', 'calendario', 'relatorios', 'planejamento', 'dividas', 'contas', 'metas', 'categorias', 'mais']) {
     await page.evaluate((x) => window.__leco().go(x), id);
     await wait(450);
     const [sw, cw] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);

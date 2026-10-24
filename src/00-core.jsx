@@ -42,8 +42,15 @@ const addMonthsISO = (iso, n) => dayIn(shiftMonth(monthKey(iso), n), Number(iso.
 const diffDays = (a, b) => Math.round((new Date(`${a}T12:00:00`) - new Date(`${b}T12:00:00`)) / 86400000);
 const fmtAxis = (cents) => {
   const r = cents / 100;
+  if (Math.abs(r) >= 1e6) return `${(r / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`;
   if (Math.abs(r) >= 1000) return `${(r / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`;
   return String(Math.round(r));
+};
+// Rótulos do eixo: se ficarem repetidos (valores muito próximos), mostra mais detalhe
+const axisLabels = (ticks) => {
+  const a = ticks.map(fmtAxis);
+  if (new Set(a).size === a.length) return a;
+  return ticks.map((t) => (Math.abs(t) >= 100000 ? `${Math.round(t / 100000).toLocaleString('pt-BR')} mil` : fmtBRL(t).replace(/,00$/, '')));
 };
 const fmtPctAbs = (v, unit = '%') => `${Math.abs(v).toFixed(1).replace('.', ',')}${unit}`;
 const greeting = () => { const h = new Date().getHours(); return h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; };
@@ -594,13 +601,16 @@ function AreaChart({ series, points, height = 260, selectedKey, zeroBase = true,
   const W = useWidth(wrap);
   const gid = cleanId(useId());
   const [hover, setHover] = useState(null);
-  const m = { t: 14, r: 12, b: 30, l: 50 };
-  const inset = 26;
-  const iw = Math.max(10, W - m.l - m.r);
-  const ih = height - m.t - m.b;
   const all = series.flatMap((s) => s.values);
   const { min, max, ticks } = niceScale(zeroBase ? Math.min(0, ...all) : Math.min(...all), Math.max(...all, 1), 4, zeroBase);
+  const tickLbl = axisLabels(ticks);
+  const m = { t: 14, r: 12, b: 30, l: Math.max(38, Math.max(...tickLbl.map((t) => t.length)) * 6.3 + 16) };
   const n = points.length;
+  const inset = n > 8 ? 10 : 26;
+  const iw = Math.max(10, W - m.l - m.r);
+  const ih = height - m.t - m.b;
+  const labelW = Math.max(...points.map((p) => String(p.short || '').length), 1) * 6.6 + 8;
+  const labelStep = Math.max(1, Math.ceil(labelW / Math.max(1, (iw - 2 * inset) / Math.max(1, n - 1))));
   const x = (i) => m.l + inset + (n === 1 ? (iw - 2 * inset) / 2 : (i * (iw - 2 * inset)) / (n - 1));
   const y = (v) => m.t + ih - ((v - min) / (max - min)) * ih;
   const selIdx = points.findIndex((p) => p.k === selectedKey);
@@ -628,10 +638,10 @@ function AreaChart({ series, points, height = 260, selectedKey, zeroBase = true,
               </linearGradient>
             ))}
           </defs>
-          {ticks.map((tk) => (
+          {ticks.map((tk, ti) => (
             <g key={tk}>
               <line x1={m.l} x2={W - m.r} y1={y(tk)} y2={y(tk)} stroke={P.grid} strokeDasharray={tk === 0 ? '0' : '3 5'} />
-              <text x={m.l - 10} y={y(tk)} dy="0.32em" textAnchor="end" fontSize="11" fill={P.axis} style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtAxis(tk)}</text>
+              <text x={m.l - 10} y={y(tk)} dy="0.32em" textAnchor="end" fontSize="11" fill={P.axis} style={{ fontVariantNumeric: 'tabular-nums' }}>{tickLbl[ti]}</text>
             </g>
           ))}
           {selIdx >= 0 && <rect x={x(selIdx) - 22} y={m.t} width="44" height={ih} rx="12" fill={P.band} />}
@@ -644,7 +654,7 @@ function AreaChart({ series, points, height = 260, selectedKey, zeroBase = true,
               </g>
             );
           })}
-          {points.map((p, i) => (
+          {points.map((p, i) => ((i % labelStep === 0 && (i === n - 1 || n - 1 - i >= labelStep || labelStep === 1)) || i === selIdx) && (
             <text key={p.k} x={x(i)} y={height - 8} textAnchor="middle" fontSize="11.5" fill={i === selIdx ? 'currentColor' : P.axis} fontWeight={i === selIdx ? 800 : 500}>{p.short}</text>
           ))}
           {active != null && <line x1={x(active)} x2={x(active)} y1={m.t} y2={m.t + ih} stroke={P.axis} strokeOpacity=".6" strokeDasharray="2 4" />}
@@ -674,10 +684,11 @@ function BarChart({ points, height = 240, label }) {
   const wrap = useRef(null);
   const W = useWidth(wrap);
   const [hover, setHover] = useState(null);
-  const m = { t: 12, r: 8, b: 30, l: 50 };
+  const { min, max, ticks } = niceScale(0, Math.max(1, ...points.flatMap((p) => [p.in, p.out])), 4, true);
+  const tickLbl = axisLabels(ticks);
+  const m = { t: 12, r: 8, b: 30, l: Math.max(38, Math.max(...tickLbl.map((t) => t.length)) * 6.3 + 16) };
   const iw = Math.max(10, W - m.l - m.r);
   const ih = height - m.t - m.b;
-  const { min, max, ticks } = niceScale(0, Math.max(1, ...points.flatMap((p) => [p.in, p.out])), 4, true);
   const y = (v) => m.t + ih - ((v - min) / (max - min)) * ih;
   const n = points.length;
   const slot = iw / Math.max(1, n);
@@ -687,10 +698,10 @@ function BarChart({ points, height = 240, label }) {
     <div ref={wrap} className="relative w-full select-none" style={{ height }}>
       {W > 0 && (
         <svg width={W} height={height} role="img" aria-label={label} onPointerLeave={() => setHover(null)}>
-          {ticks.map((tk) => (
+          {ticks.map((tk, ti) => (
             <g key={tk}>
               <line x1={m.l} x2={W - m.r} y1={y(tk)} y2={y(tk)} stroke={P.grid} strokeDasharray={tk === 0 ? '0' : '3 5'} />
-              <text x={m.l - 10} y={y(tk)} dy="0.32em" textAnchor="end" fontSize="11" fill={P.axis}>{fmtAxis(tk)}</text>
+              <text x={m.l - 10} y={y(tk)} dy="0.32em" textAnchor="end" fontSize="11" fill={P.axis}>{tickLbl[ti]}</text>
             </g>
           ))}
           {points.map((p, i) => {
@@ -700,7 +711,7 @@ function BarChart({ points, height = 240, label }) {
                 <rect x={m.l + slot * i} y={m.t} width={slot} height={ih} fill={hover === i ? P.band : 'transparent'} />
                 <rect x={cx - bw - 2} y={y(p.in)} width={bw} height={Math.max(0, y(0) - y(p.in))} rx="4" fill={P.in} />
                 <rect x={cx + 2} y={y(p.out)} width={bw} height={Math.max(0, y(0) - y(p.out))} rx="4" fill={P.out} />
-                {(n <= 12 || i % 2 === 0) && <text x={cx} y={height - 8} textAnchor="middle" fontSize="11" fill={P.axis}>{p.short}</text>}
+                {i % Math.max(1, Math.ceil(30 / Math.max(1, slot))) === 0 && <text x={cx} y={height - 8} textAnchor="middle" fontSize="11" fill={P.axis}>{p.short}</text>}
               </g>
             );
           })}
