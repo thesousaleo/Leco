@@ -242,7 +242,10 @@ const ICONS = {
   google: <><path d="M21 12.2c0-.7-.1-1.3-.2-1.9H12v3.6h5c-.2 1.2-.9 2.2-1.9 2.8v2.4h3.1c1.8-1.7 2.8-4.1 2.8-6.9z" fill="#4285F4" stroke="none" /><path d="M12 21.5c2.6 0 4.7-.9 6.3-2.3l-3.1-2.4c-.9.6-2 .9-3.2.9-2.5 0-4.6-1.7-5.3-3.9H3.5v2.5A9.5 9.5 0 0 0 12 21.5z" fill="#34A853" stroke="none" /><path d="M6.7 13.8c-.2-.6-.3-1.2-.3-1.8s.1-1.2.3-1.8V7.7H3.5a9.5 9.5 0 0 0 0 8.6z" fill="#FBBC05" stroke="none" /><path d="M12 6.3c1.4 0 2.6.5 3.6 1.4l2.7-2.7A9.5 9.5 0 0 0 3.5 7.7l3.2 2.5C7.4 8 9.5 6.3 12 6.3z" fill="#EA4335" stroke="none" /></>,
 };
 
+const isImgIcon = (name) => typeof name === 'string' && name.startsWith('data:image/');
 function Icon({ name, size = 20, className = '', strokeWidth = 1.8 }) {
+  // Imagem escolhida pelo usuário (ícone de conta ou cartão)
+  if (isImgIcon(name)) return <img src={name} alt="" width={size} height={size} className={`inline-block rounded-md object-cover ${className}`} style={{ width: size, height: size }} aria-hidden="true" />;
   // Emojis escolhidos pelo usuário (categorias, contas) aparecem como texto
   if (name && !ICONS[name] && /\p{Extended_Pictographic}/u.test(name)) {
     return <span className={`inline-grid place-items-center leading-none ${className}`} style={{ width: size, height: size, fontSize: Math.round(size * 0.92) }} aria-hidden="true">{name}</span>;
@@ -382,6 +385,13 @@ function ColorIcon({ icon, color, size = 40, round = false }) {
   const theme = useContext(ThemeCtx);
   const c = color || '#6B9E8F';
   const fg = theme === 'light' ? mixHex(c, '#0B2F29', 0.18) : c;
+  if (isImgIcon(icon)) {
+    return (
+      <span className={`grid shrink-0 place-items-center overflow-hidden bg-white ${round ? 'rounded-full' : 'rounded-2xl'}`} style={{ width: size, height: size, boxShadow: `inset 0 0 0 1px ${c}38` }}>
+        <img src={icon} alt="" className="size-full object-cover" aria-hidden="true" />
+      </span>
+    );
+  }
   return (
     <span className={`grid shrink-0 place-items-center ${round ? 'rounded-full' : 'rounded-2xl'}`}
       style={{ width: size, height: size, background: `${c}22`, color: fg, boxShadow: `inset 0 0 0 1px ${c}38` }}>

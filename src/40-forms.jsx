@@ -566,11 +566,52 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
 
 /* ---------- Ícone ou emoji ---------- */
 const EMOJI_CHOICES = ['🏦', '💳', '💰', '🐷', '👛', '📈', '🏠', '🛒', '🍔', '☕', '🚗', '⛽', '🚌', '✈️', '💊', '🎓', '🎮', '🎬', '🐶', '👶', '🎁', '💡', '📱', '👕', '💼', '🏋️', '🍺', '🧾'];
-function IconPicker({ value, onChange, choices = ICON_CHOICES, label = 'Ícone' }) {
+// Reduz a imagem escolhida para um ícone pequeno (quadrado, ~96 px) guardado junto da conta
+async function imageToIcon(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
+    const S = 96;
+    const c = document.createElement('canvas'); c.width = S; c.height = S;
+    const g = c.getContext('2d');
+    g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, S, S);
+    const side = Math.min(img.width, img.height);
+    g.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, S, S);
+    let out = c.toDataURL('image/webp', 0.88);
+    if (!out.startsWith('data:image/webp')) out = c.toDataURL('image/jpeg', 0.88);
+    return out;
+  } finally { URL.revokeObjectURL(url); }
+}
+
+function IconPicker({ value, onChange, choices = ICON_CHOICES, label = 'Ícone', allowImage = false }) {
   const [custom, setCustom] = useState('');
+  const [imgErr, setImgErr] = useState('');
+  const file = useRef(null);
+  const isImg = isImgIcon(value);
+  const pickImage = async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    if (!f.type.startsWith('image/')) { setImgErr('Escolha uma imagem (JPG, PNG ou WEBP).'); return; }
+    try { setImgErr(''); onChange(await imageToIcon(f)); } catch (x) { setImgErr('Não consegui abrir essa imagem. Tente outra.'); }
+  };
   return (
     <fieldset>
       <legend className="lbl">{label}</legend>
+      {allowImage && (
+        <div className="mt-2 flex items-center gap-3 rounded-2xl border border-ink/[0.08] bg-ink/[0.02] p-2.5">
+          <span className={`grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl ${isImg ? 'bg-white ring-2 ring-vivo' : 'border border-dashed border-ink/25 text-ink/50'}`}>
+            {isImg ? <img src={value} alt="Imagem escolhida" className="size-full object-cover" /> : <Icon name="image" size={18} />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13px] font-bold">{isImg ? 'Usando sua imagem' : 'Usar uma imagem sua'}</span>
+            <span className="block text-[11.5px] text-ink/60">Foto ou imagem salva no aparelho. Fica só na sua conta.</span>
+          </span>
+          <button type="button" className="btn btn-ghost shrink-0 !px-3 !py-1.5 text-xs" onClick={() => file.current && file.current.click()}>{isImg ? 'Trocar' : 'Escolher'}</button>
+          {isImg && <button type="button" className="icon-btn size-8 shrink-0" aria-label="Remover imagem" onClick={() => onChange(null)}><Icon name="x" size={14} /></button>}
+          <input ref={file} type="file" accept="image/*" className="hidden" onChange={pickImage} data-icon-file="1" />
+        </div>
+      )}
+      {imgErr && <p className="mt-1.5 text-xs font-semibold text-out">{imgErr}</p>}
       <div className="mt-2 flex flex-wrap gap-1.5">
         {[...choices, ...EMOJI_CHOICES].map((ic) => (
           <button key={ic} type="button" aria-pressed={value === ic} aria-label={`Ícone ${ic}`} onClick={() => onChange(ic)}
@@ -583,6 +624,57 @@ function IconPicker({ value, onChange, choices = ICON_CHOICES, label = 'Ícone' 
   );
 }
 
+/* ---------- Bancos (só nomes; o ícone é do próprio Leco, conforme o tipo) ---------- */
+const BANK_TYPES = {
+  digital: { label: 'Banco digital', icon: 'phone', kind: 'corrente' },
+  tradicional: { label: 'Banco', icon: 'bank', kind: 'corrente' },
+  carteira: { label: 'Carteira digital', icon: 'wallet', kind: 'corrente' },
+  cooperativa: { label: 'Cooperativa', icon: 'home', kind: 'corrente' },
+  corretora: { label: 'Corretora', icon: 'trend', kind: 'investimento' },
+  global: { label: 'Conta internacional', icon: 'plane', kind: 'corrente' },
+};
+const BANKS = [
+  ['Nubank', 'digital'], ['Itaú', 'tradicional'], ['Bradesco', 'tradicional'], ['Banco do Brasil', 'tradicional'], ['Caixa', 'tradicional'],
+  ['Santander', 'tradicional'], ['Inter', 'digital'], ['C6 Bank', 'digital'], ['Mercado Pago', 'carteira'], ['PicPay', 'carteira'],
+  ['PagBank', 'carteira'], ['Neon', 'digital'], ['Next', 'digital'], ['BTG Pactual', 'tradicional'], ['Banco Pan', 'digital'],
+  ['Original', 'digital'], ['Will Bank', 'digital'], ['Agibank', 'digital'], ['Iti', 'carteira'], ['Safra', 'tradicional'],
+  ['Banrisul', 'tradicional'], ['BRB', 'tradicional'], ['Banco do Nordeste', 'tradicional'], ['Banestes', 'tradicional'], ['Mercantil', 'tradicional'],
+  ['Sicoob', 'cooperativa'], ['Sicredi', 'cooperativa'], ['Cresol', 'cooperativa'], ['Unicred', 'cooperativa'],
+  ['XP Investimentos', 'corretora'], ['Rico', 'corretora'], ['Clear', 'corretora'], ['NuInvest', 'corretora'], ['Toro', 'corretora'], ['Ágora', 'corretora'], ['Modal', 'corretora'],
+  ['Nomad', 'global'], ['Wise', 'global'], ['Avenue', 'global'],
+  ['InfinitePay', 'carteira'], ['Stone', 'carteira'], ['RecargaPay', 'carteira'],
+].map(([name, type]) => ({ name, type }));
+const POPULAR_BANKS = ['Nubank', 'Itaú', 'Bradesco', 'Banco do Brasil', 'Caixa', 'Santander', 'Inter', 'C6 Bank', 'Mercado Pago', 'PicPay'];
+
+function BankPicker({ value, onPick }) {
+  const [q, setQ] = useState('');
+  const [all, setAll] = useState(false);
+  const nq = normTxt(q.trim());
+  const list = nq ? BANKS.filter((b) => normTxt(b.name).includes(nq)) : all ? BANKS : BANKS.filter((b) => POPULAR_BANKS.includes(b.name));
+  return (
+    <div>
+      <span className="lbl">Banco ou instituição <span className="normal-case tracking-normal text-ink/50">(opcional)</span></span>
+      <div className="relative mt-2">
+        <Icon name="search" size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink/50" />
+        <input id="acc-bank" className="field !rounded-full !py-2 !pl-9 text-[13px]" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar banco (ex.: Inter, Sicredi, XP)" autoComplete="off" />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5" role="listbox" aria-label="Bancos">
+        {list.map((b) => {
+          const on = value === b.name;
+          return (
+            <button key={b.name} type="button" role="option" aria-selected={on} onClick={() => onPick(on ? null : b)}
+              className={`flex items-center gap-1.5 rounded-full border py-1.5 pl-2 pr-3 text-[12.5px] font-bold transition-colors ${on ? 'border-vivo/60 bg-vivo/15 text-ink' : 'border-ink/10 bg-ink/[0.03] text-ink/80 hover:bg-ink/[0.06]'}`}>
+              <Icon name={BANK_TYPES[b.type].icon} size={14} />{b.name}
+            </button>
+          );
+        })}
+        {!nq && !all && <button type="button" className="rounded-full px-3 py-1.5 text-[12.5px] font-bold text-in" onClick={() => setAll(true)}>Ver todos ({BANKS.length})</button>}
+        {nq && !list.length && <p className="px-1 text-xs text-ink/60">Não encontrei "{q}". Escreva o nome no campo Nome abaixo.</p>}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Conta ---------- */
 function AccountForm({ initial, onClose }) {
   const d = useApp();
@@ -592,6 +684,15 @@ function AccountForm({ initial, onClose }) {
   const [balance, setBalance] = useState(initial ? initial.initial_balance : 0);
   const [color, setColor] = useState(initial ? initial.color : SWATCHES[0]);
   const [icon, setIcon] = useState(initial && initial.icon ? initial.icon : null);
+  const [bank, setBank] = useState(() => { const b = initial && BANKS.find((x) => x.name === initial.name); return b ? b.name : null; });
+  const pickBank = (b) => {
+    if (!b) { setBank(null); return; }
+    // o nome só é trocado se estiver vazio ou ainda for o de outro banco da lista
+    if (!name.trim() || BANKS.some((x) => x.name === name.trim())) setName(b.name);
+    setBank(b.name);
+    if (!editing) setKind(BANK_TYPES[b.type].kind);
+    if (!isImgIcon(icon)) setIcon(BANK_TYPES[b.type].icon);
+  };
   const [reserve, setReserve] = useState(!!(initial && initial.is_reserve));
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -610,7 +711,8 @@ function AccountForm({ initial, onClose }) {
   return (
     <Sheet variant={sheetVariant()} onClose={onClose} titleId={titleId} onSubmit={submit}>
       <SheetHead id={titleId} title={editing ? 'Editar conta' : 'Nova conta'} sub={editing ? `Saldo atual: ${fmtBRL(current)} · ${used} transações` : 'Banco, carteira, poupança ou investimento.'} onClose={onClose} />
-      <Field label="Nome"><input id="acc-name" className="field" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Nubank, Itaú, Carteira" /></Field>
+      <BankPicker value={bank} onPick={pickBank} />
+      <Field label="Nome" className="mt-4"><input id="acc-name" className="field" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Nubank, Itaú, Carteira" /></Field>
       <div className="mt-4"><span className="lbl">Tipo</span><div className="mt-2"><ChoiceChips label="Tipo de conta" value={kind} onChange={setKind} options={Object.keys(ACCOUNT_KINDS).map((k) => ({ value: k, label: ACCOUNT_KINDS[k].label, icon: ACCOUNT_KINDS[k].icon }))} /></div></div>
       <Field label={editing ? 'Saldo inicial' : 'Saldo atual'} className="mt-4" hint={editing ? 'Valor que havia na conta antes das transações registradas no Leco.' : 'Quanto há nesta conta hoje.'}>
         <SignedMoney id="acc-balance" label="Saldo" cents={balance} onChange={setBalance} />
@@ -618,7 +720,7 @@ function AccountForm({ initial, onClose }) {
       <fieldset className="mt-4"><legend className="lbl">Cor</legend>
         <div className="mt-2 flex flex-wrap gap-2">{SWATCHES.map((c) => <button key={c} type="button" aria-pressed={color === c} aria-label={`Cor ${c}`} onClick={() => setColor(c)} className="size-8 rounded-full transition-transform hover:scale-105" style={{ background: c, boxShadow: color === c ? `0 0 0 2px var(--paper), 0 0 0 4px ${c}` : 'none' }} />)}</div>
       </fieldset>
-      {d.v3 && <div className="mt-4"><IconPicker value={icon || ACCOUNT_KINDS[kind].icon} onChange={setIcon} choices={['bank', 'wallet', 'piggy', 'trend', 'card', 'briefcase', 'home', 'shield']} /></div>}
+      {d.v3 && <div className="mt-4"><IconPicker allowImage value={icon || ACCOUNT_KINDS[kind].icon} onChange={setIcon} choices={['bank', 'phone', 'wallet', 'piggy', 'trend', 'card', 'briefcase', 'home', 'plane', 'shield']} /></div>}
       {d.v3 && <div className="mt-2"><Toggle id="acc-reserve" icon="shield" label="Reserva de emergência" desc="O saldo desta conta conta como reserva no Planejamento." checked={reserve} onChange={setReserve} /></div>}
       <div className="mt-4"><ErrorNote>{err}</ErrorNote></div>
       {confirm ? (
@@ -687,7 +789,7 @@ function CardForm({ initial, onClose }) {
       <fieldset className="mt-4"><legend className="lbl">Cor</legend>
         <div className="mt-2 flex flex-wrap gap-2">{SWATCHES.map((c) => <button key={c} type="button" aria-pressed={color === c} aria-label={`Cor ${c}`} onClick={() => setColor(c)} className="size-8 rounded-full transition-transform hover:scale-105" style={{ background: c, boxShadow: color === c ? `0 0 0 2px var(--paper), 0 0 0 4px ${c}` : 'none' }} />)}</div>
       </fieldset>
-      {d.v3 && <div className="mt-4"><IconPicker value={icon || 'card'} onChange={setIcon} choices={['card', 'bank', 'wallet', 'star', 'plane', 'bag']} /></div>}
+      {d.v3 && <div className="mt-4"><IconPicker allowImage value={icon || 'card'} onChange={setIcon} choices={['card', 'bank', 'phone', 'wallet', 'star', 'plane', 'bag']} /></div>}
       <div className="mt-4"><ErrorNote>{err}</ErrorNote></div>
       {confirm ? (
         <div className="mt-6 rounded-2xl border border-coral/40 bg-coral/10 p-4">

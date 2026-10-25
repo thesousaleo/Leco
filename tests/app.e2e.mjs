@@ -322,6 +322,25 @@ try {
     ok(await page.locator('.fab-corner').count() === 1 && await page.getByRole('button', { name: 'Ler comprovante com IA' }).count() > 0, 'botão + e atalhos do Início continuam');
   }
 
+  step('Conta com banco da lista e imagem própria');
+  {
+    await page.evaluate(() => window.__leco().openModal({ kind: 'account' }));
+    await wait(500);
+    await page.fill('#acc-bank', 'sicr');
+    await wait(200);
+    await dlg().getByRole('option', { name: /Sicredi/ }).click();
+    ok((await page.inputValue('#acc-name')) === 'Sicredi', 'escolher o banco preenche o nome');
+    const logo = path.join(tmp, 'logo.png');
+    fs.writeFileSync(logo, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR42mP8z8Dwn4GBgYGJgYGBAQAvBgID3n3ZJQAAAABJRU5ErkJggg==', 'base64'));
+    await page.locator('input[data-icon-file]').first().setInputFiles(logo);
+    await wait(600);
+    ok(await dlg().getByText('Usando sua imagem').count() === 1, 'imagem própria escolhida como ícone');
+    await dlg().getByRole('button', { name: 'Criar conta' }).click();
+    await wait(800);
+    const acc = await page.evaluate(() => window.__leco().accounts.find((a) => a.name === 'Sicredi'));
+    ok(acc && String(acc.icon).startsWith('data:image/') && String(acc.icon).length < 20000, 'conta salva com a imagem pequena', acc ? String(acc.icon).length : 'sem conta');
+  }
+
   step('Tema não volta ao atualizar');
   {
     const prev = await page.evaluate(() => window.__leco().prefs.theme);
