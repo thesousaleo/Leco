@@ -262,6 +262,7 @@ function MobileHome() {
 
 function OverviewPage() {
   const d = useApp();
+  const m = useMoneyText();
   const narrow = useNarrow();
   const month = d.month;
   const [from, to] = finRange(month);
@@ -280,6 +281,7 @@ function OverviewPage() {
       {!narrow && (
         <PageHeader eyebrow={`${greeting()}${d.name ? `, ${firstName(d.name)}` : ''}`} title={`Resumo de ${monthLabel(month)}`}>
           <MonthSwitch month={month} onChange={d.setMonth} />
+          <button type="button" className="icon-btn size-11" onClick={() => d.saveProfile({ hide_values: !d.hide })} aria-label={d.hide ? 'Mostrar valores' : 'Ocultar valores'} aria-pressed={d.hide}><Icon name={d.hide ? 'eyeOff' : 'eye'} size={19} /></button>
           <NotifButton />
           <button type="button" className="btn btn-primary" onClick={() => d.openModal({ kind: 'tx' })}><Icon name="plus" size={18} strokeWidth={2.4} />Nova transação</button>
         </PageHeader>
@@ -289,10 +291,10 @@ function OverviewPage() {
         <KpiCard hero label="Saldo em contas" icon="wallet" foot={plural(d.accounts.filter((a) => !a.archived).length, 'conta', 'contas')} spark={series.map((p) => p.bal)} sparkColor="#E8A317">
           <Money cents={totalBal} />
         </KpiCard>
-        <KpiCard label="Receitas do mês" icon="inArrow" delay={60} extra={<Delta value={pct(sm.income, prev.income)} />} foot={`${monthName(prevK)}: ${fmtBRL(prev.income)}`}>
+        <KpiCard label="Receitas do mês" icon="inArrow" delay={60} extra={<Delta value={pct(sm.income, prev.income)} />} foot={`${monthName(prevK)}: ${m(prev.income)}`}>
           <Money cents={sm.income} className="text-in" />
         </KpiCard>
-        <KpiCard label="Despesas do mês" icon="up" delay={120} extra={<Delta value={pct(sm.expense, prev.expense)} goodWhen="down" />} foot={`${monthName(prevK)}: ${fmtBRL(prev.expense)}`}>
+        <KpiCard label="Despesas do mês" icon="up" delay={120} extra={<Delta value={pct(sm.expense, prev.expense)} goodWhen="down" />} foot={`${monthName(prevK)}: ${m(prev.expense)}`}>
           <Money cents={sm.expense} className="text-out" />
         </KpiCard>
         <KpiCard label={d.cards.length ? 'Faturas a pagar' : 'Resultado do mês'} icon={d.cards.length ? 'card' : 'sparkle'} delay={180}
@@ -306,7 +308,7 @@ function OverviewPage() {
       </div>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Card title="Fluxo de caixa" sub="Últimos 6 meses" delay={160}><FlowChart series={series} month={month} height={narrow ? 210 : 260} /></Card>
-        <Card title="Despesas por categoria" sub={`${monthLabel(month)} · ${fmtBRL(sm.expense)}`} delay={200}><CategoryBreakdown items={sm.byCatOut} compact={narrow} donutSize={narrow ? 180 : 196} /></Card>
+        <Card title="Despesas por categoria" sub={`${monthLabel(month)} · ${m(sm.expense)}`} delay={200}><CategoryBreakdown items={sm.byCatOut} compact={narrow} donutSize={narrow ? 180 : 196} /></Card>
       </div>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Card title="Últimas transações" delay={220} action={<button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => d.go('transacoes')}>Ver todas<Icon name="right" size={15} /></button>}>

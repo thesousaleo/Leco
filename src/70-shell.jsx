@@ -802,6 +802,7 @@ function Workspace({ backend, session, toast, toastNode }) {
   useEffect(() => { if (themeMode !== 'auto') return undefined; const t = setInterval(() => setClock((c) => c + 1), 5 * 60000); return () => clearInterval(t); }, [themeMode]);
   const fullTheme = resolveTheme(themeMode, prefs);
   const theme = fullTheme === 'light' ? 'light' : 'dark';
+  MONEY_HIDE.on = !!(data && data.profile && data.profile.hide_values);
   FIN.start = prefs.monthStart; FIN.weekStart = prefs.weekStart; HAPTIC.on = prefs.haptics !== false;
   useEffect(() => { applyAppearance(prefs, fullTheme); }, [prefs, fullTheme, clock]);
   const setPrefs = useCallback((patch) => {

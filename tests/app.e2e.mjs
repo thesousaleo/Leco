@@ -308,6 +308,23 @@ try {
     await wait(900);
   }
 
+  step('Ocultar valores no computador');
+  {
+    await page.setViewportSize({ width: 1280, height: 860 });
+    await page.evaluate(() => window.__leco().go('inicio'));
+    await wait(600);
+    const eye = page.getByRole('button', { name: 'Ocultar valores' });
+    ok(await eye.count() > 0, 'botão de ocultar valores no Início do computador');
+    await eye.first().click();
+    await wait(500);
+    ok(await page.evaluate(() => window.__leco().hide) === true, 'valores ocultos');
+    await page.getByRole('button', { name: 'Mostrar valores' }).first().click();
+    await wait(500);
+    ok(await page.evaluate(() => window.__leco().hide) === false, 'valores visíveis de novo');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await wait(500);
+  }
+
   step('Exclusão rápida, aviso e estado vazio');
   {
     const before = (await txs()).length;

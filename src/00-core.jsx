@@ -18,6 +18,9 @@ if (LITE) document.documentElement.dataset.perf = 'lite';
 /* ------------------------------------------------------------------ */
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtBRL = (cents) => BRL.format((cents || 0) / 100);
+// "Ocultar valores": gráficos e dicas consultam isto (o app atualiza a cada renderização)
+const MONEY_HIDE = { on: false };
+const fmtView = (cents) => (MONEY_HIDE.on ? 'R$ ••••' : fmtBRL(cents));
 const fmtDate = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '');
 const pad2 = (n) => String(n).padStart(2, '0');
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -50,6 +53,7 @@ const fmtAxis = (cents) => {
 const axisLabels = (ticks) => {
   const a = ticks.map(fmtAxis);
   if (new Set(a).size === a.length) return a;
+  if (MONEY_HIDE.on) return ticks.map(() => '');
   return ticks.map((t) => (Math.abs(t) >= 100000 ? `${Math.round(t / 100000).toLocaleString('pt-BR')} mil` : fmtBRL(t).replace(/,00$/, '')));
 };
 const fmtPctAbs = (v, unit = '%') => `${Math.abs(v).toFixed(1).replace('.', ',')}${unit}`;
@@ -754,7 +758,7 @@ function AreaChart({ series, points, height = 260, selectedKey, zeroBase = true,
           {series.map((s) => (
             <p key={s.key} className="flex items-center justify-between gap-3 py-0.5">
               <span className="flex items-center gap-1.5 text-ink/75"><span className="size-2 rounded-full" style={{ background: s.color }} />{s.label}</span>
-              <span className="font-bold tabular-nums">{fmtBRL(s.values[active])}</span>
+              <span className="font-bold tabular-nums">{fmtView(s.values[active])}</span>
             </p>
           ))}
         </div>
@@ -805,9 +809,9 @@ function BarChart({ points, height = 240, label }) {
       {hover != null && W > 0 && (
         <div className="glass-deep chart-tip pointer-events-none absolute top-0 z-10 w-[180px] rounded-2xl px-3.5 py-3 text-xs" style={{ left: tipX }}>
           <p className="mb-1.5 font-bold">{points[hover].full}</p>
-          <p className="flex justify-between gap-3"><span className="text-ink/75">Receitas</span><b className="tabular-nums">{fmtBRL(points[hover].in)}</b></p>
-          <p className="flex justify-between gap-3"><span className="text-ink/75">Despesas</span><b className="tabular-nums">{fmtBRL(points[hover].out)}</b></p>
-          <p className="mt-1 flex justify-between gap-3 border-t border-ink/10 pt-1"><span className="text-ink/75">Resultado</span><b className="tabular-nums">{fmtBRL(points[hover].in - points[hover].out)}</b></p>
+          <p className="flex justify-between gap-3"><span className="text-ink/75">Receitas</span><b className="tabular-nums">{fmtView(points[hover].in)}</b></p>
+          <p className="flex justify-between gap-3"><span className="text-ink/75">Despesas</span><b className="tabular-nums">{fmtView(points[hover].out)}</b></p>
+          <p className="mt-1 flex justify-between gap-3 border-t border-ink/10 pt-1"><span className="text-ink/75">Resultado</span><b className="tabular-nums">{fmtView(points[hover].in - points[hover].out)}</b></p>
         </div>
       )}
     </div>
@@ -851,7 +855,7 @@ function Donut({ data, size = 200, stroke = 24, active, onActive, emptyLabel = '
   const act = data.find((d) => d.key === active);
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={data.map((d) => `${d.label} ${fmtBRL(d.value)}`).join(', ') || emptyLabel}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={data.map((d) => `${d.label} ${fmtView(d.value)}`).join(', ') || emptyLabel}>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={P.track} strokeWidth={stroke} />
         {segs.map((s) => (
           <circle key={s.key} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={s.color} className="seg"
@@ -863,7 +867,7 @@ function Donut({ data, size = 200, stroke = 24, active, onActive, emptyLabel = '
       <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
         <div className="px-6">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-ink/65">{act ? act.label : total ? 'Total' : emptyLabel}</p>
-          <p className="mt-1 text-[19px] font-extrabold tracking-[-0.02em] tabular-nums">{fmtBRL(act ? act.value : total)}</p>
+          <p className="mt-1 text-[19px] font-extrabold tracking-[-0.02em] tabular-nums">{fmtView(act ? act.value : total)}</p>
           {act && total > 0 && <p className="mt-0.5 text-xs font-semibold text-ink/70">{fmtPctAbs((act.value / total) * 100)} do total</p>}
         </div>
       </div>
