@@ -7,7 +7,7 @@ function KpiCard({ label, icon, children, foot, spark, sparkColor, hero, delay =
     <article className={`${hero ? 'glass-hero' : 'glass spec'} rise flex min-w-0 flex-col gap-4 p-4 sm:p-6`} style={{ animationDelay: `${delay}ms` }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${hero ? 'bg-ouro/25 text-ouro' : 'bg-ink/[0.06] text-ink'}`}><Icon name={icon} size={18} /></span>
+          <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${hero ? 'bg-white/15 text-white' : 'bg-ink/[0.06] text-ink'}`}><Icon name={icon} size={18} /></span>
           <h3 className="truncate text-[13px] font-semibold text-ink/80">{label}</h3>
         </div>
         {extra}
@@ -191,7 +191,7 @@ function MobileHome() {
         {[
           { l: 'Receita', i: 'inArrow', fn: () => d.openModal({ kind: 'tx', defaultKind: 'in' }), tone: 'text-in' },
           { l: 'Despesa', i: 'up', fn: () => d.openModal({ kind: 'tx', defaultKind: 'out' }), tone: 'text-out' },
-          { l: 'Rápido', i: 'bolt', fn: () => d.openModal({ kind: 'quick' }), tone: 'text-[#B57406]' },
+          { l: 'Rápido', i: 'bolt', fn: () => d.openModal({ kind: 'quick' }), tone: 'text-[#3E7FA6]' },
         ].map((a) => (
           <button key={a.l} type="button" onClick={() => { haptic(); a.fn(); }} className="group flex flex-col items-center gap-2">
             <span className={`glass grid size-14 place-items-center rounded-2xl transition-transform group-active:scale-95 ${a.tone}`}><Icon name={a.i} size={21} strokeWidth={2} /></span>
@@ -199,7 +199,7 @@ function MobileHome() {
           </button>
         ))}
         <ScanButton onFile={(f) => d.openModal({ kind: 'tx', scanFile: f })} className="group flex flex-col items-center gap-2">
-          <span className="glass relative grid size-14 place-items-center rounded-2xl text-in transition-transform group-active:scale-95"><Icon name="camera" size={21} strokeWidth={2} /><span className="absolute -right-1 -top-1 rounded-full bg-gradient-to-br from-[#FFD36B] to-[#E8A317] px-1.5 text-[9px] font-extrabold text-[#2A1D00]">IA</span></span>
+          <span className="glass relative grid size-14 place-items-center rounded-2xl text-in transition-transform group-active:scale-95"><Icon name="camera" size={21} strokeWidth={2} /><span className="absolute -right-1 -top-1 rounded-full bg-gradient-to-br from-vivo to-leco px-1.5 text-[9px] font-extrabold text-white">IA</span></span>
           <span className="text-[11.5px] font-semibold text-ink/80">Comprovante</span>
         </ScanButton>
       </div>
@@ -288,7 +288,7 @@ function OverviewPage() {
       )}
       {narrow && <div className="flex justify-center"><MonthSwitch compact month={month} onChange={d.setMonth} /></div>}
       <div className="grid gap-4 md:grid-cols-2 min-[1500px]:grid-cols-4">
-        <KpiCard hero label="Saldo em contas" icon="wallet" foot={plural(d.accounts.filter((a) => !a.archived).length, 'conta', 'contas')} spark={series.map((p) => p.bal)} sparkColor="#E8A317">
+        <KpiCard hero label="Saldo em contas" icon="wallet" foot={plural(d.accounts.filter((a) => !a.archived).length, 'conta', 'contas')} spark={series.map((p) => p.bal)} sparkColor="#9BEBD0">
           <Money cents={totalBal} />
         </KpiCard>
         <KpiCard label="Receitas do mês" icon="inArrow" delay={60} extra={<Delta value={pct(sm.income, prev.income)} />} foot={`${monthName(prevK)}: ${m(prev.income)}`}>

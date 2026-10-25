@@ -167,7 +167,7 @@ function PrefsSettings() {
           </div>
         )}
       </Panel>
-      <Panel title="Cor de destaque" sub="Muda botões, menu e gráficos. Verde e ouro continuam sendo a marca do Leco.">
+      <Panel title="Cor de destaque" sub="Muda botões, menu e gráficos. O verde continua sendo a marca do Leco.">
         <div className="mt-4 flex flex-wrap gap-3">
           {Object.entries(ACCENTS).map(([k, a]) => (
             <button key={k} type="button" aria-pressed={pr.accent === k} onClick={() => d.setPrefs({ accent: k })} className="flex flex-col items-center gap-1.5">

@@ -5,7 +5,7 @@
 const PDF_W = 595.28, PDF_H = 841.89, PDF_M = 40;
 const PDF_C = {
   ink: [0.043, 0.184, 0.161], soft: [0.29, 0.396, 0.376], line: [0.894, 0.937, 0.918],
-  noite: [0.043, 0.184, 0.161], leco: [0.059, 0.361, 0.302], vivo: [0.078, 0.502, 0.42], ouro: [0.91, 0.639, 0.09],
+  noite: [0.043, 0.184, 0.161], leco: [0.059, 0.361, 0.302], vivo: [0.078, 0.502, 0.42], ouro: [0.204, 0.765, 0.608],
   menta: [0.894, 0.937, 0.918], inc: [0.059, 0.431, 0.357], out: [0.761, 0.306, 0.173], white: [1, 1, 1], zebra: [0.968, 0.98, 0.975],
 };
 // Caracteres fora do WinAnsi (setas, emojis, sinal de menos tipográfico) não existem na fonte padrão

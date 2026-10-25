@@ -140,7 +140,7 @@ function PlanningPage() {
         <Card title="Alertas inteligentes" sub="O Leco observa seus lançamentos e avisa o que merece atenção">
           <ul className="grid gap-2 md:grid-cols-2">
             {insights.filter((x) => !hidden.includes(x.id)).map((x) => (
-              <li key={x.id} className={`flex items-start gap-3 rounded-2xl px-3.5 py-3 ${x.tone === 'bad' ? 'bg-coral/10' : x.tone === 'gold' ? 'bg-ouro/10' : 'bg-ink/[0.04]'}`}>
+              <li key={x.id} className={`flex items-start gap-3 rounded-2xl px-3.5 py-3 ${x.tone === 'bad' ? 'bg-coral/10' : x.tone === 'gold' ? 'bg-attn' : 'bg-ink/[0.04]'}`}>
                 <Icon name={x.icon} size={18} className="mt-0.5 shrink-0" />
                 <div className="min-w-0 flex-1"><p className="text-[13.5px] font-bold">{x.title}</p><p className="mt-0.5 text-xs leading-relaxed text-ink/75">{x.body}</p>
                   {x.txId && <button type="button" className="mt-1 text-xs font-bold text-in" onClick={() => { const t = d.transactions.find((y) => y.id === x.txId); if (t) d.openModal({ kind: 'tx', initial: t }); }}>Ver lançamento</button>}
@@ -226,7 +226,7 @@ function TemplatesPage() {
               const c = d.categories.find((x) => x.id === t.category_id);
               return (
                 <li key={t.id}><button type="button" className="flex w-full items-center gap-3 py-3 text-left" onClick={() => d.openModal({ kind: 'template', initial: t })}>
-                  <ColorIcon icon={c ? c.icon : 'star'} color={c ? c.color : '#E8A317'} size={38} />
+                  <ColorIcon icon={c ? c.icon : 'star'} color={c ? c.color : '#5E8CA6'} size={38} />
                   <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-bold">{t.name}</span><span className="block truncate text-xs text-ink/60">{c ? c.name : 'Sem categoria'} · usado {plural(t.uses || 0, 'vez', 'vezes')}</span></span>
                   {t.amount > 0 && <span className={`text-[13.5px] font-extrabold tabular-nums ${t.kind === 'in' ? 'text-in' : 'text-out'}`}>{m(t.amount)}</span>}
                 </button></li>
@@ -251,12 +251,12 @@ function AchievementsPage() {
       <div className="glass-hero rounded-3xl p-5">
         <p className="text-[12px] font-semibold uppercase tracking-wider text-ink/75">Seu progresso</p>
         <p className="mt-1 text-[28px] font-extrabold tracking-[-0.02em]">{n} de {ACHIEVEMENTS.length}</p>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/20"><div className="h-full rounded-full bg-[#E8A317]" style={{ width: `${(n / ACHIEVEMENTS.length) * 100}%` }} /></div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/20"><div className="h-full rounded-full bg-[#9BEBD0]" style={{ width: `${(n / ACHIEVEMENTS.length) * 100}%` }} /></div>
       </div>
       <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {ACHIEVEMENTS.map((a) => (
           <li key={a.id} className={`glass flex items-center gap-3 rounded-3xl p-4 ${got[a.id] ? '' : 'opacity-50 grayscale'}`}>
-            <span className={`grid size-12 shrink-0 place-items-center rounded-2xl ${got[a.id] ? 'bg-gradient-to-br from-[#FFD36B] to-[#E8A317] text-[#2A1D00]' : 'bg-ink/[0.06] text-ink/60'}`}><Icon name={a.icon} size={22} /></span>
+            <span className={`grid size-12 shrink-0 place-items-center rounded-2xl ${got[a.id] ? 'bg-gradient-to-br from-vivo to-leco text-white' : 'bg-ink/[0.06] text-ink/60'}`}><Icon name={a.icon} size={22} /></span>
             <span className="min-w-0"><span className="block text-[14px] font-extrabold">{a.title}</span><span className="block text-xs text-ink/65">{a.desc}</span></span>
             {got[a.id] && <Icon name="check" size={18} className="ml-auto shrink-0 text-in" />}
           </li>

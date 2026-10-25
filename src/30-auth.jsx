@@ -23,7 +23,7 @@ function StrengthBar({ pw }) {
   const label = ['Muito fraca', 'Fraca', 'Média', 'Boa', 'Forte', 'Muito forte'][st];
   return (
     <div className="mt-2 flex items-center gap-3" aria-live="polite">
-      <div className="flex flex-1 gap-1">{[0, 1, 2, 3, 4].map((i) => <span key={i} className="h-1.5 flex-1 rounded-full" style={{ background: i < st ? (st <= 2 ? '#E0714F' : st === 3 ? '#E8A317' : '#14806B') : 'color-mix(in srgb, var(--ink) 10%, transparent)' }} />)}</div>
+      <div className="flex flex-1 gap-1">{[0, 1, 2, 3, 4].map((i) => <span key={i} className="h-1.5 flex-1 rounded-full" style={{ background: i < st ? (st <= 2 ? '#E0714F' : st === 3 ? '#5E8CA6' : '#14806B') : 'color-mix(in srgb, var(--ink) 10%, transparent)' }} />)}</div>
       <span className="text-xs font-bold">{label}</span>
     </div>
   );
@@ -257,7 +257,7 @@ function ConfigMissingScreen() {
   return (
     <AuthShell>
       <div className="text-center">
-        <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-ouro/20 text-[#9A6205]"><Icon name="alert" size={30} /></span>
+        <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-attn text-attn"><Icon name="alert" size={30} /></span>
         <h1 className="mt-4 text-[22px] font-extrabold tracking-[-0.02em]">Servidor não configurado</h1>
         <p className="mt-2 text-[13.5px] leading-relaxed text-ink/75">Falta o endereço e a chave pública do Supabase no ficheiro <code className="rounded bg-ink/[0.06] px-1">leco.config.json</code>. Depois de preencher, gere o app de novo.</p>
       </div>

@@ -266,7 +266,7 @@ function AutoFill({ kind, onScan, onQuick, onTemplate }) {
         <div className="rise px-3 pb-3">
           <div className="grid grid-cols-2 gap-2">
             <ScanButton onFile={onScan} className="tap flex items-center gap-2 rounded-xl border border-vivo/35 bg-vivo/10 px-3 py-2.5 text-left text-[13px] font-bold"><Icon name="camera" size={17} className="shrink-0 text-in" /><span className="min-w-0">Comprovante<span className="block text-[11px] font-semibold text-ink/60">Foto ou PDF · IA</span></span></ScanButton>
-            <button type="button" onClick={onQuick} className="tap flex items-center gap-2 rounded-xl border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-left text-[13px] font-bold"><Icon name="bolt" size={17} className="shrink-0 text-ouro-ink" /><span className="min-w-0">Escrever<span className="block text-[11px] font-semibold text-ink/60">"mercado 45 ontem"</span></span></button>
+            <button type="button" onClick={onQuick} className="tap flex items-center gap-2 rounded-xl border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-left text-[13px] font-bold"><Icon name="bolt" size={17} className="shrink-0 text-in" /><span className="min-w-0">Escrever<span className="block text-[11px] font-semibold text-ink/60">"mercado 45 ontem"</span></span></button>
           </div>
           {hasTemplates && (
             <div className="mt-3">
@@ -289,7 +289,7 @@ function ScanStatus({ state }) {
     </div>
   );
   return (
-    <div className={`mb-3 flex items-start gap-3 rounded-2xl px-4 py-3 ${state.bad ? 'bg-coral/10' : state.warn ? 'bg-ouro/15' : 'bg-vivo/10'}`} role="status">
+    <div className={`mb-3 flex items-start gap-3 rounded-2xl px-4 py-3 ${state.bad ? 'bg-coral/10' : state.warn ? 'bg-attn' : 'bg-vivo/10'}`} role="status">
       <Icon name={state.bad ? 'alert' : 'sparkle'} size={18} className={`mt-0.5 shrink-0 ${state.bad ? 'text-out' : 'text-in'}`} />
       <p className="min-w-0 text-[13px] leading-relaxed">{state.text}</p>
     </div>

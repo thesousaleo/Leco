@@ -81,11 +81,11 @@ const uid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `$
 const sum = (list, f = (x) => x) => list.reduce((a, x) => a + f(x), 0);
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-const SWATCHES = ['#14806B', '#0F5C4D', '#34C39B', '#6B9E8F', '#E8A317', '#B8865B', '#F08A6B', '#D9644A', '#5E8CA6', '#8C7AB8', '#7A8B3F', '#C46B8F'];
+const SWATCHES = ['#14806B', '#0F5C4D', '#34C39B', '#6B9E8F', '#C2507E', '#B8865B', '#F08A6B', '#D9644A', '#5E8CA6', '#8C7AB8', '#7A8B3F', '#C46B8F'];
 const ICON_CHOICES = ['home', 'utensils', 'car', 'film', 'heart', 'repeat', 'book', 'bag', 'paw', 'plane', 'gift', 'zap', 'coffee', 'game', 'dumbbell', 'tag', 'briefcase', 'trend', 'laptop', 'wallet'];
 const PALETTES = {
-  light: { in: '#14806B', out: '#E0714F', gold: '#D99510', axis: 'rgba(11,47,41,.58)', grid: 'rgba(11,47,41,.08)', dot: '#FFFFFF', band: 'rgba(11,47,41,.04)', track: 'rgba(11,47,41,.07)' },
-  dark: { in: '#34C39B', out: '#F08A6B', gold: '#E8A317', axis: 'rgba(228,239,234,.62)', grid: 'rgba(228,239,234,.08)', dot: '#0B2F29', band: 'rgba(228,239,234,.05)', track: 'rgba(228,239,234,.07)' },
+  light: { in: '#14806B', out: '#E0714F', gold: '#3E7FA6', axis: 'rgba(11,47,41,.58)', grid: 'rgba(11,47,41,.08)', dot: '#FFFFFF', band: 'rgba(11,47,41,.04)', track: 'rgba(11,47,41,.07)' },
+  dark: { in: '#34C39B', out: '#F08A6B', gold: '#7FB6D6', axis: 'rgba(228,239,234,.62)', grid: 'rgba(228,239,234,.08)', dot: '#0B2F29', band: 'rgba(228,239,234,.05)', track: 'rgba(228,239,234,.07)' },
 };
 
 /* ------------------------------------------------------------------ */
@@ -466,7 +466,7 @@ function EmptyArt({ icon }) {
             <stop offset="1" stopColor="#FFFFFF" stopOpacity="0.18" />
           </linearGradient>
           <radialGradient id={`ec${id}`} cx="0.35" cy="0.3" r="0.8">
-            <stop offset="0" stopColor="#FFE29A" /><stop offset="0.55" stopColor="#E8A317" /><stop offset="1" stopColor="#B57E0C" />
+            <stop offset="0" stopColor="#C9F5E4" /><stop offset="0.55" stopColor="#34C39B" /><stop offset="1" stopColor="#14806B" />
           </radialGradient>
         </defs>
         <ellipse cx="75" cy="104" rx="42" ry="5" style={{ fill: 'var(--ink)' }} opacity="0.08" />
@@ -478,7 +478,7 @@ function EmptyArt({ icon }) {
         </g>
         <g className="float-2">
           <circle cx="118" cy="27" r="10" fill={`url(#ec${id})`} />
-          <circle cx="118" cy="27" r="6.5" fill="none" stroke="#FFF3CF" strokeOpacity="0.8" />
+          <circle cx="118" cy="27" r="6.5" fill="none" stroke="#E4FFF5" strokeOpacity="0.8" />
         </g>
         <circle cx="28" cy="78" r="5" style={{ fill: 'var(--color-vivo)' }} opacity="0.35" />
         <circle cx="126" cy="80" r="3" style={{ fill: 'var(--color-vivo-hi)' }} opacity="0.5" />

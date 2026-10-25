@@ -68,6 +68,13 @@ function useLecoData(backend, session, toast) {
       const all = await backend.db.loadAll(userId);
       if (!all.profile) all.profile = await backend.db.saveProfile(userId, { name: (session.user.user_metadata && (session.user.user_metadata.name || session.user.user_metadata.full_name)) || '' });
       if (!all.categories.length) all.categories = await backend.db.insert('categories', DEFAULT_CATEGORIES.map(([name, kind, icon, color]) => ({ name, kind, icon, color })));
+      // Sem dourado: as categorias padrão que vieram em ouro passam para a nova cor (só as que ainda estão no ouro original)
+      const golden = all.categories.filter((c) => (c.color || '').toUpperCase() === '#E8A317');
+      if (golden.length) {
+        const pick = (c) => (c.kind === 'in' ? '#3E7FA6' : '#C2507E');
+        await Promise.all(golden.map((c) => backend.db.update('categories', c.id, { color: pick(c) }).catch(() => null)));
+        all.categories = all.categories.map((c) => ((c.color || '').toUpperCase() === '#E8A317' ? { ...c, color: pick(c) } : c));
+      }
       all.transactions.sort(byTx);
       lastLoad.current = Date.now();
       setData(all);
@@ -373,7 +380,7 @@ function NotifButton({ panelWidth = 340 }) {
     window.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('pointerdown', onDown); window.removeEventListener('keydown', onKey); };
   }, [open]);
-  const tone = { gold: 'bg-ouro/20 text-[#9A6205]', bad: 'bg-coral/20 text-out', ok: 'bg-ink/[0.07] text-ink' };
+  const tone = { gold: 'bg-attn text-attn', bad: 'bg-coral/20 text-out', ok: 'bg-ink/[0.07] text-ink' };
   return (
     <div ref={ref} className="relative">
       <button type="button" className="icon-btn relative size-11" aria-label={`Avisos${unread ? ' (novos)' : ''}`} aria-expanded={open}

@@ -46,7 +46,7 @@ function seedDemo(store, userId) {
     if (c.name === 'Transporte') c.budget = 25000;
   });
   const nu = add('accounts', { name: 'Conta corrente', kind: 'corrente', initial_balance: 245000, color: '#8C7AB8', icon: null, archived: false, is_reserve: false });
-  const wallet = add('accounts', { name: 'Carteira', kind: 'carteira', initial_balance: 18000, color: '#E8A317', icon: null, archived: false, is_reserve: false });
+  const wallet = add('accounts', { name: 'Carteira', kind: 'carteira', initial_balance: 18000, color: '#5E8CA6', icon: null, archived: false, is_reserve: false });
   const reserve = add('accounts', { name: 'Reserva', kind: 'poupanca', initial_balance: 800000, color: '#14806B', icon: null, archived: false, is_reserve: true });
   const card = add('cards', { name: 'Cartão Visa', limit_amount: 600000, closing_day: 3, due_day: 10, color: '#0F5C4D', pay_account_id: nu.id, archived: false, icon: null });
 
@@ -110,7 +110,7 @@ function DemoBadge({ wide }) {
   if (!wide) {
     return (
       <div className="glass-deep fixed left-3 bottom-[calc(104px+var(--safe-bottom))] z-[60] flex items-center gap-1.5 rounded-full py-1 pl-2.5 pr-1 text-[11.5px] font-bold">
-        <span className="size-2 rounded-full bg-ouro shadow-[0_0_10px_rgba(232,163,23,.8)]" aria-hidden="true" />
+        <span className="size-2 rounded-full bg-ouro shadow-[0_0_10px_rgba(52,195,155,.8)]" aria-hidden="true" />
         <span>Demonstração</span>
         <button type="button" className="btn btn-ghost !px-2.5 !py-1 text-[11px]" onClick={() => leaveDemo()}>Sair</button>
       </div>
@@ -118,7 +118,7 @@ function DemoBadge({ wide }) {
   }
   return (
     <div className="glass-deep fixed bottom-6 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-1.5 rounded-full py-1.5 pl-3 pr-1.5 text-[12px] font-bold">
-      <span className="size-2 rounded-full bg-ouro shadow-[0_0_10px_rgba(232,163,23,.8)]" aria-hidden="true" />
+      <span className="size-2 rounded-full bg-ouro shadow-[0_0_10px_rgba(52,195,155,.8)]" aria-hidden="true" />
       <span className="whitespace-nowrap">Demonstração · dados fictícios</span>
       <button type="button" className="btn btn-ghost !px-2.5 !py-1 text-[11.5px]" onClick={() => enterDemo(true)}><Icon name="phone" size={13} />Ver no celular</button>
       <button type="button" className="btn btn-ghost !px-2.5 !py-1 text-[11.5px]" onClick={() => resetDemo()} data-tip="Volta aos dados de exemplo">Recomeçar</button>

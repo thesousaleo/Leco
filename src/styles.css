@@ -56,7 +56,7 @@
   --ring-bg: rgba(255, 255, 255, .95);
   --blob-k: .38;
   --atmos: radial-gradient(1000px 640px at 88% -12%, rgba(20, 128, 107, .12), transparent 60%),
-           radial-gradient(800px 600px at -10% 112%, rgba(232, 163, 23, .08), transparent 60%), #FFFFFF;
+           radial-gradient(800px 600px at -10% 112%, rgba(52, 195, 155, .07), transparent 60%), #FFFFFF;
   --phone-bg: linear-gradient(180deg, #F1F8F5 0%, #FFFFFF 42%, #FFFFFF 100%);
 }
 :root[data-leco="dark"] {
@@ -116,7 +116,7 @@ input[type="range"] { accent-color: var(--color-vivo); }
   .glass-hero {
     --ink: #F2F8F5; --in: #9BEBD0; --out: #F8B39C; --good-bg: rgba(255, 255, 255, .14); --good-fg: #CFF6E8; --bad-bg: rgba(240, 138, 107, .22); --bad-fg: #FFD2C3; --ring-bg: rgba(11, 47, 41, .8);
     background:
-      radial-gradient(90% 120% at 100% 0%, rgba(232, 163, 23, .24), rgba(232, 163, 23, 0) 45%),
+      radial-gradient(90% 120% at 100% 0%, rgba(110, 224, 188, .20), rgba(110, 224, 188, 0) 45%),
       radial-gradient(120% 90% at 0% 0%, rgba(228, 239, 234, .20), rgba(228, 239, 234, 0) 55%),
       linear-gradient(140deg, color-mix(in srgb, var(--color-vivo) 92%, transparent), color-mix(in srgb, var(--color-leco) 92%, transparent) 55%, color-mix(in srgb, var(--color-noite) 94%, transparent));
     border: 1px solid color-mix(in srgb, var(--color-vivo-hi) 35%, transparent);
@@ -128,7 +128,7 @@ input[type="range"] { accent-color: var(--color-vivo); }
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor; mask-composite: exclude;
   }
-  .glass-hero::after { background: linear-gradient(135deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 35%, rgba(232, 163, 23, 0) 70%, rgba(232, 163, 23, .35)); }
+  .glass-hero::after { background: linear-gradient(135deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 35%, rgba(110, 224, 188, 0) 70%, rgba(110, 224, 188, .35)); }
 
   /* ---------- Pílulas e badges ---------- */
   .pill { display: inline-flex; align-items: center; gap: .2rem; border-radius: 999px; padding: .2rem .55rem; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -137,9 +137,8 @@ input[type="range"] { accent-color: var(--color-vivo); }
   .pill-neutral { background: color-mix(in srgb, var(--ink) 7%, transparent); color: color-mix(in srgb, var(--ink) 70%, transparent); }
   .badge-gold {
     display: inline-flex; align-items: center; gap: .25rem; border-radius: 999px; padding: .2rem .6rem; white-space: nowrap;
-    font-size: 12px; font-weight: 800; color: #2A1D00; font-variant-numeric: tabular-nums;
-    background: linear-gradient(135deg, #FFD36B, #E8A317 60%, #C98A0C);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), 0 6px 16px -6px rgba(232, 163, 23, .7);
+    font-size: 12px; font-weight: 800; color: var(--attn-fg); font-variant-numeric: tabular-nums;
+    background: var(--attn-bg);
   }
 
   /* ---------- Botões ---------- */
@@ -190,7 +189,7 @@ input[type="range"] { accent-color: var(--color-vivo); }
   /* ---------- Progresso ---------- */
   .track { height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 9%, transparent); overflow: hidden; }
   .track > i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--color-leco), var(--color-vivo) 50%, var(--color-vivo-hi)); box-shadow: 0 0 12px rgba(52, 195, 155, .45); transition: width .8s cubic-bezier(.2, .8, .2, 1); }
-  .track > i.warn { background: linear-gradient(90deg, #C98A0C, #E8A317 60%, #FFD36B); box-shadow: 0 0 12px rgba(232, 163, 23, .5); }
+  .track > i.warn { background: linear-gradient(90deg, #3E6F8F, #5E8CA6 60%, #8FB7CF); box-shadow: 0 0 12px rgba(94, 140, 166, .5); }
   .track > i.over { background: linear-gradient(90deg, #B5452A, #E0714F 60%, #F08A6B); box-shadow: 0 0 12px rgba(224, 113, 79, .5); }
 
   /* ---------- Smartphone ---------- */
@@ -223,7 +222,10 @@ input[type="range"] { accent-color: var(--color-vivo); }
    Leco 3.3 · acabamento de vidro (bordas, brilho, sombras) e microinterações
    ===================================================================== */
 :root {
-  --ouro-ink: #8A5A00;   /* ouro para TEXTO no tema claro: 5,9:1 no branco (WCAG AA) */
+  /* Sem dourado na interface: "ouro" agora segue a cor de destaque; atenção/pendente usa azul-ardósia */
+  --ouro-ink: var(--good-fg);
+  --attn-bg: rgba(94, 140, 166, .16);
+  --attn-fg: #2F5E78;
   --shadow-2: 0 2px 6px -2px rgba(11, 47, 41, .08), 0 28px 56px -32px rgba(11, 58, 49, .40);
   --glow: 0 0 0 1px rgba(52, 195, 155, .22), 0 12px 30px -10px rgba(20, 128, 107, .65), 0 0 22px -6px rgba(52, 195, 155, .45);
   --glass-edge: linear-gradient(145deg, rgba(255, 255, 255, 1), rgba(255, 255, 255, .4) 38%, rgba(11, 47, 41, .05) 72%, rgba(20, 128, 107, .22));
@@ -231,7 +233,9 @@ input[type="range"] { accent-color: var(--color-vivo); }
   --tip-fg: #F2F8F5;
 }
 :root[data-leco="dark"] {
-  --ouro-ink: #F2BC4B;   /* 8:1 no Verde Noite */
+  --ouro-ink: var(--good-fg);
+  --attn-bg: rgba(94, 140, 166, .26);
+  --attn-fg: #B5D6E8;
   --shadow-2: 0 2px 8px -2px rgba(0, 0, 0, .35), 0 32px 64px -30px rgba(2, 24, 19, .95);
   --glow: 0 0 0 1px rgba(110, 224, 188, .25), 0 12px 30px -10px rgba(2, 16, 13, .9), 0 0 26px -6px rgba(52, 195, 155, .55);
   /* borda translúcida em gradiente: branco 15% → 5% */
@@ -241,6 +245,8 @@ input[type="range"] { accent-color: var(--color-vivo); }
 }
 @layer components {
   .text-ouro-ink { color: var(--ouro-ink); }
+  .text-attn { color: var(--attn-fg); }
+  .bg-attn { background: var(--attn-bg); }
   /* Sombra dupla: contato curto + difusa verde profunda */
   .glass { box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow-2); }
   .glass-hero { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 2px 6px -2px rgba(11, 47, 41, .25), 0 34px 64px -30px rgba(15, 92, 77, .85); }
@@ -305,7 +311,7 @@ input[type="range"] { accent-color: var(--color-vivo); }
 @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@keyframes flash { 0%, 35% { background-color: rgba(232, 163, 23, .18); } 100% { background-color: rgba(232, 163, 23, 0); } }
+@keyframes flash { 0%, 35% { background-color: rgba(52, 195, 155, .16); } 100% { background-color: rgba(52, 195, 155, 0); } }
 @keyframes pop { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
 @keyframes popSmall { from { opacity: 0; transform: scale(.96) translateY(-4px); } to { opacity: 1; transform: none; } }
 @keyframes sheet { from { transform: translateY(100%); } to { transform: none; } }
@@ -399,7 +405,7 @@ html { touch-action: manipulation; }
 /* Tema escuro: textos secundários um pouco mais claros para leitura */
 :root[data-leco="dark"] .text-ink\/50, :root[data-leco="dark"] .text-ink\/55 { color: color-mix(in srgb, var(--ink) 68%, transparent); }
 :root[data-leco="dark"] .text-ink\/60, :root[data-leco="dark"] .text-ink\/65 { color: color-mix(in srgb, var(--ink) 76%, transparent); }
-:root[data-leco="dark"] .badge-gold { color: #2A1D00; }
+
 :root[data-leco="dark"] .bg-paper\/70 { background-color: color-mix(in srgb, var(--paper) 85%, transparent); }
 /* Alto contraste: textos sólidos, bordas mais fortes, vidro opaco */
 :root[data-contrast="1"] [class*="text-ink/"] { color: var(--ink) !important; }
@@ -420,3 +426,6 @@ html { touch-action: manipulation; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Dourado retirado: utilitários antigos "ouro" passam a usar a cor de destaque do tema */
+:root { --color-ouro: var(--color-vivo-hi); }

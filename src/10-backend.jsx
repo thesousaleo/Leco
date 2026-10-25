@@ -153,10 +153,10 @@ function createSupabaseBackend() {
 /* Banco em memória (só para testes locais)                            */
 /* ------------------------------------------------------------------ */
 const DEFAULT_CATEGORIES = [
-  ['Moradia', 'out', 'home', '#14806B'], ['Alimentação', 'out', 'utensils', '#E8A317'], ['Transporte', 'out', 'car', '#5E8CA6'],
+  ['Moradia', 'out', 'home', '#14806B'], ['Alimentação', 'out', 'utensils', '#C2507E'], ['Transporte', 'out', 'car', '#5E8CA6'],
   ['Saúde', 'out', 'heart', '#6B9E8F'], ['Lazer', 'out', 'film', '#F08A6B'], ['Educação', 'out', 'book', '#B8865B'],
   ['Compras', 'out', 'bag', '#D9644A'], ['Assinaturas', 'out', 'repeat', '#8C7AB8'], ['Contas e serviços', 'out', 'zap', '#7A8B3F'],
-  ['Outros gastos', 'out', 'tag', '#5E8CA6'], ['Salário', 'in', 'briefcase', '#14806B'], ['Investimentos', 'in', 'trend', '#E8A317'],
+  ['Outros gastos', 'out', 'tag', '#5E8CA6'], ['Salário', 'in', 'briefcase', '#14806B'], ['Investimentos', 'in', 'trend', '#3E7FA6'],
   ['Freelance', 'in', 'laptop', '#6B9E8F'], ['Outras receitas', 'in', 'gift', '#8C7AB8'],
 ];
 

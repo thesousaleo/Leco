@@ -83,12 +83,12 @@ function calendarEvents(d, from, to, today = todayISO()) {
   d.goals.filter((g) => g.remind_day && g.monthly_amount > 0 && g.saved < g.target).forEach((g) => {
     for (let k = monthKey(from); k <= monthKey(to); k = shiftMonth(k, 1)) {
       const dt = dayIn(k, g.remind_day);
-      if (dt >= from && dt <= to && dt >= today) ev.push({ id: `gr-${g.id}-${dt}`, date: dt, group: 'info', goal: g, title: `Guardar para ${g.name}`, sub: 'Meta automática', icon: 'piggy', color: '#E8A317', amount: g.monthly_amount, sign: '', tone: 'text-ink/70' });
+      if (dt >= from && dt <= to && dt >= today) ev.push({ id: `gr-${g.id}-${dt}`, date: dt, group: 'info', goal: g, title: `Guardar para ${g.name}`, sub: 'Meta automática', icon: 'piggy', color: '#14806B', amount: g.monthly_amount, sign: '', tone: 'text-ink/70' });
     }
   });
   d.goals.forEach((g) => {
     if (g.due && g.due >= from && g.due <= to) {
-      ev.push({ id: `g-${g.id}`, date: g.due, group: 'info', goal: g, title: `Prazo da meta: ${g.name}`, sub: `${fmtBRL(g.saved)} de ${fmtBRL(g.target)}`, icon: 'target', color: '#E8A317', amount: g.target, sign: '', tone: 'text-ink/70' });
+      ev.push({ id: `g-${g.id}`, date: g.due, group: 'info', goal: g, title: `Prazo da meta: ${g.name}`, sub: `${fmtBRL(g.saved)} de ${fmtBRL(g.target)}`, icon: 'target', color: '#14806B', amount: g.target, sign: '', tone: 'text-ink/70' });
     }
   });
   const order = { pay: 0, invoice: 1, receive: 2, info: 3, done: 4 };
@@ -182,7 +182,7 @@ function CalendarPage() {
     const out = [];
     if (list.some((e) => e.late)) out.push('bg-[#C24E2C]');
     else if (has('pay')) out.push('bg-out');
-    if (has('invoice')) out.push('bg-ouro');
+    if (has('invoice')) out.push('bg-[#5E8CA6]');
     if (has('receive')) out.push('bg-in');
     if (has('done') && out.length < 3) out.push('bg-ink/30');
     if (has('info') && out.length < 3) out.push('bg-[#5E8CA6]');
@@ -207,7 +207,7 @@ function CalendarPage() {
                 <span className="mt-1 flex h-1.5 gap-[3px]">{dots(list).map((c, i) => <i key={i} className={`size-1.5 rounded-full ${isSel ? 'bg-white' : c}`} />)}</span>
               ) : (
                 <span className="mt-1 min-w-0 space-y-0.5 text-left">
-                  {list.slice(0, 2).map((e) => <span key={e.id} className={`block truncate rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold ${isSel ? 'bg-white/15' : e.group === 'pay' ? 'bg-coral/15 text-out' : e.group === 'invoice' ? 'bg-ouro/20 text-ouro-ink' : e.group === 'receive' ? 'bg-vivo/15 text-in' : 'bg-ink/[0.05] text-ink/70'}`}>{e.title}</span>)}
+                  {list.slice(0, 2).map((e) => <span key={e.id} className={`block truncate rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold ${isSel ? 'bg-white/15' : e.group === 'pay' ? 'bg-coral/15 text-out' : e.group === 'invoice' ? 'bg-attn text-attn' : e.group === 'receive' ? 'bg-vivo/15 text-in' : 'bg-ink/[0.05] text-ink/70'}`}>{e.title}</span>)}
                   {list.length > 2 && <span className={`block px-1.5 text-[10px] font-bold ${isSel ? 'text-white/80' : 'text-ink/55'}`}>+{list.length - 2}</span>}
                   {!list.length && due === 0 ? null : null}
                 </span>
@@ -251,7 +251,7 @@ function CalendarPage() {
   const legend = (
     <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-semibold text-ink/65">
       <span className="flex items-center gap-1"><i className="size-2 rounded-full bg-out" />A pagar</span>
-      <span className="flex items-center gap-1"><i className="size-2 rounded-full bg-ouro" />Fatura</span>
+      <span className="flex items-center gap-1"><i className="size-2 rounded-full bg-[#5E8CA6]" />Fatura</span>
       <span className="flex items-center gap-1"><i className="size-2 rounded-full bg-in" />A receber</span>
       <span className="flex items-center gap-1"><i className="size-2 rounded-full bg-ink/30" />Pago</span>
       <span className="flex items-center gap-1"><i className="size-2 rounded-full bg-[#5E8CA6]" />Aviso</span>

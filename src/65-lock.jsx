@@ -209,7 +209,7 @@ function PageTip({ id }) {
   if (!text || seen.includes(id)) return null;
   return (
     <div className="rise mb-4 flex items-start gap-3 rounded-2xl border border-ouro/40 bg-ouro/10 px-4 py-3" role="note">
-      <Icon name="sparkle" size={18} className="mt-0.5 shrink-0 text-[#9A6205]" />
+      <Icon name="sparkle" size={18} className="mt-0.5 shrink-0 text-in" />
       <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-ink/85">{text}</p>
       <button type="button" className="shrink-0 text-xs font-bold text-in" onClick={() => setSeen([...seen, id])}>Entendi</button>
     </div>
