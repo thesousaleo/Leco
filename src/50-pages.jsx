@@ -376,8 +376,6 @@ function TransactionsPage() {
       {!narrow && (
         <PageHeader eyebrow="Transações" title="Movimentações">
           <button type="button" className="btn btn-ghost" onClick={exportPdf} disabled={pdfBusy}>{pdfBusy ? <Spinner size={14} /> : <Icon name="file" size={17} />}Gerar PDF</button>
-          <button type="button" className="btn btn-ghost" onClick={() => d.openModal({ kind: 'tx', defaultKind: 'in' })}><Icon name="inArrow" size={17} />Receita</button>
-          <button type="button" className="btn btn-primary" onClick={() => d.openModal({ kind: 'tx', defaultKind: 'out' })}><Icon name="plus" size={18} strokeWidth={2.4} />Despesa</button>
         </PageHeader>
       )}
       <Card>
@@ -471,7 +469,6 @@ function AccountsPage() {
   return (
     <div className="space-y-5">
       {!narrow && <PageHeader eyebrow="Contas e cartões" title={`Saldo total ${d.hide ? 'R$ ••••' : fmtBRL(total)}`}>
-        <button type="button" className="btn btn-ghost" onClick={() => d.openModal({ kind: 'tx', defaultKind: 'transfer' })}><Icon name="swap" size={17} />Transferir</button>
       </PageHeader>}
       <Card title="Contas" sub="Banco, carteira, poupança e investimentos" action={<button type="button" className="btn btn-primary !py-2 text-[13px]" onClick={() => d.openModal({ kind: 'account' })}><Icon name="plus" size={16} />Nova conta</button>}>
         {accs.length === 0 ? <EmptyState icon="bank" title="Nenhuma conta" text="Cadastre onde o seu dinheiro fica: conta do banco, carteira, poupança." /> : (
@@ -517,7 +514,6 @@ function AccountsPage() {
                     {s.nextToPay && <p className="mt-3 rounded-xl bg-coral/10 px-3 py-2 text-xs font-semibold text-out">Fatura de {invoiceLabel(s.nextToPay.invoice)} para pagar: {m(s.nextToPay.remaining)} até {fmtDate(s.nextToPay.due)}</p>}
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => d.openModal({ kind: 'invoice', card: c })}><Icon name="file" size={15} />Faturas</button>
-                      <button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => d.openModal({ kind: 'tx', defaultKind: 'out', presetSource: `card:${c.id}` })}><Icon name="plus" size={15} />Compra</button>
                     </div>
                   </div>
                 </li>

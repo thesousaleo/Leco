@@ -197,7 +197,7 @@ function UpdateBanner() {
 const PAGE_TIPS = {
   inicio: 'Este é o seu resumo. Toque no + para lançar, ou em "Rápido" para escrever como numa mensagem. Personalize os blocos em Configurações › Personalizar.',
   transacoes: 'No celular, arraste um lançamento para a esquerda para excluir ou para a direita para marcar como pago. Use Filtros e Gerar PDF no topo.',
-  calendario: 'Tudo o que tem data aparece aqui: contas, faturas, recorrências e metas. Toque num dia para ver e adicionar. Deslize para trocar de mês.',
+  calendario: 'Tudo o que tem data aparece aqui: contas, faturas, recorrências e metas. Toque num dia para ver o que vence. Deslize para trocar de mês. Para lançar, use o botão +.',
   relatorios: 'Escolha o período e veja para onde foi o dinheiro. Gere um PDF ou planilha para guardar ou enviar.',
   planejamento: 'Defina quanto quer gastar em cada categoria no mês e acompanhe planejado × realizado, a projeção do saldo e sua reserva.',
   dividas: 'Cadastre empréstimos, financiamentos ou dinheiro emprestado. Registre os pagamentos e acompanhe quanto falta.',

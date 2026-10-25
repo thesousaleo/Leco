@@ -173,7 +173,6 @@ function CalendarPage() {
   const agenda = shown.filter((e) => e.date >= first && e.date <= last);
   const agendaDays = [];
   agenda.forEach((e) => { const g = agendaDays[agendaDays.length - 1]; if (g && g.date === e.date) g.items.push(e); else agendaDays.push({ date: e.date, items: [e] }); });
-  const addOn = (date) => d.openModal({ kind: 'tx', presetDate: date, defaultKind: 'out' });
   // Exporta para Google Agenda / Outlook / Apple: abra o arquivo .ics no celular ou importe em calendar.google.com
   const exportIcs = () => d.exportFile('leco-agenda.ics', buildICS(d), 'text/calendar');
 
@@ -226,7 +225,6 @@ function CalendarPage() {
           <p className="truncate text-[16px] font-extrabold tracking-[-0.02em]">{dayTitle(sel)}</p>
           <p className="text-xs text-ink/65">{sel === today ? 'Hoje' : relDay(sel, today)}{selEvents.length ? ` · ${plural(selEvents.length, 'item', 'itens')}` : ''}</p>
         </div>
-        <button type="button" className="btn btn-primary shrink-0 !px-3.5 !py-2 text-[13px]" onClick={() => addOn(sel)}><Icon name="plus" size={15} strokeWidth={2.4} />Adicionar</button>
       </div>
       {selEvents.length ? <ul className="divide-y divide-ink/[0.07]">{selEvents.map((e) => <CalendarEvent key={e.id} e={e} />)}</ul>
         : <p className="py-5 text-center text-sm text-ink/65">Nada {filter === 'all' ? '' : 'com esse filtro '}neste dia.</p>}
@@ -276,13 +274,12 @@ function CalendarPage() {
         <div key={g.date}>
           <div className="mb-1 flex items-center justify-between px-1.5">
             <p className={`text-[11px] font-bold uppercase tracking-wider tabular-nums ${g.date === today ? 'text-in' : g.date < today ? 'text-ink/45' : 'text-ink/60'}`}>{dayTitle(g.date)}{g.date === today ? ' · hoje' : ''}</p>
-            <button type="button" className="text-[11px] font-bold text-in" onClick={() => addOn(g.date)}>+ adicionar</button>
           </div>
           <ul className="divide-y divide-ink/[0.07]">{g.items.map((e) => <CalendarEvent key={e.id} e={e} />)}</ul>
         </div>
       ))}
     </div>
-  ) : <EmptyState icon="calendar" title="Nada neste mês" text="Contas a pagar, faturas, recebimentos e recorrências aparecem aqui automaticamente." action={<button type="button" className="btn btn-primary" onClick={() => addOn(month === monthKey(today) ? today : first)}><Icon name="plus" size={16} />Adicionar conta</button>} />;
+  ) : <EmptyState icon="calendar" title="Nada neste mês" text="Contas a pagar, faturas, recebimentos e recorrências aparecem aqui automaticamente." />;
 
   if (narrow) {
     return (
@@ -309,7 +306,6 @@ function CalendarPage() {
       <PageHeader eyebrow="Calendário" title={monthLabel(month)}>
         <button type="button" className="btn btn-ghost" onClick={exportIcs}><Icon name="download" size={17} />Google Agenda</button>
         <button type="button" className="btn btn-ghost" onClick={goToday}><Icon name="calendar" size={17} />Hoje</button>
-        <button type="button" className="btn btn-primary" onClick={() => addOn(sel)}><Icon name="plus" size={18} strokeWidth={2.4} />Nova conta</button>
       </PageHeader>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
         <Card>

@@ -631,12 +631,6 @@ function SideDrawer({ open, onClose }) {
         <ul className="space-y-0.5">{MOBILE_MENU.map((it) => row(it, d.page === it.id, () => go(() => d.go(it.id))))}</ul>
         <p className="mb-1 mt-5 px-3 text-[11px] font-bold uppercase tracking-wider text-ink/50">Ferramentas</p>
         <ul className="space-y-0.5">
-          <li>
-            <ScanButton onFile={(f) => { onClose(); setTimeout(() => d.openModal({ kind: 'tx', scanFile: f }), 160); }} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left active:bg-ink/[0.06]">
-              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-ink/[0.06]"><Icon name="camera" size={17} /></span>
-              <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-bold">Ler comprovante com IA</span><span className="block truncate text-[11.5px] text-ink/60">Foto da nota, cupom, Pix ou boleto</span></span>
-            </ScanButton>
-          </li>
           {MOBILE_ACTIONS.map((it) => row(it, false, () => go(() => it.fn(d))))}
         </ul>
         <div className="mt-auto pt-6">

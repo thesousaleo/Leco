@@ -307,6 +307,21 @@ try {
     await wait(400);
   }
 
+  step('Nova transação só pelo + e pelos atalhos do Início');
+  {
+    await page.evaluate(() => window.__leco().go('calendario'));
+    await wait(600);
+    ok(await page.getByRole('button', { name: /^(\+ )?adicionar$|Adicionar conta|Nova conta/i }).count() === 0, 'calendário sem botão de adicionar');
+    await page.getByRole('button', { name: 'Abrir menu' }).first().click();
+    await wait(450);
+    ok(await page.getByRole('navigation', { name: 'Menu' }).getByRole('button', { name: /Ler comprovante/ }).count() === 0, 'menu lateral sem atalho de lançamento');
+    await page.keyboard.press('Escape');
+    await wait(400);
+    await page.evaluate(() => window.__leco().go('inicio'));
+    await wait(500);
+    ok(await page.locator('.fab-corner').count() === 1 && await page.getByRole('button', { name: 'Ler comprovante com IA' }).count() > 0, 'botão + e atalhos do Início continuam');
+  }
+
   step('Tema não volta ao atualizar');
   {
     const prev = await page.evaluate(() => window.__leco().prefs.theme);
