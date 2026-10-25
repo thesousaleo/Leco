@@ -258,14 +258,13 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
   const canSplit = kind === 'out' && !editing && !repeat;
   const canRepeat = kind !== 'transfer' && !editing && installments === 1;
   // Atalhos: Parcelada e Assinatura
-  const shortcutSplit = () => { switchKind('out'); setRepeat(false); setInstallments((n) => (n > 1 ? 1 : 2)); };
-  const shortcutSub = () => {
-    switchKind('out'); setInstallments(1);
-    const turnOn = !repeat;
-    setRepeat(turnOn);
-    if (turnOn) { setFreq('monthly'); const sub = d.categories.find((c) => c.kind === 'out' && !c.archived && /assinatura/i.test(c.name)); if (sub) setCat(sub.id); }
+  // À vista / Parcelado / Repete (assinatura, conta fixa ou receita fixa)
+  const setPayMode = (m) => {
+    if (m === 'once') { setRepeat(false); setInstallments(1); }
+    if (m === 'parcel') { setRepeat(false); setSplit(false); setInstallments((n) => (n > 1 ? n : 2)); }
+    if (m === 'repeat') { setInstallments(1); setSplit(false); setRepeat(true); setFreq((f) => f || 'monthly'); }
   };
-  const switchKind = (k) => { setKind(k); if (cat && (d.categories.find((c) => c.id === cat) || {}).kind !== k) setCat(null); };
+  const switchKind = (k) => { setKind(k); if (k !== 'out') setInstallments(1); if (k === 'transfer') setRepeat(false); if (cat && (d.categories.find((c) => c.id === cat) || {}).kind !== k) setCat(null); };
   const fallbackCat = (k) => { const n = k === 'in' ? 'outras receitas' : 'outros gastos'; const c = d.categories.find((x) => x.kind === k && x.name.toLowerCase() === n); return c ? c.id : firstCat(k); };
   const catList = d.categories.filter((c) => c.kind === kind && (!c.archived || c.id === cat));
   const catTop = catList.filter((c) => !c.parent_id || !catList.some((p) => p.id === c.parent_id));
@@ -394,36 +393,20 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
   return (
     <Sheet variant={sheetVariant()} onClose={onClose} titleId={titleId} onSubmit={submit}>
       <SheetHead id={titleId} title={editing ? 'Editar transação' : 'Nova transação'} sub={editing && initial.installments ? `Parcela ${initial.installment} de ${initial.installments}. A edição vale só para esta parcela.` : undefined} onClose={onClose} />
-      {!editing && (
-        <div className="-mt-2 mb-1 flex items-start gap-1.5">
-          <button type="button" onClick={() => { onClose(); setTimeout(() => d.openModal({ kind: 'quick' }), 240); }} className="flex shrink-0 items-center gap-1 rounded-full border border-ouro/60 bg-ouro/15 py-1.5 pl-2 pr-3 text-[12.5px] font-bold text-ink"><Icon name="bolt" size={14} />Rápido</button>
-          <ScanButton onFile={doScan} className="flex shrink-0 items-center gap-1 rounded-full border border-vivo/50 bg-vivo/10 py-1.5 pl-2 pr-3 text-[12.5px] font-bold text-ink"><Icon name="camera" size={14} />Comprovante</ScanButton>
-          {v3 && <div className="min-w-0 flex-1"><TemplateChips kind={kind} onPick={applyTemplate} /></div>}
-        </div>
-      )}
+      {!editing && <AutoFill kind={kind} onScan={doScan} onQuick={() => { onClose(); setTimeout(() => d.openModal({ kind: 'quick' }), 240); }} onTemplate={v3 ? applyTemplate : null} />}
       <ScanStatus state={scan} />
       {initial && initial.kind === 'card_payment' ? (
         <p className="rounded-2xl bg-ink/[0.04] p-4 text-[13px] text-ink/75">Pagamentos de fatura não podem ser editados. Exclua e registre de novo, se precisar.</p>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Tipo de transação">
-            {[{ v: 'out', l: 'Despesa', i: 'up', tone: 'border-coral/60 bg-coral/15 text-out' }, { v: 'in', l: 'Receita', i: 'inArrow', tone: 'border-vivo/50 bg-vivo/15 text-in' }, { v: 'transfer', l: 'Transferir', i: 'swap', tone: 'border-[#5E8CA6]/60 bg-[#5E8CA6]/15 text-ink' }].map((o) => (
-              <button key={o.v} type="button" role="radio" aria-checked={kind === o.v} disabled={editing && initial.kind !== o.v && (initial.kind === 'transfer' || o.v === 'transfer')} onClick={() => switchKind(o.v)}
-                className={`flex items-center justify-center gap-1.5 rounded-2xl border py-3 text-[13px] font-bold transition-all disabled:opacity-35 ${kind === o.v ? o.tone : 'border-ink/10 bg-ink/[0.03] text-ink/70 hover:text-ink'}`}>
-                <Icon name={o.i} size={15} strokeWidth={2.2} />{o.l}
+          <div className="grid grid-cols-3 gap-1 rounded-2xl border border-ink/10 bg-ink/[0.03] p-1" role="radiogroup" aria-label="Tipo de transação">
+            {[{ v: 'out', l: 'Despesa', i: 'up', tone: 'bg-coral/15 text-out shadow-[inset_0_0_0_1px_rgba(224,113,79,.45)]' }, { v: 'in', l: 'Receita', i: 'inArrow', tone: 'bg-vivo/15 text-in shadow-[inset_0_0_0_1px_rgba(20,128,107,.4)]' }, { v: 'transfer', l: 'Transferência', i: 'swap', tone: 'bg-[#5E8CA6]/15 text-ink shadow-[inset_0_0_0_1px_rgba(94,140,166,.5)]' }].map((o) => (
+              <button key={o.v} type="button" role="radio" aria-checked={kind === o.v} aria-label={o.l} disabled={editing && initial.kind !== o.v && (initial.kind === 'transfer' || o.v === 'transfer')} onClick={() => switchKind(o.v)}
+                className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-bold transition-all disabled:opacity-35 ${kind === o.v ? o.tone : 'text-ink/65 hover:text-ink'}`}>
+                <Icon name={o.i} size={15} strokeWidth={2.2} /><span className="truncate">{o.v === 'transfer' ? <><span className="max-[380px]:hidden">Transferência</span><span className="hidden max-[380px]:inline">Transferir</span></> : o.l}</span>
               </button>
             ))}
           </div>
-          {!editing && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {[{ on: installments > 1, l: 'Parcelada', i: 'card', fn: shortcutSplit }, { on: repeat && kind === 'out', l: 'Assinatura', i: 'repeat', fn: shortcutSub }].map((o) => (
-                <button key={o.l} type="button" aria-pressed={o.on} onClick={o.fn}
-                  className={`flex items-center justify-center gap-1.5 rounded-2xl border py-2.5 text-[12.5px] font-bold transition-all ${o.on ? 'border-ouro bg-ouro/25 text-ink shadow-[0_0_0_3px_rgba(232,163,23,.18)]' : 'border-ink/10 bg-ink/[0.03] text-ink/70 hover:text-ink'}`}>
-                  <Icon name={o.i} size={15} strokeWidth={2.2} />{o.l}
-                </button>
-              ))}
-            </div>
-          )}
           <Field label="Valor" error={errors.amount} className="mt-5">
             <MoneyInput id="tx-amount" label="Valor" cents={amount} onChange={setAmount} invalid={errors.amount}
               className={`!py-3 text-[30px] font-extrabold tracking-[-0.02em] ${kind === 'in' ? 'text-in' : kind === 'out' ? 'text-out' : ''}`} />
@@ -491,12 +474,33 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
                   {kind === 'out' && cards.length > 0 && <optgroup label="Cartões de crédito">{cards.map((c) => <option key={c.id} value={`card:${c.id}`}>{c.name} (crédito)</option>)}</optgroup>}
                 </select>
               </Field>
-              {canSplit && (
-                <Field label="Parcelas" className="mt-4" hint={card ? `${installments > 1 ? `${installments}x de ${fmtBRL(perInstallment)} · ` : ''}primeira parcela na fatura de ${invoiceLabel(invoiceOf(card, date || todayISO()))}` : installments > 1 ? `${installments}x de ${fmtBRL(perInstallment)} · 1ª em ${fmtDate(date || todayISO())}, depois todo dia ${Number((date || todayISO()).slice(8, 10))}. As próximas ficam "a pagar".` : 'Boleto, carnê ou Pix parcelado: cria as parcelas nos próximos meses.'}>
-                  <select id="tx-inst" className="field" value={installments} onChange={(e) => setInstallments(Number(e.target.value))}>
-                    {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? 'À vista' : `${n}x`}</option>)}
-                  </select>
-                </Field>
+              {!editing && (
+                <div className="mt-4">
+                  <span className="lbl">{kind === 'in' ? 'Frequência' : 'Forma de pagamento'}</span>
+                  <div className="mt-2">
+                    <Segmented full size="sm" label={kind === 'in' ? 'Frequência' : 'Forma de pagamento'} value={repeat ? 'repeat' : installments > 1 ? 'parcel' : 'once'} onChange={setPayMode}
+                      options={kind === 'in' ? [{ value: 'once', label: 'Uma vez' }, { value: 'repeat', label: 'Repete' }] : [{ value: 'once', label: 'À vista' }, { value: 'parcel', label: 'Parcelado' }, { value: 'repeat', label: 'Repete' }]} />
+                  </div>
+                  {installments > 1 && canSplit && (
+                    <Field label="Número de parcelas" className="mt-3" hint={card ? `${installments}x de ${fmtBRL(perInstallment)} · primeira parcela na fatura de ${invoiceLabel(invoiceOf(card, date || todayISO()))}` : `${installments}x de ${fmtBRL(perInstallment)} · 1ª em ${fmtDate(date || todayISO())}, depois todo dia ${Number((date || todayISO()).slice(8, 10))}. As próximas ficam "a pagar".`}>
+                      <select id="tx-inst" className="field" value={installments} onChange={(e) => setInstallments(Number(e.target.value))}>
+                        {Array.from({ length: 23 }, (_, i) => i + 2).map((n) => <option key={n} value={n}>{n}x</option>)}
+                      </select>
+                    </Field>
+                  )}
+                  {repeat && (
+                    <div className="mt-3 grid gap-3 rounded-2xl border border-ink/[0.08] bg-ink/[0.02] p-3 sm:grid-cols-2">
+                      <p className="text-xs leading-relaxed text-ink/70 sm:col-span-2">{isCard ? 'Cai em toda fatura do cartão, sem precisar lançar de novo (ex.: Netflix, Spotify).' : 'O Leco lança sozinho nas próximas datas como "a pagar" e avisa antes (ex.: aluguel, academia, salário).'}</p>
+                      <div className="min-w-0">
+                        <span className="lbl">Repete</span>
+                        <div className="mt-2"><Segmented full size="sm" label="Frequência" value={freq} onChange={setFreq} options={[{ value: 'weekly', label: 'Semanal' }, { value: 'monthly', label: 'Mensal' }, { value: 'yearly', label: 'Anual' }]} /></div>
+                      </div>
+                      <Field label="Até (opcional)" error={errors.end} hint={endDate ? fmtDate(endDate) : 'Sem data de fim'}>
+                        <input id="tx-end" type="date" className="field" value={endDate} min={date} onChange={(e) => setEndDate(e.target.value)} />
+                      </Field>
+                    </div>
+                  )}
+                </div>
               )}
             </>
           )}
@@ -512,24 +516,6 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
               </div>
             )}
           </div>
-          {canRepeat && (
-            <div className="mt-4 rounded-2xl border border-ink/[0.08] bg-ink/[0.02] px-3.5">
-              <Toggle id="tx-repeat" icon="repeat" label={kind === 'in' ? 'Repetir (receita fixa)' : 'Repetir (assinatura ou conta fixa)'}
-                desc={repeat ? (isCard ? 'Cai em toda fatura do cartão, sem precisar lançar de novo.' : 'O Leco lança sozinho nas próximas datas como "a pagar" e avisa antes.') : 'Netflix, academia, aluguel, salário…'}
-                checked={repeat} onChange={setRepeat} />
-              {repeat && (
-                <div className="grid gap-3 pb-3.5 sm:grid-cols-2">
-                  <div className="min-w-0">
-                    <span className="lbl">Frequência</span>
-                    <div className="mt-2"><Segmented full size="sm" label="Frequência" value={freq} onChange={setFreq} options={[{ value: 'weekly', label: 'Semanal' }, { value: 'monthly', label: 'Mensal' }, { value: 'yearly', label: 'Anual' }]} /></div>
-                  </div>
-                  <Field label="Até (opcional)" error={errors.end} hint={endDate ? fmtDate(endDate) : 'Sem data de fim'}>
-                    <input id="tx-end" type="date" className="field" value={endDate} min={date} onChange={(e) => setEndDate(e.target.value)} />
-                  </Field>
-                </div>
-              )}
-            </div>
-          )}
           <button type="button" className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-ink/[0.08] bg-ink/[0.02] px-3.5 py-2.5 text-left" aria-expanded={more} onClick={() => setMore((v) => !v)}>
             <Icon name="layers" size={17} className="shrink-0" />
             <span className="min-w-0 flex-1">

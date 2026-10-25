@@ -113,7 +113,7 @@ function TemplateChips({ kind, onPick }) {
   const list = (d.templates || []).filter((t) => kind === 'transfer' || !kind || t.kind === kind).sort((a, b) => b.uses - a.uses).slice(0, 10);
   if (!list.length) return null;
   return (
-    <div className="no-scrollbar -mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1">
+    <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1">
       {list.map((t) => {
         const cat = d.categories.find((c) => c.id === t.category_id);
         return (
@@ -201,14 +201,82 @@ async function readReceiptFile(d, file) {
   });
 }
 
-// Botão que abre a câmera/galeria (o arquivo precisa ser escolhido no toque do próprio botão)
+// Botão de leitura de comprovante: no celular pergunta se é para tirar a foto agora ou escolher um arquivo.
+// (o arquivo precisa ser escolhido no toque do próprio botão, por isso os campos ficam escondidos aqui)
+const TOUCH_UI = NATIVE || !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 function ScanButton({ onFile, className = '', children, label = 'Ler comprovante com IA' }) {
-  const ref = useRef(null);
+  const cam = useRef(null);
+  const file = useRef(null);
+  const [menu, setMenu] = useState(false);
+  const pick = (e) => { const f = e.target.files && e.target.files[0]; if (f) onFile(f); e.target.value = ''; };
+  const open = () => { haptic(); if (!TOUCH_UI) { if (file.current) file.current.click(); return; } setMenu(true); };
   return (
     <>
-      <button type="button" className={className} aria-label={label} onClick={() => { haptic(); if (ref.current) ref.current.click(); }}>{children}</button>
-      <input ref={ref} type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) onFile(f); e.target.value = ''; }} />
+      <button type="button" className={className} aria-label={label} onClick={open}>{children}</button>
+      <input ref={cam} type="file" accept="image/*" capture="environment" className="hidden" onChange={pick} data-scan="camera" />
+      <input ref={file} type="file" accept="image/*,application/pdf" className="hidden" onChange={pick} data-scan="file" />
+      {menu && ReactDOM.createPortal(
+        <ScanMenu onClose={() => setMenu(false)}
+          onCamera={() => { setMenu(false); if (cam.current) cam.current.click(); }}
+          onFile={() => { setMenu(false); if (file.current) file.current.click(); }} />, document.body)}
     </>
+  );
+}
+
+function ScanMenu({ onCamera, onFile, onClose }) {
+  useEffect(() => { const k = (e) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  const Opt = ({ icon, title, sub, fn, primary }) => (
+    <button type="button" onClick={fn} className={`tap flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 text-left ${primary ? 'bg-vivo/12 border border-vivo/30' : 'border border-ink/10 bg-ink/[0.03]'}`}>
+      <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${primary ? 'bg-gradient-to-br from-vivo to-leco text-white' : 'bg-ink/[0.06] text-ink'}`}><Icon name={icon} size={20} /></span>
+      <span className="min-w-0"><span className="block text-[14.5px] font-bold">{title}</span><span className="block text-xs text-ink/65">{sub}</span></span>
+    </button>
+  );
+  return (
+    <div className="overlay-in fixed inset-0 z-[95] flex items-end justify-center" style={{ background: 'var(--scrim)' }} onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label="Ler comprovante" className="glass-deep sheet-in w-full max-w-[520px] rounded-b-none rounded-t-[28px] p-4 pb-[calc(20px+var(--safe-bottom))]">
+        <div className="mb-2 flex justify-center"><span className="h-1.5 w-10 rounded-full bg-ink/20" /></div>
+        <p className="px-1 text-[17px] font-extrabold tracking-[-0.02em]">Ler comprovante</p>
+        <p className="mb-3 px-1 text-xs text-ink/65">A IA lê valor, data e loja e preenche o lançamento para você conferir.</p>
+        <div className="space-y-2">
+          <Opt primary icon="camera" title="Tirar foto agora" sub="Abre a câmera. Enquadre o cupom inteiro." fn={onCamera} />
+          <Opt icon="image" title="Escolher da galeria ou PDF" sub="Print de Pix, foto salva ou arquivo." fn={onFile} />
+        </div>
+        <button type="button" className="btn btn-ghost mt-3 w-full" onClick={onClose}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+// Faixa "Preencher automaticamente": comprovante (foto/arquivo), texto livre e modelos, num lugar só e recolhida
+function AutoFill({ kind, onScan, onQuick, onTemplate }) {
+  const d = useApp();
+  const [open, setOpen] = useState(false);
+  const hasTemplates = !!onTemplate && (d.templates || []).some((t) => kind === 'transfer' || t.kind === kind);
+  return (
+    <div className="-mt-1 mb-4 rounded-2xl border border-ink/[0.08] bg-ink/[0.02]">
+      <button type="button" className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-vivo/12 text-in"><Icon name="sparkle" size={16} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13.5px] font-bold">Preencher automaticamente</span>
+          <span className="block truncate text-xs text-ink/60">{hasTemplates ? 'Foto, mensagem ou modelo' : 'Foto do comprovante ou mensagem'}</span>
+        </span>
+        <Icon name={open ? 'chevUp' : 'chevDown'} size={16} className="shrink-0 text-ink/60" />
+      </button>
+      {open && (
+        <div className="rise px-3 pb-3">
+          <div className="grid grid-cols-2 gap-2">
+            <ScanButton onFile={onScan} className="tap flex items-center gap-2 rounded-xl border border-vivo/35 bg-vivo/10 px-3 py-2.5 text-left text-[13px] font-bold"><Icon name="camera" size={17} className="shrink-0 text-in" /><span className="min-w-0">Comprovante<span className="block text-[11px] font-semibold text-ink/60">Foto ou PDF · IA</span></span></ScanButton>
+            <button type="button" onClick={onQuick} className="tap flex items-center gap-2 rounded-xl border border-ink/10 bg-ink/[0.03] px-3 py-2.5 text-left text-[13px] font-bold"><Icon name="bolt" size={17} className="shrink-0 text-ouro-ink" /><span className="min-w-0">Escrever<span className="block text-[11px] font-semibold text-ink/60">"mercado 45 ontem"</span></span></button>
+          </div>
+          {hasTemplates && (
+            <div className="mt-3">
+              <span className="lbl">Modelos</span>
+              <div className="mt-2"><TemplateChips kind={kind} onPick={(t) => { onTemplate(t); setOpen(false); }} /></div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

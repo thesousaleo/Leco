@@ -100,7 +100,7 @@ try {
 
   step('Parcelado no boleto (conta)');
   await fab();
-  await dlg().getByRole('button', { name: 'Parcelada', exact: true }).click();
+  await dlg().getByText('Parcelado', { exact: true }).click();
   await money('#tx-amount', 120000);
   await page.fill('#tx-desc', 'Geladeira');
   await page.selectOption('#tx-inst', '6');
@@ -138,7 +138,7 @@ try {
 
   step('Assinatura no cartão com etiqueta');
   await fab();
-  await dlg().getByRole('button', { name: 'Assinatura', exact: true }).click();
+  await dlg().getByText('Repete', { exact: true }).click();
   await money('#tx-amount', 5590);
   await page.fill('#tx-desc', 'Netflix');
   await page.selectOption('#tx-source', { label: 'Roxinho (crédito)' });
@@ -158,6 +158,8 @@ try {
   await dlg().getByRole('button', { name: 'Cancelar' }).click();
   await wait(400);
   await fab();
+  await dlg().getByRole('button', { name: /Preencher automaticamente/ }).click();
+  await wait(300);
   await dlg().getByRole('button', { name: /Almoço/ }).first().click();
   ok((await page.inputValue('#tx-desc')) === 'Almoço', 'modelo preenche o formulário');
   await dlg().getByRole('button', { name: 'Cancelar' }).click();
@@ -292,6 +294,18 @@ try {
   for (const k of '1234') await page.getByRole('dialog', { name: 'App bloqueado' }).getByRole('button', { name: k, exact: true }).click();
   await wait(600);
   ok(await page.getByRole('dialog', { name: 'App bloqueado' }).count() === 0, 'PIN certo desbloqueia');
+
+  step('Comprovante: tirar foto ou escolher arquivo');
+  {
+    await page.evaluate(() => window.__leco().go('inicio'));
+    await wait(500);
+    await page.getByRole('button', { name: 'Ler comprovante com IA' }).first().click();
+    await wait(400);
+    ok(await page.getByRole('button', { name: /Tirar foto agora/ }).count() === 1 && await page.getByRole('button', { name: /Escolher da galeria/ }).count() === 1, 'pergunta se tira foto ou escolhe arquivo');
+    ok(await page.locator('input[data-scan="camera"][capture="environment"]').count() > 0, 'opção da câmera abre a câmera traseira');
+    await page.getByRole('button', { name: 'Cancelar' }).last().click();
+    await wait(400);
+  }
 
   step('Tema não volta ao atualizar');
   {

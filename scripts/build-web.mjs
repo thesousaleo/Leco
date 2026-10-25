@@ -31,7 +31,7 @@ const candidates = [...new Set(src.replace(/\$\{/g, ' ').split(/[\s"'`]+/).map((
 const css = (await esbuild.transform(compiler.build(candidates), { loader: 'css', minify: true })).code;
 
 // 2. Bibliotecas
-let entry = "import * as R from 'react'; import * as D from 'react-dom/client'; window.React = R; window.ReactDOM = D;\n";
+let entry = "import * as R from 'react'; import * as D from 'react-dom/client'; import { createPortal } from 'react-dom'; window.React = R; window.ReactDOM = { ...D, createPortal };\n";
 entry += "import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'; window.LecoPDF = { PDFDocument, StandardFonts, rgb };\n";
 if (mode !== 'test') entry += "import { createClient } from '@supabase/supabase-js'; window.LecoSupabase = { createClient };\n";
 if (mode === 'native') {
