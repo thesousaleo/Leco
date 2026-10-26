@@ -430,11 +430,21 @@ async function scheduleReminders(d) {
     if (!d.profile.notify_bills) return;
     const before = d.profile.bill_days_before || 0;
     const today = todayISO(), limit = addDays(today, 60);
-    const at = (iso) => { const day = addDays(iso, -before); const dt = new Date(`${day < today ? today : day}T09:00:00`); if (dt <= new Date()) dt.setTime(Date.now() + 60000); return dt; };
+    const now = new Date();
+    const nine = (iso) => new Date(`${iso}T09:00:00`);
     const list = [];
-    d.transactions.filter((t) => !t.paid && t.kind === 'out' && t.date >= today && t.date <= limit).forEach((t) => list.push({ id: hashId(`t${t.id}`), title: `Conta a pagar: ${t.description}`, body: `${fmtBRL(t.amount)} vence ${fmtDate(t.date)}.`, schedule: { at: at(t.date), allowWhileIdle: true } }));
+    // Dois lembretes por conta: X dias antes (se configurado) e no próprio dia do vencimento, às 9h.
+    // Só agenda horários futuros, para não repetir aviso toda vez que o app abre.
+    const remind = (key, title, amount, due) => {
+      const early = addDays(due, -before);
+      if (before > 0 && early < due && nine(early) > now) {
+        list.push({ id: hashId(`${key}:a`), title, body: `${fmtBRL(amount)} vence ${before === 1 ? 'amanhã' : `em ${before} dias`} (${fmtDate(due)}).`, schedule: { at: nine(early), allowWhileIdle: true } });
+      }
+      if (nine(due) > now) list.push({ id: hashId(`${key}:d`), title, body: `${fmtBRL(amount)} vence hoje (${fmtDate(due)}).`, schedule: { at: nine(due), allowWhileIdle: true } });
+    };
+    d.transactions.filter((t) => !t.paid && t.kind === 'out' && t.date >= today && t.date <= limit).forEach((t) => remind(`t${t.id}`, `Conta a pagar: ${t.description}`, t.amount, t.date));
     d.cards.filter((c) => !c.archived).forEach((c) => {
-      cardSummary(c, d.transactions).invoices.filter((i) => i.remaining > 0 && i.due >= today && i.due <= limit).forEach((i) => list.push({ id: hashId(`f${c.id}${i.invoice}`), title: `Fatura ${c.name}`, body: `${fmtBRL(i.remaining)} vence ${fmtDate(i.due)}.`, schedule: { at: at(i.due), allowWhileIdle: true } }));
+      cardSummary(c, d.transactions).invoices.filter((i) => i.remaining > 0 && i.due >= today && i.due <= limit).forEach((i) => remind(`f${c.id}${i.invoice}`, `Fatura ${c.name}`, i.remaining, i.due));
     });
     if (list.length) await LN.schedule({ notifications: list.slice(0, 60) });
   } catch (e) { /* lembretes são opcionais */ }
