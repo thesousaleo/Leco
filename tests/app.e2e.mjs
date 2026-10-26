@@ -341,6 +341,39 @@ try {
     ok(acc && String(acc.icon).startsWith('data:image/') && String(acc.icon).length < 20000, 'conta salva com a imagem pequena', acc ? String(acc.icon).length : 'sem conta');
   }
 
+  step('Notificações personalizadas');
+  {
+    await page.evaluate(() => { const d = window.__leco(); d.setSettingsSub('notificacoes'); d.go('config'); });
+    await wait(600);
+    await page.fill('#nt-time', '07:30');
+    await page.getByRole('switch', { name: 'Recebimentos' }).click();
+    await page.getByRole('switch', { name: 'Lembrete para registrar os gastos' }).click();
+    await wait(300);
+    await page.fill('#nt-daily-time', '21:15');
+    await wait(1200);
+    const n = await page.evaluate(() => window.__leco().prefs.notif);
+    ok(n && n.time === '07:30' && n.receive === true && n.daily === true && n.dailyTime === '21:15', 'horário e tipos de aviso salvos', JSON.stringify(n));
+  }
+
+  step('Agenda de lembretes');
+  {
+    const r = await page.evaluate(async () => {
+      const d = window.__leco();
+      const out = [];
+      const LN = { checkPermissions: async () => ({ display: 'granted' }), getPending: async () => ({ notifications: [] }), cancel: async () => {}, schedule: async ({ notifications }) => { out.push(...notifications); } };
+      const tomorrow = addDays(todayISO(), 1);
+      const fake = { ...d, transactions: [...d.transactions, { id: 'x1', kind: 'out', paid: false, date: tomorrow, amount: 12345, description: 'Luz teste' }, { id: 'x2', kind: 'in', paid: false, date: tomorrow, amount: 500000, description: 'Salário teste' }], profile: { ...d.profile, notify_bills: true, bill_days_before: 2 } };
+      await window.__scheduleReminders(fake, { notif: { time: '07:30', receive: true, daily: true, dailyTime: '21:15' } }, LN);
+      const luz = out.filter((n) => /Luz teste/.test(n.title));
+      const sal = out.filter((n) => /Salário teste/.test(n.title));
+      const daily = out.find((n) => n.schedule.on);
+      return { luz: luz.map((n) => [n.schedule.at.getHours(), n.schedule.at.getMinutes(), n.body]), sal: sal.length, daily: daily ? [daily.schedule.on.hour, daily.schedule.on.minute] : null };
+    });
+    ok(r.luz.length === 1 && r.luz[0][0] === 7 && r.luz[0][1] === 30 && /vence hoje/.test(r.luz[0][2]), 'conta de amanhã: aviso no dia, no horário escolhido', JSON.stringify(r.luz));
+    ok(r.sal === 1, 'recebimento também avisa');
+    ok(r.daily && r.daily[0] === 21 && r.daily[1] === 15, 'lembrete diário no horário escolhido');
+  }
+
   step('Tema não volta ao atualizar');
   {
     const prev = await page.evaluate(() => window.__leco().prefs.theme);

@@ -304,28 +304,67 @@ function SupportSettings() {
 function NotifSettings() {
   const d = useApp();
   const p = d.profile;
+  const N = notifPrefs(d.prefs);
+  const setN = (patch) => d.setPrefs({ notif: { ...N, ...patch } });
   const [perm, setPerm] = useState(null);
   const LN = Native.LocalNotifications;
   useEffect(() => { if (LN) LN.checkPermissions().then((r) => setPerm(r.display)).catch(() => {}); }, []);
   const ask = async () => { try { const r = await LN.requestPermissions(); setPerm(r.display); if (r.display === 'granted') d.toast('Notificações ativadas'); } catch (e) { d.toast('Não foi possível ativar as notificações.', null, true); } };
+  const test = async () => { try { if (await testNotification()) d.toast('Teste enviado: a notificação chega em 3 segundos'); else d.toast('Permita as notificações primeiro.', null, true); } catch (e) { d.toast('Não foi possível enviar o teste.', null, true); } };
+  const bills = p.notify_bills !== false;
+  const timeField = (id, value, onChange, disabled) => (
+    <input id={id} type="time" className="field !w-[130px] tabular-nums" value={value} disabled={disabled} onChange={(e) => { if (e.target.value) onChange(e.target.value); }} />
+  );
   return (
     <div className="space-y-5">
-      {LN && (
-        <Panel title="Notificações do celular" sub={perm === 'granted' ? 'Ativadas. O Leco avisa no celular antes dos vencimentos, mesmo com o app fechado.' : 'Permita que o Leco mostre lembretes no celular.'}>
-          {perm !== 'granted' && <button type="button" className="btn btn-primary mt-3" onClick={ask}><Icon name="bell" size={16} />Permitir notificações</button>}
+      {LN ? (
+        <Panel title="Notificações do celular" sub={perm === 'granted' ? 'Ativadas. Os lembretes chegam mesmo com o app fechado.' : 'Permita que o Leco mostre lembretes no celular.'}>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {perm !== 'granted' && <button type="button" className="btn btn-primary" onClick={ask}><Icon name="bell" size={16} />Permitir notificações</button>}
+            {perm === 'granted' && <button type="button" className="btn btn-ghost" onClick={test}><Icon name="bell" size={16} />Enviar notificação de teste</button>}
+          </div>
         </Panel>
+      ) : (
+        <p className="rounded-2xl bg-attn px-4 py-3 text-xs leading-relaxed text-ink/80">As notificações chegam pelo app do Leco no celular (Android). Estas escolhas valem para todos os seus aparelhos.</p>
       )}
-      <Panel title="O que avisar">
+
+      <Panel title="Horário dos lembretes" sub="Os avisos de contas, faturas, recebimentos e metas chegam neste horário.">
+        <div className="mt-3 flex items-center gap-3">{timeField('nt-time', N.time, (v) => setN({ time: v }))}<span className="text-xs text-ink/60">Ex.: 08:00 para ver antes de sair de casa.</span></div>
+      </Panel>
+
+      <Panel title="Contas e faturas">
         <div className="divide-y divide-ink/[0.07]">
-          <Toggle id="nt-bills" icon="calendar" label="Contas a pagar e faturas" desc="Lembretes de vencimento das contas pendentes e das faturas dos cartões." checked={p.notify_bills} onChange={(v) => d.saveProfile({ notify_bills: v })} />
-          <Toggle id="nt-budget" icon="alert" label="Orçamento perto do limite" desc="Quando uma categoria passa de 80% do orçamento do mês." checked={p.notify_budget} onChange={(v) => d.saveProfile({ notify_budget: v })} />
-          <Toggle id="nt-goals" icon="target" label="Progresso das metas" desc="Quando uma meta passa de 75%." checked={p.notify_goals} onChange={(v) => d.saveProfile({ notify_goals: v })} />
+          <Toggle id="nt-bills" icon="calendar" label="Contas a pagar" desc="Boletos, aluguel, contas fixas e tudo que estiver como “a pagar”." checked={bills} onChange={(v) => d.saveProfile({ notify_bills: v })} />
+          <Toggle id="nt-cards" icon="card" label="Faturas do cartão" desc="Vencimento das faturas com valor em aberto." checked={N.cards} disabled={!bills} onChange={(v) => setN({ cards: v })} />
+          <Toggle id="nt-dueday" icon="bell" label="Avisar no dia do vencimento" desc="Além do aviso com antecedência, lembra de novo no próprio dia." checked={N.dueDay} disabled={!bills} onChange={(v) => setN({ dueDay: v })} />
+          <Toggle id="nt-overdue" icon="alert" label="Contas atrasadas" desc="Um resumo por dia, no horário escolhido, enquanto houver conta vencida sem pagar." checked={N.overdue} disabled={!bills} onChange={(v) => setN({ overdue: v })} />
         </div>
-        <Field label="Avisar contas com antecedência de" className="mt-2 max-w-xs">
-          <select id="nt-days" className="field" value={p.bill_days_before} disabled={!p.notify_bills} onChange={(e) => d.saveProfile({ bill_days_before: Number(e.target.value) })}>
-            {[0, 1, 2, 3, 5, 7].map((n) => <option key={n} value={n}>{n === 0 ? 'No dia do vencimento' : `${n} ${n === 1 ? 'dia' : 'dias'} antes`}</option>)}
+        <Field label="Primeiro aviso" className="mt-2 max-w-xs">
+          <select id="nt-days" className="field" value={p.bill_days_before} disabled={!bills} onChange={(e) => d.saveProfile({ bill_days_before: Number(e.target.value) })}>
+            {[0, 1, 2, 3, 5, 7].map((n) => <option key={n} value={n}>{n === 0 ? 'Só no dia do vencimento' : `${n} ${n === 1 ? 'dia' : 'dias'} antes`}</option>)}
           </select>
         </Field>
+      </Panel>
+
+      <Panel title="Dinheiro entrando">
+        <div className="divide-y divide-ink/[0.07]">
+          <Toggle id="nt-receive" icon="inArrow" label="Recebimentos" desc="Salário, Pix ou valores marcados como “a receber”, no dia em que devem cair." checked={N.receive} onChange={(v) => setN({ receive: v })} />
+        </div>
+      </Panel>
+
+      <Panel title="Metas e orçamento">
+        <div className="divide-y divide-ink/[0.07]">
+          <Toggle id="nt-goalsave" icon="piggy" label="Lembrete de guardar nas metas" desc="No dia escolhido em cada meta, lembra do valor mensal." checked={N.goalSave} onChange={(v) => setN({ goalSave: v })} />
+          <Toggle id="nt-budget" icon="alert" label="Orçamento perto do limite" desc="Quando uma categoria passa de 80% do orçamento do mês (uma vez por mês)." checked={p.notify_budget} onChange={(v) => d.saveProfile({ notify_budget: v })} />
+          <Toggle id="nt-goals" icon="target" label="Meta quase lá" desc="Quando uma meta passa de 75%." checked={p.notify_goals} onChange={(v) => d.saveProfile({ notify_goals: v })} />
+        </div>
+      </Panel>
+
+      <Panel title="Hábito diário">
+        <div className="divide-y divide-ink/[0.07]">
+          <Toggle id="nt-daily" icon="clock" label="Lembrete para registrar os gastos" desc="Um toque por dia para não esquecer de lançar o que gastou." checked={N.daily} onChange={(v) => setN({ daily: v })} />
+        </div>
+        {N.daily && <div className="mt-2 flex items-center gap-3"><span className="lbl">Horário</span>{timeField('nt-daily-time', N.dailyTime, (v) => setN({ dailyTime: v }))}</div>}
       </Panel>
     </div>
   );

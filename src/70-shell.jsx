@@ -419,35 +419,84 @@ function NotifButton({ panelWidth = 340 }) {
 
 /* ---------- Lembretes no celular (notificações locais) ---------- */
 function hashId(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h) % 2000000000; }
-async function scheduleReminders(d) {
-  const LN = Native.LocalNotifications;
+// Preferências de notificação (em prefs.notif). Padrões pensados para não incomodar.
+const NOTIF_DEFAULTS = { time: '09:00', dueDay: true, cards: true, overdue: true, receive: false, goalSave: true, daily: false, dailyTime: '20:00' };
+const notifPrefs = (prefs) => ({ ...NOTIF_DEFAULTS, ...((prefs && prefs.notif) || {}) });
+const hm = (t, fb) => { const m = /^(\d{1,2}):(\d{2})$/.exec(t || '') || /^(\d{1,2}):(\d{2})$/.exec(fb); return [Number(m[1]), Number(m[2])]; };
+
+async function scheduleReminders(d, prefs, LN = Native.LocalNotifications) {
   if (!LN || !d.profile) return;
   try {
     const perm = await LN.checkPermissions();
     if (perm.display !== 'granted') return;
     const pending = await LN.getPending();
     if (pending.notifications.length) await LN.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
-    if (!d.profile.notify_bills) return;
+    const N = notifPrefs(prefs);
+    const [H, M] = hm(N.time, NOTIF_DEFAULTS.time);
     const before = d.profile.bill_days_before || 0;
     const today = todayISO(), limit = addDays(today, 60);
     const now = new Date();
-    const nine = (iso) => new Date(`${iso}T09:00:00`);
+    const at = (iso) => new Date(`${iso}T${pad2(H)}:${pad2(M)}:00`);
     const list = [];
-    // Dois lembretes por conta: X dias antes (se configurado) e no próprio dia do vencimento, às 9h.
-    // Só agenda horários futuros, para não repetir aviso toda vez que o app abre.
-    const remind = (key, title, amount, due) => {
+    // X dias antes (se configurado) e no próprio dia; só horários futuros, para não repetir aviso a cada abertura
+    const remind = (key, title, amount, due, verb = 'vence') => {
       const early = addDays(due, -before);
-      if (before > 0 && early < due && nine(early) > now) {
-        list.push({ id: hashId(`${key}:a`), title, body: `${fmtBRL(amount)} vence ${before === 1 ? 'amanhã' : `em ${before} dias`} (${fmtDate(due)}).`, schedule: { at: nine(early), allowWhileIdle: true } });
-      }
-      if (nine(due) > now) list.push({ id: hashId(`${key}:d`), title, body: `${fmtBRL(amount)} vence hoje (${fmtDate(due)}).`, schedule: { at: nine(due), allowWhileIdle: true } });
+      if (before > 0 && early < due && at(early) > now) list.push({ id: hashId(`${key}:a`), title, body: `${fmtBRL(amount)} ${verb} ${before === 1 ? 'amanhã' : `em ${before} dias`} (${fmtDate(due)}).`, schedule: { at: at(early), allowWhileIdle: true } });
+      if (N.dueDay && at(due) > now) list.push({ id: hashId(`${key}:d`), title, body: `${fmtBRL(amount)} ${verb} hoje (${fmtDate(due)}).`, schedule: { at: at(due), allowWhileIdle: true } });
     };
-    d.transactions.filter((t) => !t.paid && t.kind === 'out' && t.date >= today && t.date <= limit).forEach((t) => remind(`t${t.id}`, `Conta a pagar: ${t.description}`, t.amount, t.date));
-    d.cards.filter((c) => !c.archived).forEach((c) => {
-      cardSummary(c, d.transactions).invoices.filter((i) => i.remaining > 0 && i.due >= today && i.due <= limit).forEach((i) => remind(`f${c.id}${i.invoice}`, `Fatura ${c.name}`, i.remaining, i.due));
+    if (d.profile.notify_bills !== false) {
+      d.transactions.filter((t) => !t.paid && t.kind === 'out' && t.date >= today && t.date <= limit).forEach((t) => remind(`t${t.id}`, `Conta a pagar: ${t.description}`, t.amount, t.date));
+      if (N.cards) d.cards.filter((c) => !c.archived).forEach((c) => {
+        cardSummary(c, d.transactions).invoices.filter((i) => i.remaining > 0 && i.due >= today && i.due <= limit).forEach((i) => remind(`f${c.id}${i.invoice}`, `Fatura ${c.name}`, i.remaining, i.due));
+      });
+      // Contas atrasadas: um resumo por dia, no horário escolhido
+      if (N.overdue) {
+        const late = d.transactions.filter((t) => !t.paid && t.kind === 'out' && t.date < today && t.date >= addDays(today, -60));
+        if (late.length) {
+          const when = at(today) > now ? at(today) : at(addDays(today, 1));
+          const total = late.reduce((s, t) => s + t.amount, 0);
+          list.push({ id: hashId('overdue'), title: late.length === 1 ? `Conta atrasada: ${late[0].description}` : `${late.length} contas atrasadas`, body: `${fmtBRL(total)} em aberto. Toque para conferir.`, schedule: { at: when, allowWhileIdle: true } });
+        }
+      }
+    }
+    if (N.receive) d.transactions.filter((t) => !t.paid && t.kind === 'in' && t.date >= today && t.date <= limit).forEach((t) => remind(`r${t.id}`, `A receber: ${t.description}`, t.amount, t.date, 'cai'));
+    // Lembrete mensal de guardar nas metas
+    if (N.goalSave) d.goals.filter((g) => g.remind_day && g.monthly_amount > 0 && g.saved < g.target).forEach((g) => {
+      for (let k = 0, m = monthKey(today); k < 2; k += 1, m = shiftMonth(m, 1)) {
+        const day = dayIn(m, g.remind_day);
+        if (day >= today && at(day) > now) list.push({ id: hashId(`g${g.id}${m}`), title: `Hora de guardar: ${g.name}`, body: `Sua meta pede ${fmtBRL(g.monthly_amount)} este mês.`, schedule: { at: at(day), allowWhileIdle: true } });
+      }
     });
+    // Lembrete diário para registrar os gastos
+    if (N.daily) { const [h, mi] = hm(N.dailyTime, NOTIF_DEFAULTS.dailyTime); list.push({ id: hashId('daily'), title: 'Leco', body: 'Registrou os gastos de hoje? Leva só alguns segundos.', schedule: { on: { hour: h, minute: mi }, allowWhileIdle: true } }); }
+    list.sort((x, y) => ((x.schedule.at || 0) - (y.schedule.at || 0)));
     if (list.length) await LN.schedule({ notifications: list.slice(0, 60) });
   } catch (e) { /* lembretes são opcionais */ }
+}
+
+// Orçamento perto do limite e meta quase lá: aviso na hora, uma vez por mês para cada um
+async function notifyAlertsNow(alerts) {
+  const LN = Native.LocalNotifications;
+  if (!LN) return;
+  try {
+    if ((await LN.checkPermissions()).display !== 'granted') return;
+    const m = monthKey(todayISO());
+    let seen = []; try { seen = JSON.parse(localStorage.getItem('leco.pushed') || '[]'); } catch (e) { seen = []; }
+    const fresh = alerts.filter((a) => /^(b|g)-/.test(a.id) && !a.id.startsWith('gr-') && !seen.includes(`${a.id}:${m}`));
+    if (!fresh.length) return;
+    await LN.schedule({ notifications: fresh.slice(0, 5).map((a, i) => ({ id: hashId(`now${a.id}${m}`), title: a.title, body: a.body, schedule: { at: new Date(Date.now() + 2000 + i * 1000) } })) });
+    const next = [...seen, ...fresh.map((a) => `${a.id}:${m}`)].slice(-200);
+    try { localStorage.setItem('leco.pushed', JSON.stringify(next)); } catch (e) { /* ok */ }
+  } catch (e) { /* opcional */ }
+}
+
+async function testNotification() {
+  const LN = Native.LocalNotifications;
+  if (!LN) return false;
+  const perm = await LN.checkPermissions();
+  if (perm.display !== 'granted') return false;
+  await LN.schedule({ notifications: [{ id: 990001, title: 'Leco · teste', body: 'É assim que os lembretes vão aparecer no seu celular.', schedule: { at: new Date(Date.now() + 3000) } }] });
+  return true;
 }
 
 /* ---------- Boas-vindas ---------- */
@@ -825,7 +874,7 @@ function Workspace({ backend, session, toast, toastNode }) {
   const monthInit = useRef(false);
   useEffect(() => { if (data && !monthInit.current) { monthInit.current = true; setMonth(finMonthOf(todayISO())); } }, [data]);
   useEffect(() => { document.documentElement.dataset.calm = calm ? '1' : '0'; }, [calm]);
-  useEffect(() => { if (data && NATIVE) { const t = setTimeout(() => scheduleReminders(data), 1500); return () => clearTimeout(t); } return undefined; }, [data]);
+  useEffect(() => { if (data && NATIVE) { const t = setTimeout(() => scheduleReminders(data, prefs), 1500); return () => clearTimeout(t); } return undefined; }, [data, JSON.stringify(prefs.notif || {})]);
 
   const navRef = useRef({});
   navRef.current = { page, modal, tabs: prefs.tabs };
@@ -861,8 +910,11 @@ function Workspace({ backend, session, toast, toastNode }) {
     };
   }, [data, freshIds, page, settingsSub, month, modal, theme, fullTheme, prefs, calm]);
 
+  // Avisos na hora (orçamento perto do limite, meta quase lá) no celular
+  const alertKey = ctx ? ctx.alerts.map((a) => a.id).join('|') : '';
+  useEffect(() => { if (ctx && NATIVE) { const t = setTimeout(() => notifyAlertsNow(ctx.alerts), 2500); return () => clearTimeout(t); } return undefined; }, [alertKey]);
   // Só nos testes automáticos: acesso ao estado do app
-  if (window.LECO_TEST_BACKEND) window.__leco = () => ctx;
+  if (window.LECO_TEST_BACKEND) { window.__leco = () => ctx; window.__scheduleReminders = scheduleReminders; }
   // Bloqueio com PIN, conquistas e resumo do mês que terminou
   const [locked, setLocked] = usePinLock();
   useAchievementToasts(ctx && data.profile.onboarded ? ctx : null);
