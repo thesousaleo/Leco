@@ -266,25 +266,32 @@ function ConfigMissingScreen() {
 }
 
 // Abertura: o "L" aparece e a moeda cai girando até o lugar
+// A moeda é uma camada HTML separada: anima só transform/opacity, que o navegador
+// roda fora da thread principal, então não engasga enquanto o app carrega.
 function SplashMark({ size = 76 }) {
+  const c = (n) => `${(n / 48) * 100}%`;
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" className="overflow-visible">
-      <defs>
-        <linearGradient id="spl-l" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#14806B" /><stop offset="1" stopColor="#0B2F29" /></linearGradient>
-        <radialGradient id="spl-c" cx=".34" cy=".3" r=".85"><stop offset="0" stopColor="#FFDB7E" /><stop offset=".55" stopColor="#E8A317" /><stop offset="1" stopColor="#B57406" /></radialGradient>
-      </defs>
-      <path className="splash-l" d="M10 6h9v27h21v9H10z" fill="url(#spl-l)" stroke="url(#spl-l)" strokeWidth="2.5" strokeLinejoin="round" />
-      <g className="splash-coin">
-        <circle cx="31" cy="22.5" r="9.5" fill="url(#spl-c)" />
-        <circle cx="31" cy="22.5" r="6.3" fill="none" stroke="#9A6205" strokeOpacity=".55" strokeWidth="1.3" />
-        <path d="M26.6 18.6a6 6 0 0 1 4-2.3" fill="none" stroke="#FFF3CF" strokeOpacity=".85" strokeWidth="1.3" strokeLinecap="round" />
-      </g>
-    </svg>
+    <div className="relative" style={{ width: size, height: size }} aria-hidden="true">
+      <svg width={size} height={size} viewBox="0 0 48 48" className="splash-l absolute inset-0 overflow-visible">
+        <defs><linearGradient id="spl-l" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#14806B" /><stop offset="1" stopColor="#0B2F29" /></linearGradient></defs>
+        <path d="M10 6h9v27h21v9H10z" fill="url(#spl-l)" stroke="url(#spl-l)" strokeWidth="2.5" strokeLinejoin="round" />
+      </svg>
+      <div className="splash-coin-drop absolute" style={{ left: c(21.5), top: c(13), width: c(19), height: c(19) }}>
+        <div className="splash-coin-spin size-full">
+          <svg viewBox="0 0 20 20" className="block size-full">
+            <defs><radialGradient id="spl-c" cx=".34" cy=".3" r=".85"><stop offset="0" stopColor="#FFDB7E" /><stop offset=".55" stopColor="#E8A317" /><stop offset="1" stopColor="#B57406" /></radialGradient></defs>
+            <circle cx="10" cy="10" r="9.5" fill="url(#spl-c)" />
+            <circle cx="10" cy="10" r="6.3" fill="none" stroke="#9A6205" strokeOpacity=".55" strokeWidth="1.3" />
+            <path d="M5.6 6.1a6 6 0 0 1 4-2.3" fill="none" stroke="#FFF3CF" strokeOpacity=".85" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        </div>
+      </div>
+    </div>
   );
 }
-function SplashScreen({ text = 'Carregando…' }) {
+function SplashScreen({ text = 'Carregando…', leaving }) {
   return (
-    <div className="relative z-10 grid min-h-[100dvh] place-items-center">
+    <div className={`relative z-10 grid min-h-[100dvh] place-items-center transition-[opacity,transform] duration-200 ease-out ${leaving ? 'scale-[.97] opacity-0' : ''}`}>
       <div className="flex flex-col items-center gap-5">
         <SplashMark />
         <p className="splash-word text-[34px] font-extrabold tracking-[-0.03em]">Leco</p>

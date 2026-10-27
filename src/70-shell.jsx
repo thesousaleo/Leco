@@ -1054,11 +1054,18 @@ function Root() {
     }
   }, [session]);
 
+  // Na abertura, a animação da moeda roda inteira (≈1,1 s) e some com um esmaecer, em vez de ser cortada no meio
+  const [splash, setSplash] = useState(() => (window.LECO_TEST_BACKEND || /[?&]embed=1/.test(window.location.search) ? 'done' : 'hold'));
+  useEffect(() => {
+    if (splash === 'done') return undefined;
+    const t1 = setTimeout(() => setSplash('out'), 1150), t2 = setTimeout(() => setSplash('done'), 1400);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
   const toastNode = (place) => <><Toast toast={toastState} onClose={() => setToast(null)} place={place} /><TooltipLayer /></>;
   const go = (name, extra = {}) => setScreen({ name, ...extra });
   let content;
   if (!backend) content = <ConfigMissingScreen />;
-  else if (session === undefined) content = <SplashScreen />;
+  else if (session === undefined || splash !== 'done') content = <SplashScreen leaving={splash === 'out' && session !== undefined} />;
   else if (session && recovery) content = <ResetPasswordScreen backend={backend} onDone={() => { setRecovery(false); toast('Senha alterada. Você já está dentro.'); }} />;
   else if (session) return <><Atmosphere /><Workspace key={session.user.id} backend={backend} session={session} toast={toast} toastNode={toastNode} /></>;
   else if (screen.name === 'signup') content = <SignupScreen backend={backend} go={go} />;
