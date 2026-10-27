@@ -77,8 +77,9 @@ function PlanningPage() {
 
   return (
     <div className="space-y-5">
-      {!narrow && <PageHeader eyebrow="Planejamento" title={`Planeje ${monthLabel(month).toLowerCase()}`}><MonthSwitch month={month} onChange={setMonth} /></PageHeader>}
+      {!narrow && <PageHeader eyebrow="Planejamento" title={`Planeje ${monthLabel(month).toLowerCase()}`}><button type="button" className="btn btn-ghost" onClick={() => d.go('simulador')}><Icon name="sparkle" size={16} />Simular "E se…?"</button><MonthSwitch month={month} onChange={setMonth} /></PageHeader>}
       {narrow && <MonthSwitch full month={month} onChange={setMonth} />}
+      {narrow && <button type="button" className="btn btn-ghost w-full" onClick={() => d.go('simulador')}><Icon name="sparkle" size={16} />Simular "E se…?"</button>}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card title="Planejado × realizado" sub={finLabel(month)} action={<button type="button" className="btn btn-ghost !py-2 text-[12.5px]" onClick={() => d.copyPlans(shiftMonth(month, -1), month)}><Icon name="copy" size={14} />Copiar mês anterior</button>}>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">

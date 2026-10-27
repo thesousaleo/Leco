@@ -397,3 +397,30 @@ function MonthSummarySheet({ month, onClose }) {
     </Sheet>
   );
 }
+
+// Lançamentos de uma categoria num período (aberto ao tocar no gráfico)
+function CatTxSheet({ catKey, label, color, from, to, txKind = 'out', onClose }) {
+  const d = useApp();
+  const m = useMoneyText();
+  const titleId = cleanId(useId());
+  const ids = new Set([catKey, ...d.categories.filter((c) => c.parent_id === catKey).map((c) => c.id)]);
+  const list = d.transactions.filter((t) => t.date >= from && t.date <= to && (txKind === 'in' ? countsAsIncome(t) : countsAsExpense(t)) && (catKey === 'none' ? !t.category_id : ids.has(t.category_id)));
+  const total = sum(list, (t) => t.amount);
+  const top = list.slice().sort((a, b) => b.amount - a.amount)[0];
+  const days = Math.max(1, diffDays(to < todayISO() ? to : todayISO(), from) + 1);
+  return (
+    <Sheet variant={sheetVariant()} onClose={onClose} titleId={titleId}>
+      <SheetHead id={titleId} title={label} sub={`${fmtDate(from)} a ${fmtDate(to)}`} onClose={onClose} />
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-2xl bg-ink/[0.04] px-3 py-2.5"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-ink/60">Total</p><p className="truncate text-[15px] font-extrabold tabular-nums" style={{ color }}>{m(total)}</p></div>
+        <div className="rounded-2xl bg-ink/[0.04] px-3 py-2.5"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-ink/60">Lançamentos</p><p className="text-[15px] font-extrabold tabular-nums">{list.length}</p></div>
+        <div className="rounded-2xl bg-ink/[0.04] px-3 py-2.5"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-ink/60">Por dia</p><p className="truncate text-[15px] font-extrabold tabular-nums">{m(Math.round(total / days))}</p></div>
+      </div>
+      {top && <p className="mt-3 text-xs text-ink/65">Maior: <b className="text-ink">{txMeta(top, d).title}</b> · {m(top.amount)} em {fmtDate(top.date)}</p>}
+      <ul className="mt-3 max-h-[52vh] divide-y divide-ink/[0.07] overflow-y-auto">
+        {list.map((t) => <TxItem key={t.id} t={t} dense onOpen={(x) => { onClose(); setTimeout(() => d.openModal({ kind: 'tx', initial: x }), 240); }} />)}
+        {!list.length && <li className="py-6 text-center text-sm text-ink/60">Nenhum lançamento.</li>}
+      </ul>
+    </Sheet>
+  );
+}

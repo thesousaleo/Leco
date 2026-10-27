@@ -260,6 +260,75 @@ function MobileHome() {
   return <div className="space-y-6">{d.prefs.home.filter((b) => b.on && blocks[b.id]).map((b) => <React.Fragment key={b.id}>{blocks[b.id]()}</React.Fragment>)}</div>;
 }
 
+// Início do computador: blocos que a pessoa escolhe e reordena (arrastar ou setas)
+const WEB_BLOCKS = [
+  { id: 'kpis', label: 'Resumo (saldo, receitas, despesas, faturas)' }, { id: 'upcoming', label: 'Próximos vencimentos' }, { id: 'accounts', label: 'Contas e cartões' },
+  { id: 'flow', label: 'Fluxo de caixa' }, { id: 'categories', label: 'Despesas por categoria' }, { id: 'recent', label: 'Últimas transações' },
+  { id: 'budgets', label: 'Orçamentos do mês' }, { id: 'goals', label: 'Metas' }, { id: 'calendar', label: 'Próximos 7 dias' },
+];
+const WEB_DEFAULT = ['kpis', 'upcoming', 'accounts', 'flow', 'categories', 'recent', 'budgets'];
+function webHomeOf(prefs) {
+  const saved = Array.isArray(prefs.webHome) ? prefs.webHome.filter((b) => WEB_BLOCKS.some((x) => x.id === b.id)) : WEB_DEFAULT.map((id) => ({ id, on: true }));
+  WEB_BLOCKS.forEach((b) => { if (!saved.some((x) => x.id === b.id)) saved.push({ id: b.id, on: false }); });
+  return saved;
+}
+function WebHomeBlocks({ blocks, editing, onDone }) {
+  const d = useApp();
+  const list = webHomeOf(d.prefs);
+  const [dragId, setDragId] = useState(null);
+  const save = (next) => d.setPrefs({ webHome: next });
+  const move = (id, dir) => { const i = list.findIndex((b) => b.id === id); const j = i + dir; if (j < 0 || j >= list.length) return; const n = list.slice(); [n[i], n[j]] = [n[j], n[i]]; save(n); };
+  const toggle = (id) => save(list.map((b) => (b.id === id ? { ...b, on: !b.on } : b)));
+  const drop = (target) => { if (!dragId || dragId === target) return; const n = list.filter((b) => b.id !== dragId); const i = n.findIndex((b) => b.id === target); n.splice(i, 0, list.find((b) => b.id === dragId)); save(n); setDragId(null); };
+  const shown = list.filter((b) => b.on && blocks[b.id]);
+  const span = { full: 'col-span-5', big: 'col-span-5 xl:col-span-3', small: 'col-span-5 xl:col-span-2' };
+  return (
+    <div className="space-y-4">
+      {editing && (
+        <div className="glass-milk flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3 text-[13px]">
+          <Icon name="layers" size={17} /><span className="flex-1 font-semibold">Arraste os blocos ou use as setas. O olho mostra ou esconde.</span>
+          <button type="button" className="btn btn-ghost !py-1.5 text-[12.5px]" onClick={() => save(WEB_DEFAULT.map((id) => ({ id, on: true })))}>Restaurar padrão</button>
+          <button type="button" className="btn btn-primary !py-1.5 text-[12.5px]" onClick={onDone}><Icon name="check" size={14} />Pronto</button>
+        </div>
+      )}
+      <div className="grid grid-flow-row-dense grid-cols-5 gap-5">
+        {shown.map((b, i) => (
+          <div key={b.id} className={`relative min-w-0 ${span[blocks[b.id].span]} ${editing ? 'rounded-[26px] outline-dashed outline-2 outline-offset-4 outline-ink/15' : ''} ${dragId === b.id ? 'opacity-50' : ''}`}
+            draggable={editing} onDragStart={(e) => { setDragId(b.id); e.dataTransfer.effectAllowed = 'move'; }} onDragOver={(e) => { if (editing) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); drop(b.id); }} onDragEnd={() => setDragId(null)}>
+            {editing && (
+              <div className="absolute -top-3 right-4 z-10 flex items-center gap-1 rounded-full border border-ink/10 bg-[var(--paper)] p-1 shadow-sm">
+                <span className="cursor-grab px-2 text-[11.5px] font-bold text-ink/60">{(WEB_BLOCKS.find((x) => x.id === b.id) || {}).label}</span>
+                <button type="button" className="icon-btn size-7" aria-label={`Subir bloco ${(WEB_BLOCKS.find((x) => x.id === b.id) || {}).label}`} disabled={i === 0} onClick={() => move(b.id, -1)}><Icon name="chevUp" size={13} /></button>
+                <button type="button" className="icon-btn size-7" aria-label={`Descer bloco ${(WEB_BLOCKS.find((x) => x.id === b.id) || {}).label}`} disabled={i === shown.length - 1} onClick={() => move(b.id, 1)}><Icon name="chevDown" size={13} /></button>
+                <button type="button" className="icon-btn size-7" aria-label={`Esconder bloco ${(WEB_BLOCKS.find((x) => x.id === b.id) || {}).label}`} onClick={() => toggle(b.id)}><Icon name="eyeOff" size={13} /></button>
+              </div>
+            )}
+            {blocks[b.id].el}
+          </div>
+        ))}
+      </div>
+      {editing && list.some((b) => !b.on) && (
+        <div className="glass rounded-2xl p-4">
+          <p className="lbl">Blocos escondidos</p>
+          <div className="mt-2 flex flex-wrap gap-2">{list.filter((b) => !b.on).map((b) => <button key={b.id} type="button" className="btn btn-ghost !py-1.5 text-[12.5px]" onClick={() => toggle(b.id)}><Icon name="plus" size={13} />{(WEB_BLOCKS.find((x) => x.id === b.id) || {}).label}</button>)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+function GoalsMini() {
+  const d = useApp();
+  const m = useMoneyText();
+  if (!d.goals.length) return <p className="py-4 text-center text-sm text-ink/60">Nenhuma meta ainda.</p>;
+  return (
+    <ul className="space-y-4">
+      {d.goals.slice(0, 4).map((g) => { const p = g.target ? Math.min(100, Math.round((g.saved / g.target) * 100)) : 0; return (
+        <li key={g.id}><div className="flex items-center justify-between gap-2 text-[13.5px]"><span className="flex min-w-0 items-center gap-2 font-semibold"><Icon name={g.icon} size={15} /><span className="truncate">{g.name}</span></span><span className="shrink-0 tabular-nums text-ink/65">{m(g.saved)} · <b className="text-ink">{p}%</b></span></div><div className="track mt-1.5"><i style={{ width: `${p}%` }} /></div></li>
+      ); })}
+    </ul>
+  );
+}
+
 function OverviewPage() {
   const d = useApp();
   const m = useMoneyText();
@@ -275,6 +344,7 @@ function OverviewPage() {
   const cardsDue = sum(d.cards.filter((c) => !c.archived), (c) => { const s = cardSummary(c, d.transactions); return Math.max(0, s.current.remaining) + sum(s.toPay.filter((i) => i.invoice !== s.current.invoice), (i) => i.remaining); });
   const recent = d.transactions.filter((t) => t.date <= to && t.paid).slice(0, 6);
   const budgets = budgetsFor(d.categories, d.transactions, month, d.plans);
+  const [editHome, setEditHome] = useState(false);
   if (narrow) return <MobileHome />;
   return (
     <div className="space-y-5">
@@ -283,10 +353,14 @@ function OverviewPage() {
           <MonthSwitch month={month} onChange={d.setMonth} />
           <button type="button" className="icon-btn size-11" onClick={() => d.saveProfile({ hide_values: !d.hide })} aria-label={d.hide ? 'Mostrar valores' : 'Ocultar valores'} aria-pressed={d.hide}><Icon name={d.hide ? 'eyeOff' : 'eye'} size={19} /></button>
           <NotifButton />
+          <button type="button" className={`icon-btn size-11 ${editHome ? '!border-vivo !bg-vivo/15' : ''}`} onClick={() => setEditHome((v) => !v)} aria-label="Personalizar o início" aria-pressed={editHome}><Icon name="layers" size={18} /></button>
           <button type="button" className="btn btn-primary" onClick={() => d.openModal({ kind: 'tx' })}><Icon name="plus" size={18} strokeWidth={2.4} />Nova transação</button>
         </PageHeader>
       )}
       {narrow && <div className="flex justify-center"><MonthSwitch compact month={month} onChange={d.setMonth} /></div>}
+      {(() => {
+        const BLOCKS = {
+          kpis: { span: 'full', el: (
       <div className="grid gap-4 md:grid-cols-2 min-[1500px]:grid-cols-4">
         <KpiCard hero label="Saldo em contas" icon="wallet" foot={plural(d.accounts.filter((a) => !a.archived).length, 'conta', 'contas')} spark={series.map((p) => p.bal)} sparkColor="#9BEBD0">
           <Money cents={totalBal} />
@@ -302,21 +376,23 @@ function OverviewPage() {
           {d.cards.length ? <Money cents={cardsDue} /> : <Money cents={sm.net} className={sm.net < 0 ? 'text-out' : ''} />}
         </KpiCard>
       </div>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <Card title="Próximos vencimentos" sub="Contas a pagar, a receber e faturas nos próximos 30 dias" delay={100}><UpcomingList /></Card>
-        <Card title="Contas e cartões" delay={140}><AccountsMini onAll={() => d.go('contas')} /></Card>
-      </div>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <Card title="Fluxo de caixa" sub="Últimos 6 meses" delay={160}><FlowChart series={series} month={month} height={narrow ? 210 : 260} /></Card>
-        <Card title="Despesas por categoria" sub={`${monthLabel(month)} · ${m(sm.expense)}`} delay={200}><CategoryBreakdown items={sm.byCatOut} compact={narrow} donutSize={narrow ? 180 : 196} /></Card>
-      </div>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <Card title="Últimas transações" delay={220} action={<button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => d.go('transacoes')}>Ver todas<Icon name="right" size={15} /></button>}>
-          {recent.length ? <ul className="divide-y divide-ink/[0.07]">{recent.map((t) => <TxItem key={t.id} t={t} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} />)}</ul>
-            : <EmptyState icon="list" title="Nenhuma transação ainda" text="Registre a primeira receita ou despesa e o painel começa a mostrar os seus números." action={<button type="button" className="btn btn-primary" onClick={() => d.openModal({ kind: 'tx' })}><Icon name="plus" size={16} />Nova transação</button>} />}
-        </Card>
-        <Card title="Orçamentos do mês" delay={260}><BudgetList budgets={budgets} limit={5} onManage={() => d.go('categorias')} /></Card>
-      </div>
+          ) },
+          upcoming: { span: 'big', el: <Card title="Próximos vencimentos" sub="Contas a pagar, a receber e faturas nos próximos 30 dias" className="h-full"><UpcomingList /></Card> },
+          accounts: { span: 'small', el: <Card title="Contas e cartões" className="h-full"><AccountsMini onAll={() => d.go('contas')} /></Card> },
+          flow: { span: 'big', el: <Card title="Fluxo de caixa" sub="Últimos 6 meses" className="h-full"><FlowChart series={series} month={month} height={260} /></Card> },
+          categories: { span: 'small', el: <Card title="Despesas por categoria" sub={`${monthLabel(month)} · ${m(sm.expense)}`} className="h-full"><CategoryBreakdown range={[from, to]} items={sm.byCatOut} donutSize={196} /></Card> },
+          recent: { span: 'big', el: (
+            <Card title="Últimas transações" className="h-full" action={<button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => d.go('transacoes')}>Ver todas<Icon name="right" size={15} /></button>}>
+              {recent.length ? <ul className="divide-y divide-ink/[0.07]">{recent.map((t) => <TxItem key={t.id} t={t} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} />)}</ul>
+                : <EmptyState icon="list" title="Nenhuma transação ainda" text="Registre a primeira receita ou despesa e o painel começa a mostrar os seus números." action={<button type="button" className="btn btn-primary" onClick={() => d.openModal({ kind: 'tx' })}><Icon name="plus" size={16} />Nova transação</button>} />}
+            </Card>
+          ) },
+          budgets: { span: 'small', el: <Card title="Orçamentos do mês" className="h-full"><BudgetList budgets={budgets} limit={5} onManage={() => d.go('categorias')} /></Card> },
+          goals: { span: 'small', el: <Card title="Metas" className="h-full" action={<button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => d.go('metas')}>Ver metas<Icon name="right" size={15} /></button>}><GoalsMini /></Card> },
+          calendar: { span: 'big', el: <Card title="Próximos 7 dias" className="h-full"><UpcomingList limit={7} /></Card> },
+        };
+        return <WebHomeBlocks blocks={BLOCKS} editing={editHome} onDone={() => setEditHome(false)} />;
+      })()}
     </div>
   );
 }
@@ -336,6 +412,10 @@ function TransactionsPage() {
   const [sort, setSort] = useState('recent');
   const [showFilters, setShowFilters] = useState(false);
   const [tag, setTag] = useState('all');
+  const [selecting, setSelecting] = useState(false);
+  const [sel, setSel] = useState(() => new Set());
+  const toggleSel = (t) => { if (t.kind === 'card_payment') return; setSel((p) => { const n = new Set(p); if (n.has(t.id)) n.delete(t.id); else n.add(t.id); return n; }); };
+  const stopSel = () => { setSelecting(false); setSel(new Set()); };
   const allTags = useMemo(() => [...new Set(d.transactions.flatMap((t) => t.tags || []))].sort(), [d.transactions]);
   const [limit, setLimit] = useState(30);
   useEffect(() => setLimit(30), [scope, type, src, cat, status, q, d.month, sort, tag]);
@@ -376,6 +456,7 @@ function TransactionsPage() {
     <div className="space-y-5">
       {!narrow && (
         <PageHeader eyebrow="Transações" title="Movimentações">
+          <button type="button" className={`btn ${selecting ? 'btn-primary' : 'btn-ghost'}`} aria-pressed={selecting} onClick={() => (selecting ? stopSel() : setSelecting(true))}><Icon name="check" size={17} />{selecting ? 'Concluir seleção' : 'Selecionar'}</button>
           <button type="button" className="btn btn-ghost" onClick={exportPdf} disabled={pdfBusy}>{pdfBusy ? <Spinner size={14} /> : <Icon name="file" size={17} />}Gerar PDF</button>
         </PageHeader>
       )}
@@ -384,9 +465,10 @@ function TransactionsPage() {
           <div className="space-y-3">
             {scope === 'month' ? <MonthSwitch full month={d.month} onChange={d.setMonth} /> : <p className="py-2 text-center text-sm font-bold">Todo o período</p>}
             <Segmented size="sm" full label="Tipo" value={['all', 'in', 'out'].includes(type) ? type : 'all'} onChange={setType} options={[{ value: 'all', label: 'Tudo' }, { value: 'in', label: 'Receitas' }, { value: 'out', label: 'Despesas' }]} />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
+              <button type="button" className={`btn !px-3 !py-2 text-[13px] ${selecting ? 'btn-primary' : 'btn-ghost'}`} aria-pressed={selecting} onClick={() => (selecting ? stopSel() : setSelecting(true))}><Icon name="check" size={15} />{selecting ? 'Pronto' : 'Selecionar'}</button>
               <button type="button" className={`btn !px-3 !py-2 text-[13px] ${showFilters || (filtered && type === 'all') ? 'btn-primary' : 'btn-ghost'}`} aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}><Icon name="search" size={15} />Filtros</button>
-              <button type="button" className="btn btn-ghost !px-3 !py-2 text-[13px]" aria-label="Gerar PDF do extrato" onClick={exportPdf} disabled={pdfBusy}>{pdfBusy ? <Spinner size={14} /> : <Icon name="file" size={15} />}Gerar PDF</button>
+              <button type="button" className="btn btn-ghost !px-3 !py-2 text-[13px]" aria-label="Gerar PDF do extrato" onClick={exportPdf} disabled={pdfBusy}>{pdfBusy ? <Spinner size={14} /> : <Icon name="file" size={15} />}PDF</button>
             </div>
           </div>
         ) : (
@@ -447,12 +529,13 @@ function TransactionsPage() {
           ) : groups.length ? groups.map((g) => (
             <div key={g.date} className="mb-2">
               <p className="sticky top-0 z-[1] px-1.5 py-1.5 text-[11px] font-bold uppercase tracking-wider tabular-nums text-ink/60">{fmtDate(g.date)} · {relDay(g.date)}</p>
-              <ul className="divide-y divide-ink/[0.07]">{g.items.map((t) => <TxItem key={t.id} t={t} showDate={false} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} onConfirm={d.confirmTx} />)}</ul>
+              <ul className="divide-y divide-ink/[0.07]">{g.items.map((t) => <TxItem key={t.id} t={t} showDate={false} select={selecting ? { on: sel.has(t.id), toggle: toggleSel } : undefined} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} onConfirm={d.confirmTx} />)}</ul>
             </div>
-          )) : <ul className="divide-y divide-ink/[0.07]">{rows.slice(0, limit).map((t) => <TxItem key={t.id} t={t} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} onConfirm={d.confirmTx} />)}</ul>}
+          )) : <ul className="divide-y divide-ink/[0.07]">{rows.slice(0, limit).map((t) => <TxItem key={t.id} t={t} select={selecting ? { on: sel.has(t.id), toggle: toggleSel } : undefined} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} onConfirm={d.confirmTx} />)}</ul>}
           {rows.length > limit && <div className="mt-3 flex justify-center"><button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => setLimit((l) => l + 30)}>Mostrar mais ({rows.length - limit})</button></div>}
         </div>
       </Card>
+      {selecting && <BulkBar rows={d.transactions.filter((t) => sel.has(t.id))} onClear={stopSel} allCount={rows.filter((t) => t.kind !== 'card_payment').length} onAll={() => setSel(new Set(rows.filter((t) => t.kind !== 'card_payment').map((t) => t.id)))} />}
     </div>
   );
 }
@@ -729,7 +812,7 @@ function ReportsPage() {
           <div className="grid gap-5 xl:grid-cols-2">
             <Card title="Por categoria">
               <div className="-mt-1 mb-4"><Segmented size="sm" full={narrow} label="Tipo" value={catTab} onChange={setCatTab} options={[{ value: 'out', label: 'Despesas' }, { value: 'in', label: 'Receitas' }]} /></div>
-              <CategoryBreakdown items={catTab === 'out' ? sm.byCatOut : sm.byCatIn} compact={narrow} donutSize={narrow ? 180 : 196} emptyText={catTab === 'out' ? 'Nenhuma despesa no período.' : 'Nenhuma receita no período.'} />
+              <CategoryBreakdown range={[from, to]} txKind={catTab} items={catTab === 'out' ? sm.byCatOut : sm.byCatIn} compact={narrow} donutSize={narrow ? 180 : 196} emptyText={catTab === 'out' ? 'Nenhuma despesa no período.' : 'Nenhuma receita no período.'} />
             </Card>
             <Card title="Por conta e cartão">
               {byAccount.length === 0 ? <p className="py-6 text-center text-sm text-ink/65">Sem movimentação no período.</p> : (
@@ -756,6 +839,7 @@ function ReportsPage() {
             </Card>
             {d.v3 && <Card title="Por etiqueta" sub="Despesas do período"><TagReport txs={d.transactions.filter((t) => t.date >= from && t.date <= to)} /></Card>}
           </div>
+          <Card title="Comparar meses" sub="Despesas por categoria em dois meses, lado a lado"><MonthCompare d={d} /></Card>
           <Card title="Ano a ano" sub="Despesas por mês, comparadas com o ano passado"><YearOverYear d={d} height={narrow ? 190 : 230} /></Card>
           <Card title="Maiores despesas" sub="Top 10 do período">
             {top.length ? <ol className="divide-y divide-ink/[0.07]">{top.map((t) => <TxItem key={t.id} t={t} dense onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} />)}</ol> : <p className="py-6 text-center text-sm text-ink/65">Nenhuma despesa no período.</p>}
@@ -814,6 +898,56 @@ function BalanceTimeline({ d, from, to, height }) {
   const pts = Array.from({ length: n }, (_, i) => addDays(from, Math.round((i * span) / (n - 1 || 1))));
   const vals = pts.map((iso) => { const b = accountBalances(d.accounts, d.transactions, iso); return sum(cashAccounts(d.accounts), (a) => b[a.id] || 0); });
   return <AreaChart height={height} zeroBase={false} label="Saldo total ao longo do período" points={pts.map((iso) => ({ k: iso, short: fmtDate(iso).slice(0, 5), full: fmtDate(iso) }))} series={[{ key: 'bal', label: 'Saldo', color: P.in, values: vals }]} />;
+}
+
+// Dois meses lado a lado, por categoria de despesa
+function MonthCompare({ d }) {
+  const m = useMoneyText();
+  const narrow = useNarrow();
+  const cur = finMonthOf(todayISO());
+  const months = Array.from({ length: 18 }, (_, i) => shiftMonth(cur, -i));
+  const [a, setA] = useState(shiftMonth(cur, -1));
+  const [b, setB] = useState(cur);
+  const sa = periodSummary(d.transactions, ...finRange(a), d.categories);
+  const sb = periodSummary(d.transactions, ...finRange(b), d.categories);
+  const keys = [...new Set([...sa.byCatOut.map((x) => x.key), ...sb.byCatOut.map((x) => x.key)])];
+  const rows = keys.map((k) => {
+    const x = sa.byCatOut.find((c) => c.key === k), y = sb.byCatOut.find((c) => c.key === k);
+    const meta = x || y;
+    return { key: k, label: meta.label, color: meta.color, a: x ? x.value : 0, b: y ? y.value : 0 };
+  }).sort((p, q) => Math.max(q.a, q.b) - Math.max(p.a, p.b));
+  const max = Math.max(1, ...rows.map((r) => Math.max(r.a, r.b)));
+  const diff = (r) => (r.a ? ((r.b - r.a) / r.a) * 100 : null);
+  const sel = (v, set, id) => <select id={id} aria-label={id === 'cmp-a' ? 'Primeiro mês' : 'Segundo mês'} className="field !w-auto !py-2 text-[13px]" value={v} onChange={(e) => set(e.target.value)}>{months.map((k) => <option key={k} value={k}>{monthLabel(k)}</option>)}</select>;
+  const totalDiff = sa.expense ? ((sb.expense - sa.expense) / sa.expense) * 100 : null;
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        {sel(a, setA, 'cmp-a')}<span className="text-xs font-semibold text-ink/50">×</span>{sel(b, setB, 'cmp-b')}
+        <span className="ml-auto text-[13px] text-ink/70">Total: <b className="tabular-nums text-ink">{m(sa.expense)}</b> → <b className="tabular-nums text-ink">{m(sb.expense)}</b> {totalDiff != null && <Delta value={totalDiff} goodWhen="down" />}</span>
+      </div>
+      <div className="mt-3 flex items-center gap-4 text-[11.5px] text-ink/60"><span className="flex items-center gap-1.5"><i className="h-2 w-3 rounded-sm bg-ink/25" />{monthLabel(a)}</span><span className="flex items-center gap-1.5"><i className="h-2 w-3 rounded-sm bg-vivo" />{monthLabel(b)}</span></div>
+      {rows.length === 0 ? <p className="py-6 text-center text-sm text-ink/60">Sem despesas nesses meses.</p> : (
+        <ul className="mt-3 space-y-3">
+          {rows.slice(0, narrow ? 8 : 12).map((r) => {
+            const dv = diff(r);
+            return (
+              <li key={r.key}>
+                <div className="flex items-center justify-between gap-2 text-[13px]">
+                  <span className="flex min-w-0 items-center gap-2 font-semibold"><span className="size-2.5 shrink-0 rounded-full" style={{ background: r.color }} /><span className="truncate">{r.label}</span></span>
+                  <span className="flex shrink-0 items-center gap-2 tabular-nums text-ink/70">{m(r.a)} → <b className="text-ink">{m(r.b)}</b>{dv != null ? <span className={`text-[11.5px] font-bold ${dv > 0 ? 'text-out' : 'text-in'}`}>{dv > 0 ? '+' : '−'}{fmtPctAbs(dv)}</span> : <span className="text-[11.5px] font-bold text-ink/50">novo</span>}</span>
+                </div>
+                <div className="mt-1 space-y-0.5">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-ink/[0.06]"><i className="block h-full rounded-full bg-ink/25" style={{ width: `${(r.a / max) * 100}%` }} /></div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-ink/[0.06]"><i className="block h-full rounded-full bg-vivo" style={{ width: `${(r.b / max) * 100}%` }} /></div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function YearOverYear({ d, height }) {

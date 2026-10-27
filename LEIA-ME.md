@@ -41,6 +41,11 @@ App de finanças pessoais com contas de usuário (e-mail e senha ou Google), dad
 ## Novidades do Leco 3.7
 - Vale-alimentação, vale-refeição e benefício flexível: conta própria (operadora, crédito mensal automático), saldo à parte do saldo total, opção no "Pago com" e "dá por dia" até o próximo crédito. Requer `supabase/v4.sql`.
 
+## Novidades do Leco 3.11
+- Regras automáticas (Ajustes › Regras automáticas): "Uber → Transporte", com conta/cartão opcional; valem ao lançar, no lançamento rápido, no comprovante e na importação; sugestões a partir do histórico. Ficam em `prefs.rules` (`src/58-whatif.jsx`).
+- Simulador "E se…?" (Planejamento): cortar recorrências, reduzir categorias, gasto novo/renda extra e prazo de metas. Não altera dados.
+- Início do computador personalizável (arrastar, esconder, restaurar), edição em massa no extrato, calendário com visão Semana (gasto por dia), layout com menu lateral em tablets (também no app), toque numa categoria para ver os lançamentos, comparação de dois meses, recorte de imagem dos ícones, números animados, splash e carregamento com esqueleto.
+
 ## Site Clean (visual alternativo)
 - Mesmo app, mesmos dados e mesma conta, com outro visual: https://thesousaleo.github.io/Leco/novo/
 - Código do visual em `src/68-clean.jsx` e no fim de `src/styles.css` (bloco `data-skin="clean"`). Gerado por `node scripts/build-web.mjs web-clean`.

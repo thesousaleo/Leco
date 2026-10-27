@@ -7,6 +7,7 @@ const SETTINGS_TABS = [
   { id: 'preferencias', label: 'Aparência', icon: 'palette', desc: 'Tema, cores, texto e privacidade' },
   { id: 'personalizar', label: 'Personalizar', icon: 'layers', desc: 'Início, menu, mês financeiro' },
   { id: 'notificacoes', label: 'Notificações', icon: 'bell', desc: 'Lembretes e alertas' },
+  { id: 'regras', label: 'Regras automáticas', icon: 'bolt', desc: 'Categorize sozinho ao lançar' },
   // A aba do WhatsApp só aparece quando o número do assistente estiver no leco.config.json
   ...(String((window.LECO_CONFIG || {}).whatsappNumber || '').replace(/\D/g, '') ? [{ id: 'whatsapp', label: 'WhatsApp', icon: 'chat', desc: 'Registre pelo chat' }] : []),
   { id: 'suporte', label: 'Ajuda e suporte', icon: 'help', desc: 'Dúvidas, contato e versão' },
@@ -545,7 +546,7 @@ function WhatsAppSettings() {
   );
 }
 
-const SETTINGS_VIEWS = { perfil: ProfileSettings, seguranca: SecuritySettings, preferencias: PrefsSettings, personalizar: PersonalizeSettings, notificacoes: NotifSettings, whatsapp: WhatsAppSettings, suporte: SupportSettings, dados: DataSettings };
+const SETTINGS_VIEWS = { perfil: ProfileSettings, seguranca: SecuritySettings, preferencias: PrefsSettings, personalizar: PersonalizeSettings, notificacoes: NotifSettings, regras: RulesSettings, whatsapp: WhatsAppSettings, suporte: SupportSettings, dados: DataSettings };
 
 function SettingsPage() {
   const d = useApp();

@@ -106,9 +106,11 @@ function useLocal(key, initial) {
   return [v, setV];
 }
 
-function useTween(target, ms = 650) {
-  const [v, setV] = useState(target);
-  const cur = useRef(target);
+// Valor animado: ao mudar, desliza até o novo número; com fromZero, conta a partir do zero quando a tela abre
+function useTween(target, ms = 650, fromZero = false) {
+  const start = fromZero && !reducedMotion() && Math.abs(target) > 0 ? 0 : target;
+  const [v, setV] = useState(start);
+  const cur = useRef(start);
   useEffect(() => {
     if (cur.current === target) return undefined;
     if (reducedMotion()) { cur.current = target; setV(target); return undefined; }
@@ -373,8 +375,8 @@ function useMoneyText() {
 }
 function Money({ cents, className = '' }) {
   const app = useApp();
-  const v = useTween(cents);
-  return <span className={`tabular-nums ${className}`}>{app && app.hide ? 'R$ ••••••' : fmtBRL(Math.round(v))}</span>;
+  const v = useTween(cents, 750, true);
+  return <span className={`tabular-nums ${className}`} aria-label={app && app.hide ? 'valor oculto' : fmtBRL(cents)}>{app && app.hide ? 'R$ ••••••' : fmtBRL(Math.round(v))}</span>;
 }
 function Percent({ value, className = '' }) {
   const v = useTween(value);
@@ -885,8 +887,11 @@ function Donut({ data, size = 200, stroke = 24, active, onActive, emptyLabel = '
   );
 }
 
-function CategoryBreakdown({ items, donutSize = 196, compact = false, emptyText = 'Nenhuma despesa neste período.' }) {
+// range = [de, até] e txKind ('out' | 'in'): tocar numa categoria abre os lançamentos dela
+function CategoryBreakdown({ items, donutSize = 196, compact = false, emptyText = 'Nenhuma despesa neste período.', range, txKind = 'out' }) {
   const [active, setActive] = useState(null);
+  const app = useApp();
+  const open = (c) => { if (range && app) app.openModal({ kind: 'catTx', catKey: c.key, label: c.label, color: c.color, from: range[0], to: range[1], txKind }); };
   const total = sum(items, (c) => c.value);
   const m = useMoneyText();
   return (
@@ -896,14 +901,14 @@ function CategoryBreakdown({ items, donutSize = 196, compact = false, emptyText 
         {items.length === 0 && <li className="py-6 text-center text-sm text-ink/65">{emptyText}</li>}
         {items.map((c) => (
           <li key={c.key}>
-            <button type="button" onPointerEnter={() => setActive(c.key)} onPointerLeave={() => setActive(null)} onFocus={() => setActive(c.key)} onBlur={() => setActive(null)}
+            <button type="button" onClick={() => open(c)} aria-label={range ? `Ver lançamentos de ${c.label}` : undefined} onPointerEnter={() => setActive(c.key)} onPointerLeave={() => setActive(null)} onFocus={() => setActive(c.key)} onBlur={() => setActive(null)}
               className={`w-full rounded-xl px-2.5 py-2 text-left transition-colors ${active === c.key ? 'bg-ink/[0.05]' : ''}`}>
               <div className="flex items-center justify-between gap-3 text-[13px]">
                 <span className="flex min-w-0 items-center gap-2 font-semibold">
                   <span className="size-2.5 shrink-0 rounded-full" style={{ background: c.color }} />
                   <span className="truncate">{c.label}</span>
                 </span>
-                <span className="shrink-0 tabular-nums text-ink/70"><span className="font-bold text-ink">{m(c.value)}</span> · {fmtPctAbs((c.value / total) * 100)}</span>
+                <span className="flex shrink-0 items-center gap-1 tabular-nums text-ink/70"><span className="font-bold text-ink">{m(c.value)}</span> · {fmtPctAbs((c.value / total) * 100)}{range && <Icon name="right" size={13} className="text-ink/35" />}</span>
               </div>
               <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-ink/[0.07]">
                 <i className="block h-full rounded-full transition-[width] duration-700" style={{ width: `${(c.value / items[0].value) * 100}%`, background: c.color }} />

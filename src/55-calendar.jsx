@@ -256,9 +256,61 @@ function CalendarPage() {
     </div>
   );
 
+  // Semana: os 7 dias com o que vence e uma barra do quanto foi gasto em cada dia
+  const wkStart = addDays(sel, -((weekdayOf(sel) - FIN.weekStart + 7) % 7));
+  const wkDays = Array.from({ length: 7 }, (_, i) => addDays(wkStart, i));
+  const spentDay = useMemo(() => { const o = {}; d.transactions.forEach((t) => { if (countsAsExpense(t)) o[t.date] = (o[t.date] || 0) + t.amount; }); return o; }, [d.transactions]);
+  const wkMax = Math.max(1, ...wkDays.map((x) => spentDay[x] || 0));
+  const wkTotal = sum(wkDays, (x) => spentDay[x] || 0);
+  const goWeek = (dl) => { const n = addDays(sel, 7 * dl); setDir(dl); setSel(n); setMonth(monthKey(n)); };
+  const WD = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const weekView = (
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <button type="button" className="icon-btn size-9" aria-label="Semana anterior" onClick={() => goWeek(-1)}><Icon name="left" size={16} /></button>
+        <div className="text-center"><p className="text-[14px] font-extrabold tabular-nums">{fmtDate(wkDays[0]).slice(0, 5)} – {fmtDate(wkDays[6]).slice(0, 5)}</p><p className="text-xs text-ink/60">Gasto na semana: <b className="tabular-nums text-ink">{m(wkTotal)}</b></p></div>
+        <button type="button" className="icon-btn size-9" aria-label="Próxima semana" onClick={() => goWeek(1)}><Icon name="right" size={16} /></button>
+      </div>
+      <div className={narrow ? 'space-y-1.5' : 'grid grid-cols-7 gap-2'}>
+        {wkDays.map((iso) => {
+          const list = byDay[iso] || [];
+          const spent = spentDay[iso] || 0;
+          const on = iso === sel, isToday = iso === today;
+          return (
+            <button key={iso} type="button" onClick={() => setSel(iso)} aria-pressed={on} aria-label={`${dayTitle(iso)}: gasto ${fmtBRL(spent)}, ${plural(list.length, 'item', 'itens')}`}
+              className={`rounded-2xl border text-left transition-colors ${on ? 'border-vivo/50 bg-vivo/10' : 'border-ink/[0.08] hover:bg-ink/[0.03]'} ${narrow ? 'flex w-full items-center gap-3 px-3 py-2.5' : 'flex min-h-[210px] flex-col p-2.5'}`}>
+              <span className={narrow ? 'w-12 shrink-0' : ''}>
+                <span className="block text-[11px] font-bold uppercase tracking-wider text-ink/55">{WD[weekdayOf(iso)]}</span>
+                <span className={`block text-[17px] font-extrabold tabular-nums ${isToday ? 'text-in' : ''}`}>{Number(iso.slice(8, 10))}</span>
+              </span>
+              {narrow ? (
+                <>
+                  <span className="min-w-0 flex-1">
+                    <span className="block h-2 overflow-hidden rounded-full bg-ink/[0.06]"><i className="block h-full rounded-full bg-gradient-to-r from-[#E0714F] to-[#F08A6B]" style={{ width: `${(spent / wkMax) * 100}%` }} /></span>
+                    <span className="mt-1 block truncate text-[11.5px] text-ink/60">{list.length ? list.slice(0, 2).map((e) => e.title).join(' · ') + (list.length > 2 ? ` +${list.length - 2}` : '') : 'Nada marcado'}</span>
+                  </span>
+                  <span className="w-[86px] shrink-0 text-right text-[12.5px] font-bold tabular-nums">{spent ? m(spent) : "—"}</span>
+                </>
+              ) : (
+                <>
+                  <span className="mt-2 flex h-16 items-end"><i className="block w-full rounded-lg bg-gradient-to-t from-[#E0714F] to-[#F08A6B]" style={{ height: `${Math.max(spent ? 6 : 0, (spent / wkMax) * 100)}%` }} /></span>
+                  <span className="mt-1 block text-[12px] font-bold tabular-nums">{spent ? m(spent) : '—'}</span>
+                  <span className="mt-2 space-y-1">
+                    {list.slice(0, 3).map((e) => <span key={e.id} className="block truncate rounded-md bg-ink/[0.05] px-1.5 py-0.5 text-[10.5px] font-semibold" style={{ boxShadow: `inset 2px 0 0 ${e.color || '#888'}` }}>{e.title}</span>)}
+                    {list.length > 3 && <span className="block text-[10.5px] font-semibold text-ink/55">+{list.length - 3}</span>}
+                  </span>
+                </>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   const controls = (
     <div className="space-y-3">
-      <Segmented size="sm" full label="Visualização" value={view} onChange={setView} options={[{ value: 'mes', label: 'Mês' }, { value: 'agenda', label: 'Agenda' }]} />
+      <Segmented size="sm" full label="Visualização" value={view} onChange={setView} options={[{ value: 'mes', label: 'Mês' }, { value: 'semana', label: 'Semana' }, { value: 'agenda', label: 'Agenda' }]} />
       <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1">
         {CAL_FILTERS.map((f) => (
           <button key={f.value} type="button" aria-pressed={filter === f.value} onClick={() => setFilter(f.value)}
@@ -289,13 +341,14 @@ function CalendarPage() {
           {header}
           {totals.late > 0 && <p className="mt-2 rounded-xl bg-coral/10 px-3 py-1.5 text-center text-xs font-bold text-out">{plural(totals.late, 'conta atrasada', 'contas atrasadas')} neste mês</p>}
           {view === 'mes' && <div className="mt-2">{grid}</div>}
+          {view === 'semana' && <div className="mt-2">{weekView}</div>}
           <div className="mt-3 flex items-center justify-between gap-2">
             {view === 'mes' ? legend : <span />}
             {month !== monthKey(today) && <button type="button" className="shrink-0 text-xs font-bold text-in" onClick={goToday}>Hoje</button>}
           </div>
         </div>
         {summary}
-        <div className="glass rise rounded-3xl px-3 py-3" key={`${view}-${sel}-${filter}`}>{view === 'mes' ? dayPanel : agendaList}</div>
+        <div className="glass rise rounded-3xl px-3 py-3" key={`${view}-${sel}-${filter}`}>{view === 'agenda' ? agendaList : dayPanel}</div>
         <button type="button" className="btn btn-ghost w-full !py-2.5 text-[13px]" onClick={exportIcs}><Icon name="download" size={15} />Exportar para o Google Agenda</button>
         <p className="-mt-2 px-2 text-center text-[11px] leading-relaxed text-ink/55">Abra o arquivo baixado com o Google Agenda, ou importe em calendar.google.com › Configurações › Importar.</p>
       </div>
@@ -312,7 +365,7 @@ function CalendarPage() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="w-[260px]">{header}</div>
             <div className="flex items-center gap-3">
-              <div className="w-[200px]"><Segmented size="sm" full label="Visualização" value={view} onChange={setView} options={[{ value: 'mes', label: 'Mês' }, { value: 'agenda', label: 'Agenda' }]} /></div>
+              <div className="w-[280px]"><Segmented size="sm" full label="Visualização" value={view} onChange={setView} options={[{ value: 'mes', label: 'Mês' }, { value: 'semana', label: 'Semana' }, { value: 'agenda', label: 'Agenda' }]} /></div>
             </div>
           </div>
           <div className="mb-3 flex flex-wrap gap-1.5">
@@ -321,7 +374,7 @@ function CalendarPage() {
                 className={`rounded-full border px-3 py-1.5 text-[12.5px] font-bold transition-colors ${filter === f.value ? 'border-vivo/50 bg-vivo/15 text-ink' : 'border-ink/10 bg-ink/[0.03] text-ink/70 hover:text-ink'}`}>{f.label}</button>
             ))}
           </div>
-          {view === 'mes' ? <>{grid}<div className="mt-3">{legend}</div></> : agendaList}
+          {view === 'mes' ? <>{grid}<div className="mt-3">{legend}</div></> : view === 'semana' ? weekView : agendaList}
         </Card>
         <div className="space-y-5">
           <Card>{summary}{totals.late > 0 && <p className="mt-3 rounded-xl bg-coral/10 px-3 py-2 text-center text-xs font-bold text-out">{plural(totals.late, 'conta atrasada', 'contas atrasadas')} neste mês</p>}</Card>

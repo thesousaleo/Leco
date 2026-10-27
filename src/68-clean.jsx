@@ -43,7 +43,7 @@ function CleanSidebar({ collapsed, setCollapsed, drawer = false, onClose }) {
   const hasBen = d.v4 || d.accounts.some(isBenefit);
   const [groups, setGroups] = useLocal('leco.clean.groups', { tx: true, plan: true });
   const toggle = (k) => setGroups({ ...groups, [k]: !groups[k] });
-  const planPages = ['planejamento', 'recorrentes', 'metas', 'dividas', 'categorias', 'modelos'];
+  const planPages = ['planejamento', 'simulador', 'recorrentes', 'metas', 'dividas', 'categorias', 'modelos'];
   const go = (id) => d.go(id);
   const dark = d.fullTheme !== 'light';
   const sec = (label) => (collapsed || !label ? <div className="mx-3 my-3 border-t border-ink/[0.07]" /> : <p className="cl-sec">{label}</p>);
@@ -74,6 +74,7 @@ function CleanSidebar({ collapsed, setCollapsed, drawer = false, onClose }) {
         {!collapsed && groups.plan && (
           <div className="cl-tree">
             <CleanNavItem sub label="Orçamentos" on={d.page === 'planejamento'} onClick={() => go('planejamento')} />
+            <CleanNavItem sub label="E se…?" on={d.page === 'simulador'} onClick={() => go('simulador')} />
             <CleanNavItem sub label="Recorrentes" on={d.page === 'recorrentes'} onClick={() => go('recorrentes')} />
             <CleanNavItem sub label="Metas" on={d.page === 'metas'} onClick={() => go('metas')} />
             <CleanNavItem sub label="Dívidas" on={d.page === 'dividas'} onClick={() => go('dividas')} />
@@ -107,7 +108,7 @@ function CleanSidebar({ collapsed, setCollapsed, drawer = false, onClose }) {
 const CLEAN_TITLES = {
   inicio: ['Início', 'Acompanhe suas finanças e seus hábitos de gasto.'], relatorios: ['Análises', 'Para onde vai o seu dinheiro.'], calendario: ['Calendário', 'Tudo o que vence, dia a dia.'],
   transacoes: ['Transações', 'Todos os lançamentos, com filtros e PDF.'], recorrentes: ['Recorrentes', 'Contas fixas, assinaturas e salário.'], contas: ['Contas e cartões', 'Saldos, faturas, limites e vales.'],
-  dividas: ['Dívidas', 'O que você deve e o que te devem.'], metas: ['Metas', 'Objetivos de economia.'], planejamento: ['Orçamentos', 'Planejado × realizado no mês.'],
+  dividas: ['Dívidas', 'O que você deve e o que te devem.'], metas: ['Metas', 'Objetivos de economia.'], planejamento: ['Orçamentos', 'Planejado × realizado no mês.'], simulador: ['E se…?', 'Teste mudanças sem mexer nos seus dados.'],
   categorias: ['Categorias', 'Categorias, subcategorias e limites.'], modelos: ['Modelos', 'Atalhos para gastos frequentes.'], conquistas: ['Conquistas', 'Seu progresso no Leco.'], config: ['Configurações', 'Conta, aparência, notificações e dados.'],
 };
 function CleanWebLayout() {
@@ -250,7 +251,7 @@ function CleanOverview() {
           {tab === 'summary' && (
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
               <Card title="Próximos vencimentos" sub="Próximos 30 dias"><UpcomingList /></Card>
-              <Card title="Despesas por categoria" sub={`${monthLabel(d.month)}`}><CategoryBreakdown items={periodSummary(d.transactions, ...finRange(d.month), d.categories).byCatOut} donutSize={196} /></Card>
+              <Card title="Despesas por categoria" sub={`${monthLabel(d.month)}`}><CategoryBreakdown range={finRange(d.month)} items={periodSummary(d.transactions, ...finRange(d.month), d.categories).byCatOut} donutSize={196} /></Card>
             </div>
           )}
           {tab === 'goals' && <CleanGoals />}

@@ -20,7 +20,9 @@ function txMeta(t, d) {
   };
 }
 
-function TxItem({ t, onOpen, onConfirm, showDate = true, dense = false }) {
+function TxItem({ t, onOpen: openTx, onConfirm, showDate = true, dense = false, select }) {
+  // select = { on, toggle }: modo de seleção (edição em massa); tocar marca/desmarca
+  const onOpen = select ? () => select.toggle(t) : openTx;
   const d = useApp();
   const m = useMoneyText();
   const meta = txMeta(t, d);
@@ -28,7 +30,7 @@ function TxItem({ t, onOpen, onConfirm, showDate = true, dense = false }) {
   const inner = useRef(null);
   const g = useRef(null);
   const [dx, setDx] = useState(0);
-  const canSwipe = LITE && !!onOpen && t.kind !== 'card_payment';
+  const canSwipe = LITE && !!onOpen && !select && t.kind !== 'card_payment';
   const down = (e) => { if (!canSwipe || e.pointerType === 'mouse') return; g.current = { x: e.clientX, y: e.clientY, on: false }; };
   const move = (e) => {
     const s = g.current; if (!s) return;
@@ -56,7 +58,8 @@ function TxItem({ t, onOpen, onConfirm, showDate = true, dense = false }) {
       <div ref={inner} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
         className={`group relative flex items-center gap-3 rounded-2xl px-1.5 ${dense ? 'py-2' : 'py-2.5'} transition-colors hover:bg-ink/[0.03] ${dx !== 0 ? 'bg-[var(--paper)]' : ''}`}
         style={{ transform: dx ? `translate3d(${dx}px,0,0)` : undefined, transition: g.current ? 'none' : 'transform .25s cubic-bezier(.2,.8,.2,1)', touchAction: 'pan-y' }}>
-        <button type="button" onClick={() => onOpen && onOpen(t)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={`Abrir ${meta.title}`}>
+        {select && <span role="checkbox" aria-checked={select.on} aria-label={`Selecionar ${meta.title}`} tabIndex={0} onClick={() => select.toggle(t)} onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); select.toggle(t); } }} className={`grid size-5 shrink-0 cursor-pointer place-items-center rounded-md border-2 ${select.on ? 'border-vivo bg-vivo text-white' : 'border-ink/25'}`}>{select.on && <Icon name="check" size={12} strokeWidth={3} />}</span>}
+        <button type="button" onClick={() => onOpen && onOpen(t)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={select ? `Selecionar ${meta.title}` : `Abrir ${meta.title}`}>
           <ColorIcon icon={meta.icon} color={meta.color} size={dense ? 36 : 40} />
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5">
@@ -66,13 +69,13 @@ function TxItem({ t, onOpen, onConfirm, showDate = true, dense = false }) {
             <span className="block truncate text-xs text-ink/65">{!t.paid && <span className={`mr-1.5 ${t.date < todayISO() ? 'pill pill-bad' : 'badge-gold'} !px-1.5 !py-0 !text-[10px]`}>{t.date < todayISO() ? 'atrasado' : t.kind === 'in' ? 'a receber' : 'a pagar'}</span>}{meta.sub}{showDate ? ` · ${fmtDate(t.date)}` : ''}{tagLine}</span>
           </span>
         </button>
-        {!t.paid && onConfirm && (
+        {!t.paid && onConfirm && !select && (
           <button type="button" className={`btn btn-ghost shrink-0 text-xs ${LITE ? '!size-9 !p-0' : '!px-3 !py-1.5'}`} aria-label={t.kind === 'in' ? 'Recebi' : 'Paguei'} onClick={() => onConfirm(t)}>
             <Icon name="check" size={14} strokeWidth={2.4} />{LITE ? null : t.kind === 'in' ? 'Recebi' : 'Paguei'}
           </button>
         )}
         <span className={`shrink-0 whitespace-nowrap text-[14px] font-extrabold tabular-nums ${meta.tone} ${!t.paid ? 'opacity-60' : ''}`}>{meta.sign}{meta.sign ? ' ' : ''}{m(t.amount)}</span>
-        {!LITE && onOpen && t.kind !== 'card_payment' && (
+        {!LITE && onOpen && !select && t.kind !== 'card_payment' && (
           <span className="row-actions flex shrink-0 items-center gap-1">
             <button type="button" className="icon-btn size-8" aria-label="Editar" onClick={() => onOpen(t)}><Icon name="edit" size={14} /></button>
             <button type="button" className="icon-btn size-8 hover:!bg-coral/15 hover:text-out" aria-label="Excluir" onClick={() => d.openModal({ kind: 'deleteTx', t })}><Icon name="trash" size={14} /></button>
@@ -229,6 +232,10 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
     const first = cashAccounts(accounts)[0] || accounts[0];
     return first ? `acc:${first.id}` : '';
   });
+  const catUser = useRef(!!initial);
+  const srcUser = useRef(!!initial || !!presetSource);
+  const [ruleHit, setRuleHit] = useState(null);
+  const pickCat = (id) => { catUser.current = true; setCat(id); };
   const [toAcc, setToAcc] = useState(initial && initial.to_account_id ? initial.to_account_id : (accounts[1] || accounts[0] || {}).id || '');
   const [installments, setInstallments] = useState(1);
   const [repeat, setRepeat] = useState(false);
@@ -256,6 +263,22 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
   const card = isCard ? cards.find((c) => c.id === source.slice(5)) : null;
   useEffect(() => { if (!paidTouched) setPaid(date <= todayISO()); }, [date]);
   useEffect(() => { if (kind === 'in' && isCard) setSource(accounts[0] ? `acc:${accounts[0].id}` : ''); if (kind !== 'out') setInstallments(1); if (kind === 'transfer') setRepeat(false); }, [kind]);
+  // Regras automáticas: ao digitar a descrição, escolhe categoria e conta da regra
+  useEffect(() => {
+    if (editing || kind === 'transfer') return undefined;
+    const tm = setTimeout(() => {
+      const r = matchRule(desc, kind, d);
+      setRuleHit(r && (r.category_id || r.source) ? r : null);
+      if (r) {
+        if (r.category_id && !catUser.current) setCat(r.category_id);
+        if (r.source && !srcUser.current && ruleSourceOk(r.source, d, kind)) setSource(r.source);
+      } else if (!catUser.current && desc.trim().length > 2) {
+        const sg = suggestCategory(desc, kind, d);
+        if (sg) setCat(sg);
+      }
+    }, 250);
+    return () => clearTimeout(tm);
+  }, [desc, kind]);
   const canSplit = kind === 'out' && !editing && !repeat;
   const canRepeat = kind !== 'transfer' && !editing && installments === 1;
   // Atalhos: Parcelada e Assinatura
@@ -322,7 +345,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
   };
   useEffect(() => { if (scanFile) doScan(scanFile); }, []);
   const applyTemplate = (t) => {
-    switchKind(t.kind); if (t.amount) setAmount(t.amount); setDesc(t.description || t.name); setCat(t.category_id);
+    switchKind(t.kind); if (t.amount) setAmount(t.amount); setDesc(t.description || t.name); pickCat(t.category_id);
     if (t.card_id && cards.some((c) => c.id === t.card_id)) setSource(`card:${t.card_id}`); else if (t.account_id && accounts.some((a) => a.id === t.account_id)) setSource(`acc:${t.account_id}`);
     if (t.tags && t.tags.length) { setTags(t.tags); setMore(true); }
     d.backend.db.update('templates', t.id, { uses: (t.uses || 0) + 1 }).catch(() => {});
@@ -420,6 +443,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
           </Field>
           <Field label="Descrição" className="mt-4">
             <input id="tx-desc" className="field" value={desc} maxLength={60} onChange={(e) => setDesc(e.target.value)} placeholder={kind === 'in' ? 'Ex.: Salário de outubro' : kind === 'out' ? 'Ex.: Supermercado' : 'Ex.: Guardar na poupança'} />
+            {ruleHit && !editing && <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] font-semibold text-in" data-rule-hit><Icon name="bolt" size={12} />Regra "{ruleHit.match}" aplicada{ruleHit.category_id ? ` · ${(d.categories.find((c) => c.id === ruleHit.category_id) || {}).name || ''}` : ''}{ruleHit.source && ruleSourceLabel(ruleHit.source, d) ? ` · ${ruleSourceLabel(ruleHit.source, d)}` : ''}</p>}
           </Field>
 
           {kind === 'transfer' ? (
@@ -441,7 +465,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
                 <legend className="lbl">Categoria{!cat ? <span className="ml-1 normal-case tracking-normal text-ink/50">(se não escolher: Outros)</span> : null}</legend>
                 <div className={`mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 ${split ? 'hidden' : ''}`}>
                   {catTop.map((c) => (
-                    <button key={c.id} type="button" aria-pressed={selTop === c.id} onClick={() => setCat(c.id)}
+                    <button key={c.id} type="button" aria-pressed={selTop === c.id} onClick={() => pickCat(c.id)}
                       className={`flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1 py-2.5 text-[11.5px] font-semibold transition-all ${selTop === c.id ? 'border-vivo/60 bg-vivo/15 text-ink shadow-[0_0_0_3px_rgba(20,128,107,.12)]' : 'border-ink/10 bg-ink/[0.03] text-ink/75 hover:bg-ink/[0.06]'}`}>
                       <span style={{ color: c.color }}><Icon name={c.icon} size={18} /></span>
                       <span className="w-full truncate text-center">{c.name}</span>
@@ -456,7 +480,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
                 {!split && subCats.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Subcategoria">
                     {[{ id: selTop, name: 'Geral' }, ...subCats].map((c) => (
-                      <button key={c.id} type="button" role="radio" aria-checked={cat === c.id} onClick={() => setCat(c.id)}
+                      <button key={c.id} type="button" role="radio" aria-checked={cat === c.id} onClick={() => pickCat(c.id)}
                         className={`rounded-full border px-3 py-1.5 text-[12px] font-bold ${cat === c.id ? 'border-vivo/60 bg-vivo/15 text-ink' : 'border-ink/10 bg-ink/[0.03] text-ink/70'}`}>{c.name}</button>
                     ))}
                   </div>
@@ -476,7 +500,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
                 )}
               </fieldset>
               <Field label={kind === 'in' ? 'Entra em' : 'Pago com'} error={errors.source} className="mt-4">
-                <select id="tx-source" className="field" value={source} onChange={(e) => setSource(e.target.value)} disabled={editing && !!initial.group_id}>
+                <select id="tx-source" className="field" value={source} onChange={(e) => { srcUser.current = true; setSource(e.target.value); }} disabled={editing && !!initial.group_id}>
                   <optgroup label="Contas">{cashAccounts(accounts).map((a) => <option key={a.id} value={`acc:${a.id}`}>{a.name}</option>)}</optgroup>
                   {accounts.some(isBenefit) && <optgroup label="Vale-alimentação / refeição">{accounts.filter(isBenefit).map((a) => <option key={a.id} value={`acc:${a.id}`}>{a.name} · {fmtBRL(d.balances[a.id] || 0)}</option>)}</optgroup>}
                   {kind === 'out' && cards.length > 0 && <optgroup label="Cartões de crédito">{cards.map((c) => <option key={c.id} value={`card:${c.id}`}>{c.name} (crédito)</option>)}</optgroup>}
@@ -591,6 +615,64 @@ async function imageToIcon(file) {
   } finally { URL.revokeObjectURL(url); }
 }
 
+// Recorte da imagem do ícone: arrastar para posicionar e ajustar o zoom
+function IconCropper({ file, onDone, onCancel, onError }) {
+  const [img, setImg] = useState(null);
+  const [zoom, setZoom] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const drag = useRef(null);
+  const V = 240; // tamanho da área de recorte na tela
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    const i = new Image();
+    i.onload = () => setImg(i);
+    i.onerror = () => onError();
+    i.src = url;
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  useEffect(() => { const k = (e) => { if (e.key === 'Escape') onCancel(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  const base = img ? V / Math.min(img.width, img.height) : 1;
+  const sc = base * zoom;
+  const w = img ? img.width * sc : V, h = img ? img.height * sc : V;
+  const clamp = (p) => ({ x: Math.min(0, Math.max(V - w, p.x)), y: Math.min(0, Math.max(V - h, p.y)) });
+  useEffect(() => { if (img) setPos((p) => clamp(p.x === 0 && p.y === 0 && zoom === 1 ? { x: (V - w) / 2, y: (V - h) / 2 } : p)); }, [img, zoom]);
+  const down = (e) => { drag.current = { x: e.clientX, y: e.clientY, p: pos }; e.currentTarget.setPointerCapture(e.pointerId); };
+  const move = (e) => { if (!drag.current) return; const s = drag.current; setPos(clamp({ x: s.p.x + (e.clientX - s.x), y: s.p.y + (e.clientY - s.y) })); };
+  const up = () => { drag.current = null; };
+  const done = () => {
+    if (!img) return;
+    const S = 96, k = S / V;
+    const c = document.createElement('canvas'); c.width = S; c.height = S;
+    const g = c.getContext('2d');
+    g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, S, S);
+    g.drawImage(img, pos.x * k, pos.y * k, w * k, h * k);
+    let out = c.toDataURL('image/webp', 0.9);
+    if (!out.startsWith('data:image/webp')) out = c.toDataURL('image/jpeg', 0.9);
+    onDone(out);
+  };
+  return (
+    <div className="overlay-in fixed inset-0 z-[95] grid place-items-center p-4" style={{ background: 'var(--scrim)' }}>
+      <div role="dialog" aria-modal="true" aria-label="Ajustar imagem" className="glass-deep dialog-in w-full max-w-[340px] p-5">
+        <p className="text-[17px] font-extrabold tracking-[-0.02em]">Ajustar imagem</p>
+        <p className="mt-0.5 text-xs text-ink/65">Arraste para posicionar e use o zoom para enquadrar.</p>
+        <div className="relative mx-auto mt-4 overflow-hidden rounded-[28px] bg-white" style={{ width: V, height: V, touchAction: 'none' }} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+          {img ? <img src={img.src} alt="" draggable="false" className="pointer-events-none absolute max-w-none select-none" style={{ left: pos.x, top: pos.y, width: w, height: h }} /> : <span className="grid size-full place-items-center"><Spinner size={18} /></span>}
+          <span className="pointer-events-none absolute inset-0 rounded-[28px]" style={{ boxShadow: 'inset 0 0 0 2px rgba(255,255,255,.9), inset 0 0 0 3px rgba(11,47,41,.25)' }} />
+        </div>
+        <label className="mt-4 flex items-center gap-3 text-xs font-semibold text-ink/70">
+          <Icon name="minus" size={14} />
+          <input type="range" min="1" max="4" step="0.01" value={zoom} aria-label="Zoom" className="flex-1" onChange={(e) => { const z = Number(e.target.value); setPos((p) => { const nw = img ? img.width * base * z : V, nh = img ? img.height * base * z : V; const cx = (V / 2 - p.x) / w, cy = (V / 2 - p.y) / h; return { x: Math.min(0, Math.max(V - nw, V / 2 - cx * nw)), y: Math.min(0, Math.max(V - nh, V / 2 - cy * nh)) }; }); setZoom(z); }} />
+          <Icon name="plus" size={14} />
+        </label>
+        <div className="mt-5 flex gap-2">
+          <button type="button" className="btn btn-ghost flex-1" onClick={onCancel}>Cancelar</button>
+          <button type="button" className="btn btn-primary flex-[1.4]" onClick={done} disabled={!img}><Icon name="check" size={16} strokeWidth={2.4} />Usar imagem</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function IconPicker({ value, onChange, choices = ICON_CHOICES, label = 'Ícone', allowImage = false }) {
   const [custom, setCustom] = useState('');
   const [imgErr, setImgErr] = useState('');
@@ -600,8 +682,9 @@ function IconPicker({ value, onChange, choices = ICON_CHOICES, label = 'Ícone',
     const f = e.target.files && e.target.files[0]; e.target.value = '';
     if (!f) return;
     if (!f.type.startsWith('image/')) { setImgErr('Escolha uma imagem (JPG, PNG ou WEBP).'); return; }
-    try { setImgErr(''); onChange(await imageToIcon(f)); } catch (x) { setImgErr('Não consegui abrir essa imagem. Tente outra.'); }
+    setImgErr(''); setCropFile(f);
   };
+  const [cropFile, setCropFile] = useState(null);
   return (
     <fieldset>
       <legend className="lbl">{label}</legend>
@@ -620,6 +703,7 @@ function IconPicker({ value, onChange, choices = ICON_CHOICES, label = 'Ícone',
         </div>
       )}
       {imgErr && <p className="mt-1.5 text-xs font-semibold text-out">{imgErr}</p>}
+      {cropFile && ReactDOM.createPortal(<IconCropper file={cropFile} onCancel={() => setCropFile(null)} onDone={(url) => { setCropFile(null); onChange(url); }} onError={() => { setCropFile(null); setImgErr('Não consegui abrir essa imagem. Tente outra.'); }} />, document.body)}
       <div className="mt-2 flex flex-wrap gap-1.5">
         {[...choices, ...EMOJI_CHOICES].map((ic) => (
           <button key={ic} type="button" aria-pressed={value === ic} aria-label={`Ícone ${ic}`} onClick={() => onChange(ic)}
@@ -1176,6 +1260,7 @@ function ModalBody({ m, close }) {
     case 'monthSummary': return <MonthSummarySheet key={m.key} month={m.month} onClose={close} />;
     case 'pin': return <PinSetupSheet key={m.key} onClose={close} />;
     case 'deleteTx': return <DeleteTxSheet key={m.key} t={m.t} onClose={close} />;
+    case 'catTx': return <CatTxSheet key={m.key} catKey={m.catKey} label={m.label} color={m.color} from={m.from} to={m.to} txKind={m.txKind} onClose={close} />;
     default: return null;
   }
 }

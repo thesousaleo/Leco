@@ -265,13 +265,58 @@ function ConfigMissingScreen() {
   );
 }
 
+// Abertura: o "L" aparece e a moeda cai girando até o lugar
+function SplashMark({ size = 76 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" className="overflow-visible">
+      <defs>
+        <linearGradient id="spl-l" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#14806B" /><stop offset="1" stopColor="#0B2F29" /></linearGradient>
+        <radialGradient id="spl-c" cx=".34" cy=".3" r=".85"><stop offset="0" stopColor="#FFDB7E" /><stop offset=".55" stopColor="#E8A317" /><stop offset="1" stopColor="#B57406" /></radialGradient>
+      </defs>
+      <path className="splash-l" d="M10 6h9v27h21v9H10z" fill="url(#spl-l)" stroke="url(#spl-l)" strokeWidth="2.5" strokeLinejoin="round" />
+      <g className="splash-coin">
+        <circle cx="31" cy="22.5" r="9.5" fill="url(#spl-c)" />
+        <circle cx="31" cy="22.5" r="6.3" fill="none" stroke="#9A6205" strokeOpacity=".55" strokeWidth="1.3" />
+        <path d="M26.6 18.6a6 6 0 0 1 4-2.3" fill="none" stroke="#FFF3CF" strokeOpacity=".85" strokeWidth="1.3" strokeLinecap="round" />
+      </g>
+    </svg>
+  );
+}
 function SplashScreen({ text = 'Carregando…' }) {
   return (
     <div className="relative z-10 grid min-h-[100dvh] place-items-center">
       <div className="flex flex-col items-center gap-5">
-        <Logo size="lg" />
-        <span className="flex items-center gap-2 text-sm font-semibold text-ink/70"><Spinner size={16} />{text}</span>
+        <SplashMark />
+        <p className="splash-word text-[34px] font-extrabold tracking-[-0.03em]">Leco</p>
+        <span className="splash-text flex items-center gap-2 text-sm font-semibold text-ink/60"><Spinner size={14} />{text}</span>
       </div>
+    </div>
+  );
+}
+
+// Carregando os dados: blocos no formato da tela, piscando de leve
+function Skel({ className = '' }) { return <span className={`skel block ${className}`} aria-hidden="true" />; }
+function LoadingSkeleton({ wide }) {
+  return (
+    <div className="relative z-10 min-h-[100dvh]" role="status" aria-label="Carregando seus dados">
+      {wide ? (
+        <div className="mx-auto grid max-w-[1480px] gap-5 p-5 grid-cols-[232px_minmax(0,1fr)] lg:grid-cols-[248px_minmax(0,1fr)]">
+          <div className="glass space-y-3 p-5"><Skel className="h-10 w-32" /><Skel className="h-11 w-full rounded-full" />{Array.from({ length: 9 }, (_, i) => <Skel key={i} className="h-9 w-full" />)}</div>
+          <div className="space-y-5">
+            <div className="flex items-end justify-between pt-10"><div className="space-y-2"><Skel className="h-4 w-40" /><Skel className="h-8 w-72" /></div><Skel className="h-11 w-56 rounded-full" /></div>
+            <div className="grid gap-4 md:grid-cols-2 min-[1500px]:grid-cols-4">{Array.from({ length: 4 }, (_, i) => <div key={i} className="glass space-y-4 p-6"><Skel className="h-4 w-32" /><Skel className="h-8 w-44" /><Skel className="h-3 w-24" /></div>)}</div>
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]"><div className="glass space-y-3 p-6"><Skel className="h-5 w-48" />{Array.from({ length: 5 }, (_, i) => <Skel key={i} className="h-12 w-full" />)}</div><div className="glass space-y-3 p-6"><Skel className="h-5 w-36" />{Array.from({ length: 5 }, (_, i) => <Skel key={i} className="h-12 w-full" />)}</div></div>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4 px-4 pt-[calc(14px+var(--safe-top))]">
+          <div className="flex items-center gap-3"><Skel className="size-11 rounded-full" /><div className="flex-1 space-y-1.5"><Skel className="h-3 w-16" /><Skel className="h-5 w-28" /></div><Skel className="size-11 rounded-full" /><Skel className="size-11 rounded-full" /></div>
+          <Skel className="h-[74px] w-full rounded-2xl" />
+          <div className="glass space-y-3 p-4"><Skel className="h-4 w-32" />{Array.from({ length: 3 }, (_, i) => <Skel key={i} className="h-9 w-full" />)}</div>
+          <div className="grid grid-cols-4 gap-3">{Array.from({ length: 4 }, (_, i) => <Skel key={i} className="h-14 w-full rounded-2xl" />)}</div>
+          <div className="glass space-y-3 p-4">{Array.from({ length: 4 }, (_, i) => <div key={i} className="flex items-center gap-3"><Skel className="size-10 rounded-2xl" /><div className="flex-1 space-y-1.5"><Skel className="h-3.5 w-2/3" /><Skel className="h-3 w-1/2" /></div><Skel className="h-4 w-16" /></div>)}</div>
+        </div>
+      )}
     </div>
   );
 }

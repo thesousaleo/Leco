@@ -295,3 +295,45 @@ function ScanStatus({ state }) {
     </div>
   );
 }
+
+// Barra da edição em massa: categoria, marcar como pago, excluir
+function BulkBar({ rows, onClear, onAll, allCount = 0 }) {
+  const d = useApp();
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const ids = rows.map((t) => t.id);
+  const kinds = [...new Set(rows.map((t) => t.kind).filter((k) => k === 'in' || k === 'out'))];
+  const cats = kinds.length === 1 ? d.categories.filter((c) => c.kind === kinds[0] && !c.archived) : [];
+  const unpaid = rows.filter((t) => !t.paid && (t.kind === 'in' || t.kind === 'out'));
+  const run = async (fn) => { setBusy(true); const ok = await fn(); setBusy(false); if (ok) onClear(); };
+  return ReactDOM.createPortal(
+    <div className="toast-top fixed left-1/2 top-[calc(10px+var(--safe-top))] z-[85] w-[min(720px,calc(100%-20px))]">
+      <div role="toolbar" aria-label="Ações em massa" className="glass-deep flex flex-wrap items-center gap-2 rounded-2xl p-2.5 pl-4 text-[13px]">
+        <span className="font-bold">{rows.length ? plural(rows.length, 'selecionado', 'selecionados') : 'Toque nos lançamentos para selecionar'}</span>
+        {onAll && allCount > rows.length && <button type="button" className="text-[12.5px] font-bold text-in hover:underline" onClick={onAll}>Selecionar todos ({allCount})</button>}
+        {!rows.length ? <span className="ml-auto"><button type="button" className="icon-btn size-8" aria-label="Cancelar seleção" onClick={onClear}><Icon name="x" size={14} /></button></span> : confirmDel ? (
+          <>
+            <span className="text-ink/70">Excluir de vez?</span>
+            <span className="ml-auto flex gap-2">
+              <button type="button" className="btn btn-ghost !py-1.5 text-[12.5px]" onClick={() => setConfirmDel(false)}>Cancelar</button>
+              <button type="button" className="btn btn-danger !py-1.5 text-[12.5px]" disabled={busy} onClick={() => run(() => d.bulkDeleteTx(ids))}>{busy ? <Spinner size={13} /> : <Icon name="trash" size={14} />}Excluir {rows.length}</button>
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="ml-auto flex flex-wrap items-center gap-2">
+              {cats.length > 0 ? (
+                <select aria-label="Mudar categoria" className="field !w-auto !py-1.5 text-[12.5px]" value="" disabled={busy} onChange={(e) => { const v = e.target.value; if (v) run(() => d.bulkTx(ids, { category_id: v }, 'Categoria alterada')); }}>
+                  <option value="">Mudar categoria…</option>
+                  {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              ) : kinds.length > 1 ? <span className="text-[12px] text-ink/55">Receitas e despesas juntas: categoria só para um tipo</span> : null}
+              {unpaid.length > 0 && <button type="button" className="btn btn-ghost !py-1.5 text-[12.5px]" disabled={busy} onClick={() => run(() => d.bulkTx(unpaid.map((t) => t.id), { paid: true }, `${plural(unpaid.length, 'lançamento confirmado', 'lançamentos confirmados')}`))}><Icon name="check" size={14} />Marcar como pago</button>}
+              <button type="button" className="btn btn-ghost !py-1.5 text-[12.5px] hover:!text-out" onClick={() => setConfirmDel(true)}><Icon name="trash" size={14} />Excluir</button>
+              <button type="button" className="icon-btn size-8" aria-label="Cancelar seleção" onClick={onClear}><Icon name="x" size={14} /></button>
+            </span>
+          </>
+        )}
+      </div>
+    </div>, document.body);
+}

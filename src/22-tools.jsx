@@ -23,6 +23,8 @@ const CAT_HINTS = [
 function suggestCategory(desc, kind, d) {
   const n = normTxt(desc);
   if (!n) return null;
+  const rule = matchRule(desc, kind, d);
+  if (rule && rule.category_id) return rule.category_id;
   const list = d.categories.filter((c) => c.kind === kind && !c.archived);
   const key = n.split(' ').slice(0, 2).join(' ');
   const counts = {};
@@ -104,6 +106,7 @@ function parseQuickText(text, d, today = todayISO()) {
   const acc = d.accounts.filter((a) => !a.archived).find((a) => sn.includes(normTxt(a.name)));
   if (card && out.kind === 'out' && (/\b(cartao|cartão|credito|crédito)\b/.test(s) || !acc)) { out.card_id = card.id; s = s.replace(new RegExp(card.name.split(' ')[0], 'i'), ' '); }
   else if (acc) { out.account_id = acc.id; s = s.replace(new RegExp(acc.name.split(' ')[0], 'i'), ' '); }
+  if (!out.card_id && !out.account_id) { const rr = matchRule(raw, out.kind, d); if (rr && ruleSourceOk(rr.source, d, out.kind)) { if (rr.source.startsWith('card:')) out.card_id = rr.source.slice(5); else out.account_id = rr.source.slice(4); } }
   if (!out.card_id && /\b(cartao|cartão|credito|crédito)\b/.test(s) && d.cards.length && out.kind === 'out') out.card_id = d.cards.filter((c) => !c.archived)[0].id;
   if (!out.card_id && !out.account_id && d.accounts.length) out.account_id = d.accounts.filter((a) => !a.archived)[0].id;
   // descrição: o que sobrou, sem palavras de ligação

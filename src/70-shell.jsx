@@ -202,6 +202,21 @@ function useLecoData(backend, session, toast) {
         label: 'Desfazer', run: async () => { try { const made = await backend.db.insert('transactions', [stripRow(t)]); set('transactions', (l) => [...made, ...l].sort(byTx)); } catch (e) { toast(e.message, null, true); } },
       });
     },
+    // Edição em massa (extrato): muda campos ou exclui vários lançamentos de uma vez
+    async bulkTx(ids, patch, okMsg) {
+      return guard(async () => {
+        const rows = await backend.db.updateIn('transactions', ids, patch);
+        const by = new Map(rows.map((r) => [r.id, r]));
+        set('transactions', (l) => l.map((x) => (by.has(x.id) ? { ...x, ...by.get(x.id) } : x)));
+        markFresh(ids);
+      }, okMsg || `${plural(ids.length, 'lançamento atualizado', 'lançamentos atualizados')}`);
+    },
+    async bulkDeleteTx(ids) {
+      return guard(async () => {
+        await backend.db.removeIn('transactions', ids);
+        set('transactions', (l) => l.filter((x) => !ids.includes(x.id)));
+      }, `${plural(ids.length, 'lançamento excluído', 'lançamentos excluídos')}`);
+    },
     async confirmTx(t) {
       return guard(async () => { const row = await backend.db.update('transactions', t.id, { paid: true }); set('transactions', (l) => l.map((x) => (x.id === row.id ? row : x))); markFresh([row.id]); }, t.kind === 'in' ? 'Recebimento confirmado' : 'Pagamento confirmado');
     },
@@ -610,6 +625,7 @@ const PAGES = {
   metas: { label: 'Metas', icon: 'target', C: GoalsPage },
   categorias: { label: 'Categorias', icon: 'grid', C: CategoriesPage },
   modelos: { label: 'Modelos', icon: 'star', C: TemplatesPage, hidden: true },
+  simulador: { label: 'E se…?', icon: 'sparkle', C: SimulatorPage, hidden: true },
   conquistas: { label: 'Conquistas', icon: 'trophy', C: AchievementsPage, hidden: true },
   config: { label: 'Configurações', icon: 'settings', C: SettingsPage },
 };
@@ -636,7 +652,7 @@ function WebLayout() {
   const sobrio = d.prefs.style === 'sobrio';
   const Page = sobrio && SOBRIO_HEAD[d.page] ? SobrioPage : (PAGES[d.page] || PAGES.inicio).C;
   return (
-    <div className="relative z-10 mx-auto grid w-full max-w-[1480px] gap-5 pb-8 pl-[max(16px,var(--safe-left))] pr-[max(16px,var(--safe-right))] pt-5 lg:grid-cols-[248px_minmax(0,1fr)]">
+    <div className="relative z-10 mx-auto grid w-full max-w-[1480px] gap-5 pb-8 pl-[max(16px,var(--safe-left))] pr-[max(16px,var(--safe-right))] pt-[max(20px,var(--safe-top))] grid-cols-[232px_minmax(0,1fr)] lg:grid-cols-[248px_minmax(0,1fr)]">
       <aside className="glass sticky top-5 flex max-h-[calc(100vh-40px)] flex-col gap-5 self-start overflow-y-auto p-5">
         <div className="px-1 pt-1"><Logo size="md" /></div>
         <div className="space-y-2">
@@ -677,6 +693,7 @@ const MOBILE_MENU = [
   { id: 'contas', label: 'Contas e cartões', icon: 'card', desc: 'Saldos, faturas, limites e ajuste de saldo' },
   { id: 'recorrentes', label: 'Recorrentes', icon: 'repeat', desc: 'Contas fixas, assinaturas e lembretes' },
   { id: 'planejamento', label: 'Planejamento', icon: 'layers', desc: 'Planejado × realizado, projeção e reserva' },
+  { id: 'simulador', label: 'Simulador "E se…?"', icon: 'sparkle', desc: 'Teste cortes, gastos novos e prazos de metas' },
   { id: 'dividas', label: 'Dívidas e empréstimos', icon: 'scale', desc: 'O que você deve e o que te devem' },
   { id: 'metas', label: 'Metas', icon: 'target', desc: 'Objetivos de poupança' },
   { id: 'categorias', label: 'Categorias', icon: 'grid', desc: 'Categorias, subcategorias e orçamentos' },
@@ -885,7 +902,8 @@ function MobileLayout() {
 function Workspace({ backend, session, toast, toastNode }) {
   const { data, error, freshIds, actions } = useLecoData(backend, session, toast);
   const { w } = useViewport();
-  const wide = !NATIVE && w >= 1024;
+  // Telas largas (computador e tablet, inclusive no app) usam o layout com menu lateral
+  const wide = w >= (NATIVE ? 900 : 960);
   const [page, setPage] = useState('inicio');
   const [settingsSub, setSettingsSub] = useState('perfil');
   const [month, setMonth] = useState(monthKey(todayISO()));
@@ -917,7 +935,7 @@ function Workspace({ backend, session, toast, toastNode }) {
   useEffect(() => { if (data && NATIVE) { const t = setTimeout(() => scheduleReminders(data, prefs), 1500); return () => clearTimeout(t); } return undefined; }, [data, JSON.stringify(prefs.notif || {})]);
 
   const navRef = useRef({});
-  navRef.current = { page, modal, tabs: prefs.tabs };
+  navRef.current = { page, modal, tabs: prefs.tabs, wide };
   const go = useCallback((id) => { setPage(id); setModal(null); if (id !== 'transacoes') setTxPreset(null); window.scrollTo({ top: 0, behavior: 'auto' }); }, []);
   const goTx = useCallback((preset) => { setTxPreset({ key: Date.now(), ...(preset || {}) }); setPage('transacoes'); setModal(null); window.scrollTo({ top: 0, behavior: 'auto' }); }, []);
   useEffect(() => {
@@ -927,7 +945,7 @@ function Workspace({ backend, session, toast, toastNode }) {
       const st = navRef.current;
       if (window.__lecoDrawer) window.__lecoDrawer();
       else if (st.modal) setModal(null);
-      else if (st.page === 'config') go('mais');
+      else if (st.page === 'config' && !st.wide) go('mais');
       else if (st.page !== 'inicio') go('inicio');
       else if (capApp.exitApp) capApp.exitApp();
     });
@@ -983,7 +1001,7 @@ function Workspace({ backend, session, toast, toastNode }) {
       </AuthShell>
     );
   }
-  if (!ctx) return <SplashScreen text="Carregando seus dados…" />;
+  if (!ctx) return <LoadingSkeleton wide={wide} />;
   if (!data.profile.onboarded) return <ThemeCtx.Provider value={theme}><Onboarding backend={backend} session={session} profile={data.profile} onDone={actions.reload} /></ThemeCtx.Provider>;
   return (
     <ThemeCtx.Provider value={theme}>
@@ -1047,7 +1065,7 @@ function Root() {
   else if (screen.name === 'check') content = <CheckEmailScreen backend={backend} go={go} email={screen.email} />;
   else if (screen.name === 'forgot') content = <ForgotScreen backend={backend} go={go} />;
   else content = <LoginScreen backend={backend} go={go} notice={screen.notice} />;
-  return <ThemeCtx.Provider value="light"><Atmosphere />{content}{toastNode(!NATIVE && window.innerWidth >= 1024 ? 'corner' : 'top')}</ThemeCtx.Provider>;
+  return <ThemeCtx.Provider value="light"><Atmosphere />{content}{toastNode(window.innerWidth >= (NATIVE ? 900 : 960) ? 'corner' : 'top')}</ThemeCtx.Provider>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(MOCKUP ? <PhoneMockup /> : <Root />);

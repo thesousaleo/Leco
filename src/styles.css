@@ -597,3 +597,14 @@ html { touch-action: manipulation; }
 :root[data-style="sobrio"] .cl-nav-on { background: var(--cl-blue-bg); color: var(--cl-blue-fg); }
 :root[data-style="sobrio"] [role="note"] { background: var(--cl-card); border-color: var(--cl-line); }
 :root[data-style="sobrio"] .chart-tip { background: var(--deep-bg) !important; }
+
+/* Abertura animada e carregamento */
+.splash-l { animation: splashL .6s cubic-bezier(.2, .8, .2, 1) both; transform-origin: 14px 40px; }
+.splash-coin { animation: splashCoin .9s cubic-bezier(.3, 1.4, .5, 1) .25s both; transform-box: fill-box; transform-origin: center; }
+.splash-word { animation: rise .5s cubic-bezier(.2, .8, .2, 1) .55s both; }
+.splash-text { animation: fadeIn .4s ease .9s both; }
+@keyframes splashL { from { opacity: 0; transform: scale(.6) translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes splashCoin { 0% { opacity: 0; transform: translateY(-42px) rotateY(0deg) scale(.8); } 60% { opacity: 1; transform: translateY(2px) rotateY(540deg) scale(1.04); } 100% { opacity: 1; transform: translateY(0) rotateY(720deg) scale(1); } }
+.skel { border-radius: 10px; background: linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent) 25%, color-mix(in srgb, var(--ink) 11%, transparent) 50%, color-mix(in srgb, var(--ink) 6%, transparent) 75%); background-size: 200% 100%; animation: skel 1.3s ease-in-out infinite; }
+@keyframes skel { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.cl-row-on td { background: color-mix(in srgb, var(--color-vivo) 8%, transparent) !important; }

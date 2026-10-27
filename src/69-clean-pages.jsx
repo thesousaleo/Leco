@@ -77,6 +77,10 @@ function CleanTransactions() {
   const [limit, setLimit] = useState(50);
   const [showFilters, setShowFilters] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [sel, setSel] = useState(() => new Set());
+  const toggleSel = (t) => { if (t.kind === 'card_payment') return; setSel((p) => { const n = new Set(p); if (n.has(t.id)) n.delete(t.id); else n.add(t.id); return n; }); };
+  const stopSel = () => { setSelecting(false); setSel(new Set()); };
   const allTags = useMemo(() => [...new Set(d.transactions.flatMap((t) => t.tags || []))].sort(), [d.transactions]);
   useEffect(() => setLimit(50), [scope, type, src, cat, status, q, d.month, sort, tag]);
   const rows = useMemo(() => {
@@ -141,6 +145,7 @@ function CleanTransactions() {
         {scope === 'month' ? <MonthSwitch month={d.month} onChange={d.setMonth} /> : <span className="cl-pill cl-pill-wait !py-1.5">Todo o período</span>}
         <button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => setScope(scope === 'month' ? 'all' : 'month')}>{scope === 'month' ? 'Ver todo o período' : 'Só este mês'}</button>
         <div className="ml-auto flex gap-2">
+          <button type="button" className={`btn !py-2 text-[13px] ${selecting ? 'btn-primary' : 'btn-ghost'}`} aria-pressed={selecting} onClick={() => (selecting ? stopSel() : setSelecting(true))}><Icon name="check" size={15} />{selecting ? 'Pronto' : 'Selecionar'}</button>
           <button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={exportPdf} disabled={pdfBusy || !rows.length}>{pdfBusy ? <Spinner size={14} /> : <Icon name="download" size={15} />}PDF</button>
         </div>
       </div>
@@ -166,18 +171,19 @@ function CleanTransactions() {
         {rows.length === 0 ? (
           <div className="border-t border-ink/[0.07] p-5"><EmptyState icon="search" title={filtered ? 'Nada encontrado' : 'Nenhuma transação neste período'} text={filtered ? 'Mude os filtros ou limpe a busca.' : 'Use o botão + para registrar uma receita, despesa ou transferência.'} action={filtered ? <button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={clear}><Icon name="x" size={14} />Limpar filtros</button> : null} /></div>
         ) : narrow ? (
-          <ul className="divide-y divide-ink/[0.07] border-t border-ink/[0.07] px-2">{shown.map((t) => <TxItem key={t.id} t={t} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} onConfirm={d.confirmTx} />)}</ul>
+          <ul className="divide-y divide-ink/[0.07] border-t border-ink/[0.07] px-2">{shown.map((t) => <TxItem key={t.id} t={t} select={selecting ? { on: sel.has(t.id), toggle: toggleSel } : undefined} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} onConfirm={d.confirmTx} />)}</ul>
         ) : (
           <div className="overflow-x-auto">
             <table className="cl-table w-full min-w-[860px] text-left text-[14px]">
-              <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Conta / cartão</th><th>Situação</th><th className="text-right">Valor</th><th className="w-[88px]"><span className="sr-only">Ações</span></th></tr></thead>
+              <thead><tr>{selecting && <th className="w-[44px]"><span className="sr-only">Selecionar</span></th>}<th>Data</th><th>Descrição</th><th>Categoria</th><th>Conta / cartão</th><th>Situação</th><th className="text-right">Valor</th><th className="w-[88px]"><span className="sr-only">Ações</span></th></tr></thead>
               <tbody>
                 {shown.map((t) => {
                   const meta = txMeta(t, d);
                   const c = d.categories.find((x) => x.id === t.category_id);
                   const st = clStatus(t, today);
                   return (
-                    <tr key={t.id} className="group">
+                    <tr key={t.id} className={`group ${selecting && sel.has(t.id) ? 'cl-row-on' : ''}`} onClick={selecting ? () => toggleSel(t) : undefined}>
+                      {selecting && <td><span role="checkbox" aria-checked={sel.has(t.id)} aria-label={`Selecionar ${meta.title}`} className={`grid size-5 place-items-center rounded-md border-2 ${sel.has(t.id) ? 'border-vivo bg-vivo text-white' : 'border-ink/25'} ${t.kind === 'card_payment' ? 'opacity-30' : ''}`}>{sel.has(t.id) && <Icon name="check" size={12} strokeWidth={3} />}</span></td>}
                       <td className="whitespace-nowrap text-ink/60">{fmtDate(t.date)}</td>
                       <td className="max-w-[280px]"><button type="button" className="block max-w-full truncate text-left font-medium hover:underline" onClick={() => d.openModal({ kind: 'tx', initial: t })}>{meta.title}</button>{(t.tags || []).length > 0 && <span className="block truncate text-[12px] text-ink/45">{t.tags.map((x) => `#${x}`).join(' ')}</span>}</td>
                       <td className="max-w-[170px] truncate whitespace-nowrap text-ink/65">{t.kind === 'transfer' ? 'Transferência' : c ? c.name : 'Sem categoria'}</td>
@@ -205,6 +211,7 @@ function CleanTransactions() {
           </div>
         )}
       </section>
+      {selecting && <BulkBar rows={d.transactions.filter((t) => sel.has(t.id))} onClear={stopSel} allCount={rows.filter((t) => t.kind !== 'card_payment').length} onAll={() => setSel(new Set(rows.filter((t) => t.kind !== 'card_payment').map((t) => t.id)))} />}
     </div>
   );
 }

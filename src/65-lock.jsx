@@ -195,6 +195,7 @@ function UpdateBanner() {
 
 /* ---------- Dica na primeira visita de cada tela ---------- */
 const PAGE_TIPS = {
+  simulador: 'Simule sem medo: nada aqui muda seus dados. Marque assinaturas, arraste as categorias ou informe um gasto novo para ver quanto sobraria.',
   inicio: 'Este é o seu resumo. Toque no + para lançar, ou em "Rápido" para escrever como numa mensagem. Personalize os blocos em Configurações › Personalizar.',
   transacoes: 'No celular, arraste um lançamento para a esquerda para excluir ou para a direita para marcar como pago. Use Filtros e Gerar PDF no topo.',
   calendario: 'Tudo o que tem data aparece aqui: contas, faturas, recorrências e metas. Toque num dia para ver o que vence. Deslize para trocar de mês. Para lançar, use o botão +.',

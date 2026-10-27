@@ -334,6 +334,9 @@ try {
     fs.writeFileSync(logo, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR42mP8z8Dwn4GBgYGJgYGBAQAvBgID3n3ZJQAAAABJRU5ErkJggg==', 'base64'));
     await page.locator('input[data-icon-file]').first().setInputFiles(logo);
     await wait(600);
+    ok(await page.getByRole('dialog', { name: 'Ajustar imagem' }).count() === 1, 'abre o recorte da imagem');
+    await page.getByRole('button', { name: 'Usar imagem' }).click();
+    await wait(400);
     ok(await dlg().getByText('Usando sua imagem').count() === 1, 'imagem própria escolhida como ícone');
     await dlg().getByRole('button', { name: 'Criar conta' }).click();
     await wait(800);
@@ -554,9 +557,95 @@ try {
     await mctx.close();
   }
 
+  step('Novidades 3.11: início personalizável, seleção em massa, semana, tablet, regras e "E se?"');
+  {
+    const dctx = await browser.newContext({ viewport: { width: 1366, height: 900 }, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' });
+    const dp = await dctx.newPage();
+    dp.on('pageerror', (e) => errors.push(`novidades: ${e}`));
+    await dp.route(/fonts\.(googleapis|gstatic)\.com|api\.github\.com/, (r) => r.abort());
+    await dp.goto(`file://${html}?demo=1&embed=1`);
+    await dp.waitForTimeout(1800);
+    const L = (fn, arg) => dp.evaluate(fn, arg);
+    // Início personalizável
+    await dp.getByRole('button', { name: 'Personalizar o início' }).click();
+    await dp.waitForTimeout(400);
+    ok(await dp.getByText('Arraste os blocos').count() === 1, 'início: modo de edição dos blocos');
+    await dp.getByRole('button', { name: 'Esconder bloco Próximos vencimentos' }).click();
+    await dp.waitForTimeout(400);
+    const wh = await L(() => (window.__leco().prefs.webHome || []).find((b) => b.id === 'upcoming'));
+    ok(wh && wh.on === false, 'início: esconder um bloco fica salvo', JSON.stringify(wh));
+    await dp.getByRole('button', { name: 'Restaurar padrão' }).click();
+    await dp.waitForTimeout(300);
+    await dp.getByRole('button', { name: 'Pronto' }).click();
+    await dp.waitForTimeout(300);
+    // Seleção em massa
+    await L(() => window.__leco().goTx({}));
+    await dp.waitForTimeout(600);
+    await dp.getByRole('button', { name: 'Selecionar' }).first().click();
+    await dp.waitForTimeout(300);
+    const boxes = dp.getByRole('checkbox');
+    const before = await L(() => window.__leco().transactions.filter((t) => t.kind === 'out').length);
+    await boxes.nth(0).click(); await boxes.nth(1).click();
+    await dp.waitForTimeout(300);
+    ok(await dp.getByText('2 selecionados').count() === 1, 'extrato: barra de seleção mostra 2 selecionados');
+    const lazer = await L(() => (window.__leco().categories.find((c) => c.kind === 'out' && /lazer/i.test(c.name)) || {}).id);
+    await dp.getByLabel('Mudar categoria').selectOption(lazer).catch(() => {});
+    await dp.waitForTimeout(700);
+    const nLazer = await L((id) => window.__leco().transactions.filter((t) => t.category_id === id).length, lazer);
+    ok(nLazer >= 2, 'extrato: mudar categoria em massa', `lazer=${nLazer}`);
+    ok(before === await L(() => window.__leco().transactions.filter((t) => t.kind === 'out').length), 'extrato: nada foi excluído por engano');
+    await dp.getByRole('button', { name: 'Concluir seleção' }).click().catch(() => {});
+    // Calendário semana
+    await L(() => window.__leco().go('calendario'));
+    await dp.waitForTimeout(500);
+    await dp.getByRole('radio', { name: 'Semana' }).or(dp.getByRole('button', { name: 'Semana', exact: true })).first().click();
+    await dp.waitForTimeout(400);
+    ok(await dp.getByText('Gasto na semana').count() === 1, 'calendário: visão da semana');
+    await dp.getByRole('button', { name: 'Semana anterior' }).click();
+    await dp.waitForTimeout(300);
+    ok(await dp.getByText('Gasto na semana').count() === 1, 'calendário: navega entre semanas');
+    // Regras automáticas
+    const transp = await L(() => (window.__leco().categories.find((c) => c.kind === 'out' && /transporte/i.test(c.name)) || {}).id);
+    await L(() => window.__leco().go('config'));
+    await L(() => window.__leco().setSettingsSub('regras'));
+    await dp.waitForTimeout(500);
+    await dp.fill('#rule-match', 'Patinete');
+    await dp.selectOption('#rule-cat', transp);
+    await dp.getByRole('button', { name: 'Criar regra' }).click();
+    await dp.waitForTimeout(500);
+    ok(await L(() => (window.__leco().prefs.rules || []).some((r) => r.match === 'Patinete')), 'regras: regra criada');
+    await L(() => window.__leco().openModal({ kind: 'tx' }));
+    await dp.waitForTimeout(500);
+    await dp.fill('#tx-desc', 'Patinete elétrico');
+    await dp.waitForTimeout(600);
+    ok(await dp.locator('[data-rule-hit]').count() === 1, 'regras: aviso de regra aplicada no lançamento');
+    await dp.getByRole('dialog').getByRole('button', { name: /Fechar/ }).first().click().catch(() => {});
+    await dp.keyboard.press('Escape');
+    await dp.waitForTimeout(400);
+    const q = await L(() => { const d = window.__leco(); return parseQuickText('patinete 12', d); }).catch(() => null);
+    ok(q && q.category_id === transp, 'regras: valem no lançamento rápido', JSON.stringify(q && q.category_id));
+    // Simulador
+    await L(() => window.__leco().go('simulador'));
+    await dp.waitForTimeout(600);
+    const a0 = await dp.locator('[data-sim="after"]').innerText();
+    await dp.locator('[data-sim-cat] input[type=range]').first().fill('50');
+    await dp.waitForTimeout(700);
+    const a1 = await dp.locator('[data-sim="after"]').innerText();
+    ok(a0 !== a1, 'simulador: reduzir uma categoria muda a sobra', `${a0} → ${a1}`);
+    ok(await dp.getByText('por mês').count() > 0 && await dp.getByText('Você passaria a guardar a mais').count() === 1, 'simulador: mostra a economia por mês');
+    ok(await dp.locator('[data-sim="goal"]').innerText().then((t) => /mês|meses|ano/.test(t)), 'simulador: calcula o prazo da meta');
+    // Tablet
+    await dp.setViewportSize({ width: 960, height: 1280 });
+    await dp.waitForTimeout(500);
+    ok(await dp.getByRole('navigation', { name: 'Abas principais' }).count() === 1, 'tablet: usa o menu lateral');
+    const [sw, cw] = await L(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+    ok(sw <= cw, 'tablet: sem rolagem lateral', `${sw} > ${cw}`);
+    await dctx.close();
+  }
+
   step('Layout no celular (sem rolagem lateral)');
   await page.setViewportSize({ width: 360, height: 760 });
-  for (const id of ['inicio', 'transacoes', 'calendario', 'relatorios', 'planejamento', 'dividas', 'contas', 'metas', 'categorias', 'mais']) {
+  for (const id of ['inicio', 'transacoes', 'calendario', 'relatorios', 'planejamento', 'simulador', 'dividas', 'contas', 'metas', 'categorias', 'mais']) {
     await page.evaluate((x) => window.__leco().go(x), id);
     await wait(450);
     const [sw, cw] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
