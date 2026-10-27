@@ -374,6 +374,37 @@ try {
     ok(r.daily && r.daily[0] === 21 && r.daily[1] === 15, 'lembrete diário no horário escolhido');
   }
 
+  step('Vale-alimentação e refeição');
+  {
+    const totalBefore = await page.evaluate(() => { const d = window.__leco(); return cashAccounts(d.accounts).reduce((s, a) => s + (d.balances[a.id] || 0), 0); });
+    await page.evaluate(() => window.__leco().openModal({ kind: 'account', presetKind: 'beneficio' }));
+    await wait(500);
+    await dlg().getByText('Refeição', { exact: true }).click();
+    await dlg().getByRole('radio', { name: 'Alelo' }).click();
+    ok((await page.inputValue('#acc-name')) === 'VR Alelo', 'nome automático do vale');
+    await page.fill('#acc-balance', ''); await page.type('#acc-balance', '30000');
+    await page.fill('#acc-credit', ''); await page.type('#acc-credit', '50000');
+    await dlg().getByRole('button', { name: 'Criar conta' }).click();
+    await wait(1500);
+    const st = await page.evaluate(() => {
+      const d = window.__leco();
+      const a = d.accounts.find((x) => x.name === 'VR Alelo');
+      const rec = a && d.recurrings.find((r) => r.account_id === a.id);
+      const total = cashAccounts(d.accounts).reduce((s, x) => s + (d.balances[x.id] || 0), 0);
+      return { kind: a && a.kind, type: a && a.benefit && a.benefit.type, credit: a && a.benefit && a.benefit.credit, rec: !!rec && rec.amount === 50000 && rec.kind === 'in', recLinked: !!(a && a.benefit && a.benefit.recurring_id), cat: d.categories.some((c) => c.name === 'Benefícios' && c.kind === 'in'), bal: a ? d.balances[a.id] : null, total };
+    });
+    ok(st.kind === 'beneficio' && st.type === 'vr' && st.credit === 50000, 'vale salvo com tipo e crédito', JSON.stringify(st));
+    ok(st.rec && st.recLinked && st.cat, 'crédito mensal virou recorrência na conta do vale');
+    ok(st.bal === 30000 && st.total === totalBefore, 'saldo do vale fica fora do saldo total');
+    await page.evaluate(() => window.__leco().go('inicio'));
+    await wait(500);
+    await fab();
+    const hasGroup = await dlg().locator('optgroup[label="Vale-alimentação / refeição"]').count();
+    ok(hasGroup === 1, 'vale aparece em "Pago com"');
+    await dlg().getByRole('button', { name: 'Cancelar' }).click();
+    await wait(400);
+  }
+
   step('Tema não volta ao atualizar');
   {
     const prev = await page.evaluate(() => window.__leco().prefs.theme);
@@ -437,7 +468,7 @@ try {
     await dp.goto(`file://${html}?demo=1`);
     await dp.waitForTimeout(1500);
     const st = await dp.evaluate(() => { const d = window.__leco && window.__leco(); return d ? { tx: d.transactions.length, acc: d.accounts.length, goals: d.goals.length } : null; });
-    ok(st && st.tx > 30 && st.acc === 3 && st.goals === 2, 'demonstração abre com dados de exemplo', JSON.stringify(st));
+    ok(st && st.tx > 30 && st.acc === 4 && st.goals === 2, 'demonstração abre com dados de exemplo', JSON.stringify(st));
     ok(await dp.getByText('Demonstração', { exact: true }).count() === 1, 'selo de demonstração visível');
     await dp.evaluate(async () => { const d = window.__leco(); await d.deleteTx(d.transactions.find((x) => !x.recurring_id && x.kind === 'out'), 'one'); });
     await dp.waitForTimeout(600);

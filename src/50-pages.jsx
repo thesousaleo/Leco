@@ -125,7 +125,7 @@ function AccountsMini({ onAll }) {
           <li key={a.id}>
             <button type="button" className="flex w-full items-center gap-3 rounded-2xl px-1.5 py-2.5 text-left hover:bg-ink/[0.03]" onClick={() => d.openModal({ kind: 'account', initial: a })}>
               <ColorIcon icon={(a.icon || ACCOUNT_KINDS[a.kind].icon)} color={a.color} size={36} />
-              <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-semibold">{a.name}</span><span className="block text-xs text-ink/65">{ACCOUNT_KINDS[a.kind].label}</span></span>
+              <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-semibold">{a.name}</span><span className="block text-xs text-ink/65">{accountKindLabel(a)}</span></span>
               <span className={`text-[14px] font-extrabold tabular-nums ${d.balances[a.id] < 0 ? 'text-out' : ''}`}>{m(d.balances[a.id])}</span>
             </button>
           </li>
@@ -271,7 +271,7 @@ function OverviewPage() {
   const prev = periodSummary(d.transactions, ...finRange(prevK), d.categories);
   const pct = (a, b) => (b ? ((a - b) / b) * 100 : null);
   const series = useMemo(() => monthSeries(d.transactions, d.accounts, month), [d.transactions, d.accounts, month]);
-  const totalBal = sum(d.accounts, (a) => d.balances[a.id] || 0);
+  const totalBal = sum(cashAccounts(d.accounts), (a) => d.balances[a.id] || 0);
   const cardsDue = sum(d.cards.filter((c) => !c.archived), (c) => { const s = cardSummary(c, d.transactions); return Math.max(0, s.current.remaining) + sum(s.toPay.filter((i) => i.invoice !== s.current.invoice), (i) => i.remaining); });
   const recent = d.transactions.filter((t) => t.date <= to && t.paid).slice(0, 6);
   const budgets = budgetsFor(d.categories, d.transactions, month, d.plans);
@@ -457,14 +457,58 @@ function TransactionsPage() {
 }
 
 /* ---------- Contas e cartões ---------- */
+// Vale-alimentação e refeição: saldo à parte, próximo crédito e quanto dá por dia
+function BenefitsCard({ bens }) {
+  const d = useApp();
+  const narrow = useNarrow();
+  const m = useMoneyText();
+  const today = todayISO();
+  return (
+    <Card title="Vale-alimentação e refeição" sub="Saldo dos benefícios. Não entra no saldo total das contas." action={<button type="button" className="btn btn-primary !py-2 text-[13px]" onClick={() => d.openModal({ kind: 'account', presetKind: 'beneficio' })}><Icon name="plus" size={16} />Novo vale</button>}>
+      {bens.length === 0 ? <EmptyState icon="utensils" title="Nenhum vale cadastrado" text="Cadastre seu VA, VR ou benefício flexível (Alelo, Pluxee, Ticket, VR, Flash, Caju…). O crédito do mês cai sozinho e os gastos saem do saldo do vale." /> : (
+        <ul className={`grid gap-3 ${narrow ? 'grid-cols-1' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>
+          {bens.map((a) => {
+            const b = a.benefit || {};
+            const bal = d.balances[a.id] || 0;
+            const next = b.credit > 0 && b.day ? nextBenefitDate(b.day, today) : null;
+            const days = next ? Math.max(1, diffDays(next, today)) : null;
+            const [from, to] = [`${monthKey(today)}-01`, today];
+            const spent = sum(d.transactions.filter((t) => t.account_id === a.id && t.kind === 'out' && t.paid && t.date >= from && t.date <= to), (t) => t.amount);
+            return (
+              <li key={a.id}>
+                <button type="button" onClick={() => d.openModal({ kind: 'account', initial: a })} className={`glass w-full rounded-3xl p-4 text-left ${a.archived ? 'opacity-60' : ''}`}>
+                  <div className="flex items-center gap-3">
+                    <ColorIcon icon={a.icon || (BENEFIT_TYPES[b.type] || BENEFIT_TYPES.va).icon} color={a.color} size={42} />
+                    <div className="min-w-0 flex-1"><p className="truncate text-[15px] font-extrabold">{a.name}</p><p className="truncate text-xs text-ink/65">{accountKindLabel(a)}{a.archived ? ' · arquivado' : ''}</p></div>
+                    <Icon name="edit" size={16} className="text-ink/45" />
+                  </div>
+                  <p className={`mt-4 text-[24px] font-extrabold tracking-[-0.02em] tabular-nums ${bal < 0 ? 'text-out' : ''}`}>{m(bal)}</p>
+                  <p className="text-xs text-ink/60">saldo do vale{spent > 0 ? ` · gastou ${m(spent)} este mês` : ''}</p>
+                  {next && (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-2xl bg-ink/[0.04] px-3 py-2"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-ink/60">Próximo crédito</p><p className="text-[13px] font-extrabold tabular-nums">{fmtDate(next).slice(0, 5)} · {m(b.credit)}</p></div>
+                      <div className="rounded-2xl bg-ink/[0.04] px-3 py-2"><p className="text-[10.5px] font-semibold uppercase tracking-wider text-ink/60">Dá por dia</p><p className="text-[13px] font-extrabold tabular-nums">{m(Math.max(0, Math.floor(bal / days)))}</p></div>
+                    </div>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 function AccountsPage() {
   const d = useApp();
   const narrow = useNarrow();
   const m = useMoneyText();
   const [showArchived, setShowArchived] = useState(false);
-  const accs = d.accounts.filter((a) => showArchived || !a.archived);
+  const accs = d.accounts.filter((a) => (showArchived || !a.archived) && !isBenefit(a));
+  const bens = d.accounts.filter((a) => (showArchived || !a.archived) && isBenefit(a));
   const cards = d.cards.filter((c) => showArchived || !c.archived);
-  const total = sum(d.accounts, (a) => d.balances[a.id] || 0);
+  const total = sum(cashAccounts(d.accounts), (a) => d.balances[a.id] || 0);
   const archivedCount = d.accounts.filter((a) => a.archived).length + d.cards.filter((c) => c.archived).length;
   return (
     <div className="space-y-5">
@@ -479,7 +523,7 @@ function AccountsPage() {
                 <button type="button" onClick={() => d.openModal({ kind: 'account', initial: a })} className={`glass w-full rounded-3xl p-4 text-left transition-transform hover:-translate-y-0.5 ${a.archived ? 'opacity-60' : ''}`}>
                   <div className="flex items-center gap-3">
                     <ColorIcon icon={(a.icon || ACCOUNT_KINDS[a.kind].icon)} color={a.color} size={42} />
-                    <div className="min-w-0 flex-1"><p className="truncate text-[15px] font-extrabold">{a.name}</p><p className="text-xs text-ink/65">{ACCOUNT_KINDS[a.kind].label}{a.archived ? ' · arquivada' : ''}</p></div>
+                    <div className="min-w-0 flex-1"><p className="truncate text-[15px] font-extrabold">{a.name}</p><p className="text-xs text-ink/65">{accountKindLabel(a)}{a.archived ? ' · arquivada' : ''}</p></div>
                     <Icon name="edit" size={16} className="text-ink/45" />
                   </div>
                   <p className={`mt-4 text-[24px] font-extrabold tracking-[-0.02em] tabular-nums ${d.balances[a.id] < 0 ? 'text-out' : ''}`}>{m(d.balances[a.id])}</p>
@@ -490,6 +534,7 @@ function AccountsPage() {
           </ul>
         )}
       </Card>
+      {(d.v4 || bens.length > 0) && <BenefitsCard bens={bens} />}
       <Card title="Cartões de crédito" sub="Limite, fatura atual e vencimentos" action={<button type="button" className="btn btn-primary !py-2 text-[13px]" onClick={() => d.openModal({ kind: 'card' })}><Icon name="plus" size={16} />Novo cartão</button>}>
         {cards.length === 0 ? <EmptyState icon="card" title="Nenhum cartão" text="Cadastre seus cartões para acompanhar faturas, parcelas e o limite disponível." /> : (
           <ul className={`grid gap-3 ${narrow ? 'grid-cols-1' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>
@@ -766,7 +811,7 @@ function BalanceTimeline({ d, from, to, height }) {
   const span = Math.max(1, diffDays(end, from));
   const n = Math.min(24, span + 1);
   const pts = Array.from({ length: n }, (_, i) => addDays(from, Math.round((i * span) / (n - 1 || 1))));
-  const vals = pts.map((iso) => { const b = accountBalances(d.accounts, d.transactions, iso); return sum(d.accounts, (a) => b[a.id] || 0); });
+  const vals = pts.map((iso) => { const b = accountBalances(d.accounts, d.transactions, iso); return sum(cashAccounts(d.accounts), (a) => b[a.id] || 0); });
   return <AreaChart height={height} zeroBase={false} label="Saldo total ao longo do período" points={pts.map((iso) => ({ k: iso, short: fmtDate(iso).slice(0, 5), full: fmtDate(iso) }))} series={[{ key: 'bal', label: 'Saldo', color: P.in, values: vals }]} />;
 }
 

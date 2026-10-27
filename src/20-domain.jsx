@@ -9,7 +9,20 @@ const ACCOUNT_KINDS = {
   carteira: { label: 'Carteira', icon: 'wallet' },
   investimento: { label: 'Investimentos', icon: 'trend' },
   outro: { label: 'Outra', icon: 'tag' },
+  beneficio: { label: 'Vale-alimentação / refeição', icon: 'utensils' },
 };
+// Vale-alimentação / refeição: saldo à parte, não entra no "Saldo total" nem na projeção
+const BENEFIT_TYPES = {
+  va: { label: 'Vale-alimentação', short: 'VA', icon: 'bag', hint: 'Mercado, padaria, açougue, hortifrúti.' },
+  vr: { label: 'Vale-refeição', short: 'VR', icon: 'utensils', hint: 'Restaurantes, lanchonetes e delivery.' },
+  flex: { label: 'Benefício flexível', short: 'Flex', icon: 'layers', hint: 'Cartão com saldo para alimentação, refeição e outros.' },
+};
+const BENEFIT_PROVIDERS = ['Alelo', 'Pluxee (Sodexo)', 'Ticket', 'VR Benefícios', 'Flash', 'Caju', 'iFood Benefícios', 'Swile', 'Ben Visa Vale', 'Up Brasil', 'Mercado Pago Benefícios', 'Outra'];
+const isBenefit = (a) => !!a && a.kind === 'beneficio';
+const cashAccounts = (accs) => (accs || []).filter((a) => !isBenefit(a));
+const accountKindLabel = (a) => (isBenefit(a) ? ((BENEFIT_TYPES[(a.benefit || {}).type] || BENEFIT_TYPES.va).label + ((a.benefit || {}).provider && a.benefit.provider !== 'Outra' ? ` · ${a.benefit.provider}` : '')) : (ACCOUNT_KINDS[a.kind] || ACCOUNT_KINDS.outro).label);
+// Próxima data de crédito do benefício (dia do mês)
+const nextBenefitDate = (day, today = todayISO()) => { const here = dayIn(monthKey(today), day); return here > today ? here : dayIn(shiftMonth(monthKey(today), 1), day); };
 const FREQ = { weekly: 'Semanal', monthly: 'Mensal', yearly: 'Anual' };
 const INVOICE_STATUS = {
   aberta: { label: 'Aberta', cls: 'pill pill-neutral' },
@@ -111,7 +124,7 @@ function monthSeries(txs, accounts, endMonth, n = 6) {
       k, short: monthShort(k), full: monthLabel(k),
       in: sum(inRange.filter(countsAsIncome), (t) => t.amount),
       out: sum(inRange.filter(countsAsExpense), (t) => t.amount),
-      bal: sum(Object.values(bal)),
+      bal: sum(cashAccounts(accounts), (a) => bal[a.id] || 0),
     };
   });
 }
@@ -156,7 +169,8 @@ function buildInstallments(base, card, n, today = todayISO()) {
 const nextDateOf = (iso, freq) => (freq === 'weekly' ? addDays(iso, 7) : freq === 'yearly' ? addMonthsISO(iso, 12) : addMonthsISO(iso, 1));
 
 // Gera os lançamentos até o fim do mês (ou 7 dias à frente). Contas a pagar ficam pendentes até você confirmar.
-function planRecurrings(recurrings, cards, today = todayISO()) {
+function planRecurrings(recurrings, cards, today = todayISO(), accounts = []) {
+  const benefitIds = new Set(accounts.filter(isBenefit).map((a) => a.id));
   const eom = dayIn(monthKey(today), 31);
   const ahead = addDays(today, 7);
   const horizon = eom > ahead ? eom : ahead;
@@ -168,7 +182,7 @@ function planRecurrings(recurrings, cards, today = todayISO()) {
       rows.push({
         kind: r.kind, amount: r.amount, description: r.description, date: d, category_id: r.category_id,
         account_id: card ? null : r.account_id, card_id: card ? card.id : null, invoice: card ? invoiceOf(card, d) : null,
-        recurring_id: r.id, paid: !!card,
+        recurring_id: r.id, paid: !!card || (benefitIds.has(r.account_id) && d <= today),
       });
       d = nextDateOf(d, r.frequency);
       guard += 1;

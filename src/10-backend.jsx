@@ -12,6 +12,8 @@ const V3_COLS = {
   transactions: ['tags', 'split_id', 'attachment', 'orig_amount', 'orig_currency', 'is_adjustment', 'debt_id', 'goal_id'],
   goals: ['monthly_amount', 'account_id', 'remind_day'],
 };
+// Leco 4 (supabase/v4.sql): vale-alimentação/refeição
+const stripV4 = (table, row) => { if (table !== 'accounts' || !row || !('benefit' in row)) return row; const r = { ...row }; delete r.benefit; return r; };
 const stripV3 = (table, row) => { const cols = V3_COLS[table]; if (!cols) return row; const r = { ...row }; cols.forEach((c) => delete r[c]); return r; };
 const NATIVE_REDIRECT = 'br.com.leco.app://auth';
 
@@ -82,10 +84,12 @@ function createSupabaseBackend() {
     },
   };
 
-  const state = { v3: false };
-  const clean = (table, rows) => (state.v3 ? rows : Array.isArray(rows) ? rows.map((r) => stripV3(table, r)) : stripV3(table, rows));
+  const state = { v3: false, v4: false };
+  const clean1 = (table, r) => { let x = state.v3 ? r : stripV3(table, r); if (!state.v4) x = stripV4(table, x); return x; };
+  const clean = (table, rows) => (Array.isArray(rows) ? rows.map((r) => clean1(table, r)) : clean1(table, rows));
   const db = {
     get v3() { return state.v3; },
+    get v4() { return state.v4; },
     async loadAll(userId) {
       const out = {};
       const load = async (t) => {
@@ -104,6 +108,8 @@ function createSupabaseBackend() {
       out.profile = prof;
       state.v3 = v3.every(Boolean) && (!prof || 'prefs' in prof);
       out.v3 = state.v3;
+      try { const probe = await client.from('accounts').select('benefit').limit(1); state.v4 = !probe.error; } catch (e) { state.v4 = false; }
+      out.v4 = state.v4;
       return out;
     },
     async insert(table, rows) { return ok(await client.from(table).insert(clean(table, rows)).select()); },
@@ -189,7 +195,7 @@ function createMemoryBackend(opts = {}) {
     plans: { amount: 0 },
   };
   defaults.transactions = { ...defaults.transactions, tags: [], split_id: null, attachment: null, orig_amount: null, orig_currency: null, is_adjustment: false, debt_id: null, goal_id: null };
-  defaults.accounts = { ...defaults.accounts, icon: null, is_reserve: false };
+  defaults.accounts = { ...defaults.accounts, icon: null, is_reserve: false, benefit: null };
   defaults.cards = { ...defaults.cards, icon: null };
   defaults.categories = { ...defaults.categories, parent_id: null };
   defaults.recurrings = { ...defaults.recurrings, tags: [] };
@@ -251,6 +257,7 @@ function createMemoryBackend(opts = {}) {
       ALL_TABLES.forEach((t) => { out[t] = JSON.parse(JSON.stringify(mine(t))); });
       out.profile = { ...store.profiles[userId] };
       out.v3 = db.v3;
+      out.v4 = db.v3;
       return out;
     },
     async upsert(table, rows, onConflict) {

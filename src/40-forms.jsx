@@ -226,7 +226,8 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
     if (initial && initial.card_id) return `card:${initial.card_id}`;
     if (initial && initial.account_id) return `acc:${initial.account_id}`;
     if (presetSource) return presetSource;
-    return accounts[0] ? `acc:${accounts[0].id}` : '';
+    const first = cashAccounts(accounts)[0] || accounts[0];
+    return first ? `acc:${first.id}` : '';
   });
   const [toAcc, setToAcc] = useState(initial && initial.to_account_id ? initial.to_account_id : (accounts[1] || accounts[0] || {}).id || '');
   const [installments, setInstallments] = useState(1);
@@ -264,6 +265,12 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
     if (m === 'parcel') { setRepeat(false); setSplit(false); setInstallments((n) => (n > 1 ? n : 2)); }
     if (m === 'repeat') { setInstallments(1); setSplit(false); setRepeat(true); setFreq((f) => f || 'monthly'); }
   };
+  const srcAcc = source.startsWith('acc:') ? d.accounts.find((a) => a.id === source.slice(4)) : null;
+  useEffect(() => {
+    if (!isBenefit(srcAcc) || kind !== 'out' || cat) return;
+    const food = d.categories.find((c) => c.kind === 'out' && !c.archived && !c.parent_id && normTxt(c.name) === 'alimentacao');
+    if (food) setCat(food.id);
+  }, [source]);
   const switchKind = (k) => { setKind(k); if (k !== 'out') setInstallments(1); if (k === 'transfer') setRepeat(false); if (cat && (d.categories.find((c) => c.id === cat) || {}).kind !== k) setCat(null); };
   const fallbackCat = (k) => { const n = k === 'in' ? 'outras receitas' : 'outros gastos'; const c = d.categories.find((x) => x.kind === k && x.name.toLowerCase() === n); return c ? c.id : firstCat(k); };
   const catList = d.categories.filter((c) => c.kind === kind && (!c.archived || c.id === cat));
@@ -470,7 +477,8 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
               </fieldset>
               <Field label={kind === 'in' ? 'Entra em' : 'Pago com'} error={errors.source} className="mt-4">
                 <select id="tx-source" className="field" value={source} onChange={(e) => setSource(e.target.value)} disabled={editing && !!initial.group_id}>
-                  <optgroup label="Contas">{accounts.map((a) => <option key={a.id} value={`acc:${a.id}`}>{a.name}</option>)}</optgroup>
+                  <optgroup label="Contas">{cashAccounts(accounts).map((a) => <option key={a.id} value={`acc:${a.id}`}>{a.name}</option>)}</optgroup>
+                  {accounts.some(isBenefit) && <optgroup label="Vale-alimentação / refeição">{accounts.filter(isBenefit).map((a) => <option key={a.id} value={`acc:${a.id}`}>{a.name} · {fmtBRL(d.balances[a.id] || 0)}</option>)}</optgroup>}
                   {kind === 'out' && cards.length > 0 && <optgroup label="Cartões de crédito">{cards.map((c) => <option key={c.id} value={`card:${c.id}`}>{c.name} (crédito)</option>)}</optgroup>}
                 </select>
               </Field>
@@ -676,11 +684,22 @@ function BankPicker({ value, onPick }) {
 }
 
 /* ---------- Conta ---------- */
-function AccountForm({ initial, onClose }) {
+function AccountForm({ initial, presetKind, onClose }) {
   const d = useApp();
   const editing = !!initial;
   const [name, setName] = useState(initial ? initial.name : '');
-  const [kind, setKind] = useState(initial ? initial.kind : 'corrente');
+  const [kind, setKind] = useState(initial ? initial.kind : presetKind || 'corrente');
+  const ben0 = (initial && initial.benefit) || {};
+  const [bType, setBType] = useState(ben0.type || 'va');
+  const [provider, setProvider] = useState(ben0.provider || '');
+  const [credit, setCredit] = useState(ben0.credit || 0);
+  const [creditDay, setCreditDay] = useState(ben0.day || 1);
+  const isBen = kind === 'beneficio';
+  // nome automático do vale (ex.: "VR Alelo") enquanto a pessoa não escreve outro
+  const autoName = (t, p) => `${BENEFIT_TYPES[t].short}${p && p !== 'Outra' ? ` ${p.replace(/ \(.*\)$/, '')}` : ''}`;
+  const isAutoName = (n) => !n.trim() || Object.keys(BENEFIT_TYPES).some((t) => [''].concat(BENEFIT_PROVIDERS).some((p) => autoName(t, p) === n.trim()));
+  const setBen = (t, p) => { setBType(t); setProvider(p); if (isAutoName(name)) setName(autoName(t, p)); if (!isImgIcon(icon)) setIcon(BENEFIT_TYPES[t].icon); };
+  useEffect(() => { if (!initial && presetKind === 'beneficio') setBen('va', ''); }, []);
   const [balance, setBalance] = useState(initial ? initial.initial_balance : 0);
   const [color, setColor] = useState(initial ? initial.color : SWATCHES[0]);
   const [icon, setIcon] = useState(initial && initial.icon ? initial.icon : null);
@@ -704,24 +723,50 @@ function AccountForm({ initial, onClose }) {
     e.preventDefault();
     if (!name.trim()) { setErr('Dê um nome para a conta.'); return; }
     setBusy(true);
-    const ok = await d.saveAccount(initial, { name: name.trim(), kind, initial_balance: balance, color, ...(d.v3 ? { icon, is_reserve: reserve } : {}) });
+    const benefit = isBen ? { ...((initial && initial.benefit) || {}), type: bType, provider: provider || null, credit, day: creditDay } : null;
+    const row = await d.saveAccount(initial, { name: name.trim(), kind, initial_balance: balance, color, ...(d.v3 ? { icon, is_reserve: isBen ? false : reserve } : {}), ...(d.v4 ? { benefit } : {}) });
+    if (row && isBen && d.v4) await d.syncBenefitCredit(row && row.id ? row : { ...initial, name: name.trim() }, benefit);
     setBusy(false);
-    if (ok) onClose();
+    if (row) onClose();
   };
   return (
     <Sheet variant={sheetVariant()} onClose={onClose} titleId={titleId} onSubmit={submit}>
-      <SheetHead id={titleId} title={editing ? 'Editar conta' : 'Nova conta'} sub={editing ? `Saldo atual: ${fmtBRL(current)} · ${used} transações` : 'Banco, carteira, poupança ou investimento.'} onClose={onClose} />
-      <BankPicker value={bank} onPick={pickBank} />
+      <SheetHead id={titleId} title={editing ? (isBen ? 'Editar vale' : 'Editar conta') : isBen ? 'Novo vale' : 'Nova conta'} sub={editing ? `Saldo atual: ${fmtBRL(current)} · ${used} transações` : isBen ? 'Vale-alimentação, vale-refeição ou benefício flexível.' : 'Banco, carteira, poupança ou investimento.'} onClose={onClose} />
+      {isBen ? (
+        <div>
+          <span className="lbl">Tipo de benefício</span>
+          <div className="mt-2"><Segmented full size="sm" label="Tipo de benefício" value={bType} onChange={(t) => setBen(t, provider)} options={Object.keys(BENEFIT_TYPES).map((t) => ({ value: t, label: t === 'flex' ? 'Flexível' : t === 'va' ? 'Alimentação' : 'Refeição' }))} /></div>
+          <p className="mt-1.5 text-xs text-ink/60">{BENEFIT_TYPES[bType].hint}</p>
+          <span className="lbl mt-4 block">Operadora</span>
+          <div className="mt-2 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Operadora">
+            {BENEFIT_PROVIDERS.map((p) => (
+              <button key={p} type="button" role="radio" aria-checked={provider === p} onClick={() => setBen(bType, provider === p ? '' : p)}
+                className={`rounded-full border px-3 py-1.5 text-[12.5px] font-bold transition-colors ${provider === p ? 'border-vivo/60 bg-vivo/15 text-ink' : 'border-ink/10 bg-ink/[0.03] text-ink/80 hover:bg-ink/[0.06]'}`}>{p}</button>
+            ))}
+          </div>
+        </div>
+      ) : <BankPicker value={bank} onPick={pickBank} />}
       <Field label="Nome" className="mt-4"><input id="acc-name" className="field" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Nubank, Itaú, Carteira" /></Field>
-      <div className="mt-4"><span className="lbl">Tipo</span><div className="mt-2"><ChoiceChips label="Tipo de conta" value={kind} onChange={setKind} options={Object.keys(ACCOUNT_KINDS).map((k) => ({ value: k, label: ACCOUNT_KINDS[k].label, icon: ACCOUNT_KINDS[k].icon }))} /></div></div>
+      <div className="mt-4"><span className="lbl">Tipo</span><div className="mt-2"><ChoiceChips label="Tipo de conta" value={kind} onChange={(k) => { setKind(k); if (k === 'beneficio') setBen(bType, provider); }} options={Object.keys(ACCOUNT_KINDS).filter((k) => k !== 'beneficio' || d.v4 || kind === 'beneficio').map((k) => ({ value: k, label: k === 'beneficio' ? 'Vale (VA/VR)' : ACCOUNT_KINDS[k].label, icon: ACCOUNT_KINDS[k].icon }))} /></div></div>
       <Field label={editing ? 'Saldo inicial' : 'Saldo atual'} className="mt-4" hint={editing ? 'Valor que havia na conta antes das transações registradas no Leco.' : 'Quanto há nesta conta hoje.'}>
         <SignedMoney id="acc-balance" label="Saldo" cents={balance} onChange={setBalance} />
       </Field>
+      {isBen && (
+        <div className="mt-4 rounded-2xl border border-ink/[0.08] bg-ink/[0.02] p-3">
+          <p className="text-[13px] font-bold">Crédito mensal</p>
+          <p className="text-xs text-ink/60">O valor cai sozinho nesta conta todo mês, no dia escolhido. Deixe em branco se o valor muda.</p>
+          <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+            <MoneyInput id="acc-credit" label="Valor do crédito" cents={credit} onChange={setCredit} className="font-bold" />
+            <div className="w-[120px]"><DaySelect id="acc-credit-day" value={creditDay} onChange={setCreditDay} /></div>
+          </div>
+          {credit > 0 && <p className="mt-2 text-xs text-in">Próximo crédito: {fmtBRL(credit)} em {fmtDate(nextBenefitDate(creditDay))}.</p>}
+        </div>
+      )}
       <fieldset className="mt-4"><legend className="lbl">Cor</legend>
         <div className="mt-2 flex flex-wrap gap-2">{SWATCHES.map((c) => <button key={c} type="button" aria-pressed={color === c} aria-label={`Cor ${c}`} onClick={() => setColor(c)} className="size-8 rounded-full transition-transform hover:scale-105" style={{ background: c, boxShadow: color === c ? `0 0 0 2px var(--paper), 0 0 0 4px ${c}` : 'none' }} />)}</div>
       </fieldset>
       {d.v3 && <div className="mt-4"><IconPicker allowImage value={icon || ACCOUNT_KINDS[kind].icon} onChange={setIcon} choices={['bank', 'phone', 'wallet', 'piggy', 'trend', 'card', 'briefcase', 'home', 'plane', 'shield']} /></div>}
-      {d.v3 && <div className="mt-2"><Toggle id="acc-reserve" icon="shield" label="Reserva de emergência" desc="O saldo desta conta conta como reserva no Planejamento." checked={reserve} onChange={setReserve} /></div>}
+      {d.v3 && !isBen && <div className="mt-2"><Toggle id="acc-reserve" icon="shield" label="Reserva de emergência" desc="O saldo desta conta conta como reserva no Planejamento." checked={reserve} onChange={setReserve} /></div>}
       <div className="mt-4"><ErrorNote>{err}</ErrorNote></div>
       {confirm ? (
         <div className="mt-6 rounded-2xl border border-coral/40 bg-coral/10 p-4">
@@ -1114,7 +1159,7 @@ function ModalBody({ m, close }) {
   switch (m.kind) {
     case 'quick': return <QuickAddSheet key={m.key} onClose={close} />;
     case 'tx': return <TxForm key={m.key} initial={m.initial} defaultKind={m.defaultKind} presetSource={m.presetSource} presetDate={m.presetDate} scanFile={m.scanFile} onClose={close} />;
-    case 'account': return <AccountForm key={m.key} initial={m.initial} onClose={close} />;
+    case 'account': return <AccountForm key={m.key} initial={m.initial} presetKind={m.presetKind} onClose={close} />;
     case 'card': return <CardForm key={m.key} initial={m.initial} onClose={close} />;
     case 'invoice': return <InvoiceSheet key={m.key} card={m.card} initialInvoice={m.invoice} onClose={close} />;
     case 'recurring': return <RecurringForm key={m.key} initial={m.initial} onClose={close} />;

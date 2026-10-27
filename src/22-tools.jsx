@@ -279,14 +279,15 @@ async function restoreBackup(json, mode, d) {
 /* ---------- Projeção de saldo (próximos dias) ---------- */
 function projectBalance(d, days = 90, today = todayISO()) {
   const end = addDays(today, days);
-  const start = sum(d.accounts.filter((a) => !a.archived), (a) => d.balances[a.id] || 0);
+  const start = sum(cashAccounts(d.accounts).filter((a) => !a.archived), (a) => d.balances[a.id] || 0);
+  const ben = new Set(d.accounts.filter(isBenefit).map((a) => a.id));
   const delta = {};
   const add = (date, v) => { const k = date < today ? today : date; if (k <= end) delta[k] = (delta[k] || 0) + v; };
   d.transactions.forEach((t) => {
-    if (t.paid || t.card_id) return;
+    if (t.paid || t.card_id || ben.has(t.account_id)) return;
     if (t.kind === 'in') add(t.date, t.amount); else if (t.kind === 'out') add(t.date, -t.amount);
   });
-  d.recurrings.filter((r) => r.active && !r.card_id).forEach((r) => {
+  d.recurrings.filter((r) => r.active && !r.card_id && !ben.has(r.account_id)).forEach((r) => {
     let dt = r.next_date, g = 0;
     while (dt <= end && (!r.end_date || dt <= r.end_date) && g < 200) { add(dt, r.kind === 'in' ? r.amount : -r.amount); dt = nextDateOf(dt, r.frequency); g++; }
   });

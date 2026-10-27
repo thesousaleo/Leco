@@ -48,6 +48,7 @@ function seedDemo(store, userId) {
   const nu = add('accounts', { name: 'Conta corrente', kind: 'corrente', initial_balance: 245000, color: '#8C7AB8', icon: null, archived: false, is_reserve: false });
   const wallet = add('accounts', { name: 'Carteira', kind: 'carteira', initial_balance: 18000, color: '#5E8CA6', icon: null, archived: false, is_reserve: false });
   const reserve = add('accounts', { name: 'Reserva', kind: 'poupanca', initial_balance: 800000, color: '#14806B', icon: null, archived: false, is_reserve: true });
+  const vr = add('accounts', { name: 'VR Alelo', kind: 'beneficio', initial_balance: 41250, color: '#C2507E', icon: 'utensils', archived: false, is_reserve: false, benefit: { type: 'vr', provider: 'Alelo', credit: 66000, day: 1, recurring_id: null } });
   const card = add('cards', { name: 'Cartão Visa', limit_amount: 600000, closing_day: 3, due_day: 10, color: '#0F5C4D', pay_account_id: nu.id, archived: false, icon: null });
 
   const base = { description: '', category_id: null, account_id: null, to_account_id: null, card_id: null, invoice: null, installment: null, installments: null, group_id: null, recurring_id: null, paid: true, notes: null, tags: [], split_id: null, attachment: null, orig_amount: null, orig_currency: null, is_adjustment: false, debt_id: null, goal_id: null };

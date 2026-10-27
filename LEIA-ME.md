@@ -38,6 +38,9 @@ App de finanças pessoais com contas de usuário (e-mail e senha ou Google), dad
 - Modo demonstração ("Explorar com dados de exemplo" na tela de entrada ou `?demo=1`): dados fictícios salvos só no navegador
 - Moldura de celular no computador (`?moldura=1`): barra de status com hora real, sinal, Wi-Fi e bateria, e indicador de início
 
+## Novidades do Leco 3.7
+- Vale-alimentação, vale-refeição e benefício flexível: conta própria (operadora, crédito mensal automático), saldo à parte do saldo total, opção no "Pago com" e "dá por dia" até o próximo crédito. Requer `supabase/v4.sql`.
+
 ## Estrutura
 | Caminho | Para que serve |
 |---|---|

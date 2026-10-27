@@ -91,11 +91,16 @@ function useLecoData(backend, session, toast) {
   }, [userId]);
 
   const runRecurrings = useCallback(async (snap) => {
-    const plan = planRecurrings(snap.recurrings, snap.cards);
-    if (!plan.rows.length && !plan.updates.length) return;
+    const today = todayISO();
+    const plan = planRecurrings(snap.recurrings, snap.cards, today, snap.accounts);
+    // crédito do vale que chegou o dia: entra como recebido sozinho
+    const ben = new Set(snap.accounts.filter(isBenefit).map((a) => a.id));
+    const credited = snap.transactions.filter((t) => !t.paid && t.kind === 'in' && t.recurring_id && t.date <= today && ben.has(t.account_id)).map((t) => t.id);
+    if (!plan.rows.length && !plan.updates.length && !credited.length) return;
     try {
       if (plan.rows.length) await backend.db.insertIgnore('transactions', plan.rows, 'recurring_id,date');
       for (const u of plan.updates) await backend.db.update('recurrings', u.id, u.patch);
+      if (credited.length) await backend.db.updateIn('transactions', credited, { paid: true });
       await load();
     } catch (e) { toast(e.message, null, true); }
   }, [load]);
@@ -208,9 +213,32 @@ function useLecoData(backend, session, toast) {
     },
     async saveAccount(initial, patch) {
       return guard(async () => {
-        if (initial) { const row = await backend.db.update('accounts', initial.id, patch); set('accounts', (l) => l.map((a) => (a.id === row.id ? row : a))); }
-        else { const made = await backend.db.insert('accounts', [patch]); set('accounts', (l) => [...l, ...made]); }
+        if (initial) { const row = await backend.db.update('accounts', initial.id, patch); set('accounts', (l) => l.map((a) => (a.id === row.id ? row : a))); return row; }
+        const made = await backend.db.insert('accounts', [patch]); set('accounts', (l) => [...l, ...made]); return made[0];
       }, initial ? (patch.archived != null ? (patch.archived ? 'Conta arquivada' : 'Conta reativada') : 'Conta atualizada') : 'Conta criada');
+    },
+    // Crédito mensal do vale: uma recorrência de receita na própria conta do benefício
+    async syncBenefitCredit(acc, b) {
+      const ok = await guard(async () => {
+        const rec = b.recurring_id ? data.recurrings.find((r) => r.id === b.recurring_id) : null;
+        if (!(b.credit > 0 && b.day)) {
+          if (rec) { await backend.db.remove('recurrings', rec.id); await backend.db.update('accounts', acc.id, { benefit: { ...b, recurring_id: null } }); }
+          return;
+        }
+        let cat = data.categories.find((c) => c.kind === 'in' && !c.archived && normTxt(c.name) === 'beneficios');
+        if (!cat) [cat] = await backend.db.insert('categories', [{ name: 'Benefícios', kind: 'in', icon: 'gift', color: '#14806B' }]);
+        const patch = { kind: 'in', amount: b.credit, description: `Crédito ${acc.name}`, frequency: 'monthly', account_id: acc.id, card_id: null, category_id: cat.id, active: true };
+        if (rec) {
+          const sameDay = Number(String(rec.next_date).slice(8, 10)) === Math.min(b.day, daysIn(monthKey(rec.next_date)));
+          await backend.db.update('recurrings', rec.id, sameDay ? patch : { ...patch, next_date: nextBenefitDate(b.day) });
+        } else {
+          const [r] = await backend.db.insert('recurrings', [{ ...patch, next_date: nextBenefitDate(b.day), end_date: null }]);
+          await backend.db.update('accounts', acc.id, { benefit: { ...b, recurring_id: r.id } });
+        }
+      });
+      const fresh = await load();
+      if (fresh) runRecurrings(fresh);
+      return ok;
     },
     async saveCard(initial, patch) {
       return guard(async () => {
@@ -730,7 +758,9 @@ function MobileLayout() {
   const back = () => d.go(page === 'config' ? 'mais' : 'inicio');
   const headerAction = { contas: { icon: 'plus', label: 'Nova conta', fn: () => d.openModal({ kind: 'account' }) }, recorrentes: { icon: 'plus', label: 'Nova recorrência', fn: () => d.openModal({ kind: 'recurring' }) }, metas: { icon: 'plus', label: 'Nova meta', fn: () => d.openModal({ kind: 'goal' }) }, dividas: { icon: 'plus', label: 'Nova dívida', fn: () => d.openModal({ kind: 'debt' }) }, modelos: { icon: 'plus', label: 'Novo modelo', fn: () => d.openModal({ kind: 'template' }) } }[page];
   const series = useMemo(() => monthSeries(d.transactions, d.accounts, finMonthOf(todayISO())), [d.transactions, d.accounts]);
-  const totalBal = sum(d.accounts, (a) => d.balances[a.id] || 0);
+  const totalBal = sum(cashAccounts(d.accounts), (a) => d.balances[a.id] || 0);
+  const benefitBal = sum(d.accounts.filter((a) => isBenefit(a) && !a.archived), (a) => d.balances[a.id] || 0);
+  const hasBenefit = d.accounts.some((a) => isBenefit(a) && !a.archived);
   const prevBal = series.length > 1 ? series[series.length - 2].bal : 0;
   const balDelta = prevBal ? ((totalBal - prevBal) / Math.abs(prevBal)) * 100 : null;
   const initial = (d.name || d.session.user.email).charAt(0).toUpperCase();
@@ -777,6 +807,7 @@ function MobileLayout() {
                 <span className="min-w-0">
                   <span className="block text-[11px] font-semibold uppercase tracking-wider text-ink/75">Saldo total</span>
                   <span className="mt-0.5 block text-[24px] font-extrabold leading-tight tracking-[-0.02em]"><Money cents={totalBal} /></span>
+                  {hasBenefit && <span className="mt-0.5 flex items-center gap-1 text-[11.5px] font-semibold text-ink/80"><Icon name="utensils" size={12} />Vales: <Money cents={benefitBal} /></span>}
                 </span>
                 <Delta value={balDelta} />
               </button>
