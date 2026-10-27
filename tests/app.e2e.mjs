@@ -29,6 +29,7 @@ const wait = (ms = 350) => page.waitForTimeout(ms);
 const fab = async () => { await page.locator('.fab-corner').click(); await wait(450); };
 const money = async (sel, cents) => { await page.fill(sel, ''); await page.type(sel, String(cents)); };
 const save = async () => { await dlg().getByRole('button', { name: /Adicionar|Salvar|Transferir/ }).last().click(); await wait(700); };
+const shiftMonthJS = (k, n) => { const [y, m] = k.split('-').map(Number); const t = y * 12 + (m - 1) + n; return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`; };
 const txs = () => page.evaluate(() => window.__leco && window.__leco().transactions);
 const nav = async (name) => { await page.getByRole('navigation').getByRole('button', { name }).click(); await wait(450); };
 const goMenu = async (label) => { await page.getByRole('button', { name: 'Abrir menu' }).first().click(); await wait(450); await page.getByRole('navigation', { name: 'Menu' }).getByRole('button', { name: new RegExp(label) }).first().click(); await wait(500); };
@@ -693,6 +694,48 @@ try {
     const invs = [...new Set(made.map((t) => t.invoice))].sort();
     ok(invs.length === 4, 'parcelas: uma em cada fatura', invs.join(','));
     ok((await txs()).length === before + 4, 'parcelas: nada além das 4');
+  }
+
+  step('Fatura: pagar só uma parte e levar o restante');
+  {
+    const L = () => page.evaluate(() => { const d = window.__leco(); const c = d.cards[0]; const s = cardSummary(c, d.transactions); return { c, inv: s.invoices.map((i) => ({ k: i.invoice, total: i.total, paid: i.paid, rem: i.remaining, st: i.status })) }; });
+    const card = (await L()).c;
+    // compra numa fatura já fechada: data antes do fechamento do mês passado
+    const prev = await page.evaluate((c) => { const k = shiftMonth(monthKey(todayISO()), -1); const inv = invoiceOf(c, `${k}-02`); return { k, inv, date: `${k}-02` }; }, card);
+    await page.evaluate(async ({ c, p }) => { await window.__leco().saveTx(null, { kind: 'out', amount: 100000, description: 'Teste fatura parcial', date: p.date, category_id: null, account_id: null, card_id: c.id, paid: true, notes: null }, 1); }, { c: card, p: prev });
+    await wait(400);
+    let inv = (await L()).inv.find((i) => i.k === prev.inv);
+    const owed = inv.rem;
+    await page.evaluate(({ c, k }) => window.__leco().openModal({ kind: 'invoice', card: c, cardId: c.id, invoice: k, initialInvoice: k }), { c: card, k: prev.inv });
+    await wait(700);
+    await dlg().getByRole('button', { name: 'Pagar fatura' }).click();
+    await wait(300);
+    await dlg().getByText('Só uma parte', { exact: true }).click();
+    await money('#pay-amount', 40000);
+    await wait(200);
+    ok(await page.locator('#pay-roll').count() + await dlg().getByText(/Levar os R\$/).count() > 0, 'fatura: oferece levar o restante');
+    await money('#pay-interest', 2500);
+    // (o zoom de texto ligado em testes anteriores desalinha as coordenadas do clique)
+    await dlg().getByRole('button', { name: /Pagar R\$/ }).evaluate((b) => b.click());
+    await wait(900);
+    const all = await L();
+    inv = all.inv.find((i) => i.k === prev.inv);
+    const next = all.inv.find((i) => i.k === shiftMonthJS(prev.inv, 1));
+    ok(inv.rem === 0, 'fatura: paga em parte e o restante foi levado', JSON.stringify(inv));
+    const carry = (await txs()).filter((t) => t.is_adjustment && t.card_id === card.id && t.kind === 'out');
+    ok(carry.some((t) => t.amount === owed - 40000), 'fatura: saldo da anterior entra na próxima', carry.map((t) => t.amount).join(','));
+    ok((await txs()).some((t) => /^Juros do restante/.test(t.description) && t.amount === 2500 && !t.is_adjustment), 'fatura: juros entram como despesa');
+    ok(next && next.total >= owed - 40000 + 2500, 'fatura: próxima fatura soma restante e juros', JSON.stringify(next));
+    const exp = await page.evaluate(() => { const d = window.__leco(); return d.transactions.filter((t) => countsAsExpense(t) && /Saldo da fatura/.test(t.description)).length; });
+    ok(exp === 0, 'fatura: restante levado fica fora dos relatórios');
+    // desfazer
+    const c0 = carry[0];
+    await page.evaluate((t) => window.__leco().deleteTx(t, 'group'), c0);
+    await wait(500);
+    inv = (await L()).inv.find((i) => i.k === prev.inv);
+    ok(inv.rem === owed - 40000 && (inv.st === 'parcial' || inv.st === 'vencida'), 'fatura: desfazer devolve o restante (paga em parte)', JSON.stringify(inv));
+    await page.keyboard.press('Escape');
+    await wait(400);
   }
 
   step('Layout no celular (sem rolagem lateral)');

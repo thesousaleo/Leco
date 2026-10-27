@@ -414,7 +414,7 @@ function TransactionsPage() {
   const [tag, setTag] = useState('all');
   const [selecting, setSelecting] = useState(false);
   const [sel, setSel] = useState(() => new Set());
-  const toggleSel = (t) => { if (t.kind === 'card_payment') return; setSel((p) => { const n = new Set(p); if (n.has(t.id)) n.delete(t.id); else n.add(t.id); return n; }); };
+  const toggleSel = (t) => { if (t.kind === 'card_payment' || (t.is_adjustment && t.card_id)) return; setSel((p) => { const n = new Set(p); if (n.has(t.id)) n.delete(t.id); else n.add(t.id); return n; }); };
   const stopSel = () => { setSelecting(false); setSel(new Set()); };
   const allTags = useMemo(() => [...new Set(d.transactions.flatMap((t) => t.tags || []))].sort(), [d.transactions]);
   const [limit, setLimit] = useState(30);

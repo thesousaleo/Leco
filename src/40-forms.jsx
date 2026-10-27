@@ -9,6 +9,7 @@ function txMeta(t, d) {
   const acc = d.accounts.find((a) => a.id === t.account_id);
   const to = d.accounts.find((a) => a.id === t.to_account_id);
   const card = d.cards.find((c) => c.id === t.card_id);
+  if (t.is_adjustment && t.card_id) return { icon: 'repeat', color: card ? card.color : '#5E8CA6', title: t.description || 'Restante da fatura', sub: `${card ? card.name : 'Cartão'} · fatura de ${t.invoice ? invoiceLabel(t.invoice) : ''} · fora dos relatórios`, tone: 'text-ink', sign: t.kind === 'out' ? '−' : '' };
   if (t.is_adjustment) return { icon: 'scale', color: '#5E8CA6', title: t.description || 'Ajuste de saldo', sub: `${acc ? acc.name : 'Conta'} · ajuste (fora dos relatórios)`, tone: 'text-ink', sign: t.kind === 'in' ? '+' : '−' };
   if (t.kind === 'transfer') return { icon: 'swap', color: '#5E8CA6', title: t.description || 'Transferência', sub: `${acc ? acc.name : '?'} → ${to ? to.name : '?'}`, tone: 'text-ink', sign: '' };
   if (t.kind === 'card_payment') return { icon: 'card', color: card ? card.color : '#0F5C4D', title: t.description || `Pagamento da fatura ${card ? card.name : ''}`, sub: `${acc ? acc.name : 'Conta'} · fatura de ${t.invoice ? invoiceLabel(t.invoice) : ''}`, tone: 'text-ink', sign: '−' };
@@ -156,6 +157,18 @@ function DeleteTxChoices({ t, busy, onCancel, onPick, flat = false }) {
   const box = flat ? '' : 'mt-6 rounded-2xl border border-coral/40 bg-coral/10 p-4';
   if (t.recurring_id) {
     return <ScopeChoice danger what={'Lançamento de uma recorrência. "Esta e as próximas" encerra a recorrência; "Todas" também apaga a recorrência.'} busy={busy} onCancel={onCancel} onPick={onPick} />;
+  }
+  if (t.is_adjustment && t.card_id && t.group_id) {
+    return (
+      <div className={box}>
+        <p className="text-sm font-bold">Desfazer o restante levado?</p>
+        <p className="mt-1 text-xs text-ink/75">A fatura anterior volta a mostrar o valor em aberto, e os juros lançados junto também saem.</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <button type="button" className="btn btn-ghost !py-2" onClick={onCancel}>Cancelar</button>
+          <button type="button" className="btn btn-danger !py-2" disabled={busy} onClick={() => onPick('group')}>Desfazer</button>
+        </div>
+      </div>
+    );
   }
   if (t.split_id) {
     return (
@@ -439,8 +452,8 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
       <SheetHead id={titleId} title={editing ? 'Editar transação' : 'Nova transação'} sub={editing && initial.installments ? `Parcela ${initial.installment} de ${initial.installments}. A edição vale só para esta parcela.` : undefined} onClose={onClose} />
       {!editing && <AutoFill kind={kind} onScan={doScan} onQuick={() => { onClose(); setTimeout(() => d.openModal({ kind: 'quick' }), 240); }} onTemplate={v3 ? applyTemplate : null} />}
       <ScanStatus state={scan} />
-      {initial && initial.kind === 'card_payment' ? (
-        <p className="rounded-2xl bg-ink/[0.04] p-4 text-[13px] text-ink/75">Pagamentos de fatura não podem ser editados. Exclua e registre de novo, se precisar.</p>
+      {initial && (initial.kind === 'card_payment' || (initial.is_adjustment && initial.card_id)) ? (
+        <p className="rounded-2xl bg-ink/[0.04] p-4 text-[13px] text-ink/75">{initial.is_adjustment ? 'Este é o restante de uma fatura levado para a seguinte. Para desfazer, exclua: a fatura anterior volta a mostrar o valor em aberto.' : 'Pagamentos de fatura não podem ser editados. Exclua e registre de novo, se precisar.'}</p>
       ) : (
         <>
           <div className="grid grid-cols-3 gap-1 rounded-2xl border border-ink/10 bg-ink/[0.03] p-1" role="radiogroup" aria-label="Tipo de transação">
@@ -625,10 +638,10 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
       ) : (
         <div className="mt-6 flex gap-2">
           {editing && <button type="button" className="icon-btn size-11 shrink-0" aria-label="Excluir transação" onClick={() => setConfirmDel(true)}><Icon name="trash" size={17} /></button>}
-          {editing && initial.kind !== 'card_payment' && <button type="button" className="icon-btn size-11 shrink-0" aria-label="Duplicar transação" onClick={duplicate}><Icon name="copy" size={17} /></button>}
+          {editing && initial.kind !== 'card_payment' && !(initial.is_adjustment && initial.card_id) && <button type="button" className="icon-btn size-11 shrink-0" aria-label="Duplicar transação" onClick={duplicate}><Icon name="copy" size={17} /></button>}
           {!editing && v3 && kind !== 'transfer' && <button type="button" className="icon-btn size-11 shrink-0" aria-label="Salvar como modelo" title="Salvar como modelo" onClick={saveTemplate}><Icon name="star" size={17} /></button>}
           <button type="button" className="btn btn-ghost flex-1" onClick={onClose}>Cancelar</button>
-          {!(initial && initial.kind === 'card_payment') && <SubmitButton busy={busy} className="flex-[1.6]"><Icon name="check" size={17} strokeWidth={2.4} />{editing ? 'Salvar' : kind === 'transfer' ? 'Transferir' : window.innerWidth < 380 ? 'Adicionar' : kind === 'in' ? 'Adicionar receita' : 'Adicionar despesa'}</SubmitButton>}
+          {!(initial && (initial.kind === 'card_payment' || (initial.is_adjustment && initial.card_id))) && <SubmitButton busy={busy} className="flex-[1.6]"><Icon name="check" size={17} strokeWidth={2.4} />{editing ? 'Salvar' : kind === 'transfer' ? 'Transferir' : window.innerWidth < 380 ? 'Adicionar' : kind === 'in' ? 'Adicionar receita' : 'Adicionar despesa'}</SubmitButton>}
         </div>
       )}
     </Sheet>
@@ -991,18 +1004,31 @@ function InvoiceSheet({ card, initialInvoice, onClose }) {
   const [amount, setAmount] = useState(Math.max(0, cur.remaining));
   const [date, setDate] = useState(todayISO());
   const [paying, setPaying] = useState(false);
+  const [part, setPart] = useState(false); // pagar só uma parte
+  const [roll, setRoll] = useState(true); // levar o restante para a próxima fatura
+  const [interest, setInterest] = useState(0);
+  const [rolling, setRolling] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const titleId = cleanId(useId());
-  useEffect(() => { setAmount(Math.max(0, cur.remaining)); setPaying(false); }, [inv]);
+  const left = Math.max(0, cur.remaining);
+  const canRoll = d.v3 && cur.status !== 'aberta' && cur.status !== 'paga';
+  useEffect(() => { setAmount(left); setPaying(false); setPart(false); setRolling(false); setInterest(0); setErr(''); }, [inv]);
+  const interestCat = () => (d.categories.find((c) => c.kind === 'out' && !c.archived && /juros|tarifa|encargo|taxa/i.test(c.name)) || d.categories.find((c) => c.kind === 'out' && !c.archived && /^outr/i.test(c.name)) || {}).id || null;
+  const choosePart = (v) => { setPart(v); setAmount(v ? 0 : left); setErr(''); };
+  const after = Math.max(0, left - amount);
   const pay = async () => {
     if (!payAcc) { setErr('Escolha a conta que vai pagar.'); return; }
-    if (amount <= 0) { setErr('Informe o valor do pagamento.'); return; }
+    if (amount <= 0) { setErr('Informe quanto vai pagar.'); return; }
+    if (amount > left) { setErr(`O valor passa do que falta pagar (${fmtBRL(left)}).`); return; }
     setErr(''); setBusy(true);
-    const ok = await d.payInvoice(card, cur.invoice, payAcc, amount, date);
+    let ok = await d.payInvoice(card, cur.invoice, payAcc, amount, date);
+    if (ok && part && after > 0 && roll && canRoll) ok = await d.rollInvoice(card, { ...cur, remaining: after }, interest, interestCat());
     setBusy(false);
-    if (ok) setPaying(false);
+    if (ok) { setPaying(false); setPart(false); }
   };
+  const doRoll = async () => { setBusy(true); const ok = await d.rollInvoice(card, cur, interest, interestCat()); setBusy(false); if (ok) { setRolling(false); setInterest(0); } };
+  const rolledOut = cur.payments.find((t) => t.is_adjustment);
   const st = INVOICE_STATUS[cur.status];
   return (
     <Sheet variant={sheetVariant()} onClose={onClose} titleId={titleId} wide>
@@ -1029,13 +1055,45 @@ function InvoiceSheet({ card, initialInvoice, onClose }) {
           <div><p className="text-ink/60">Vence</p><p className="font-bold tabular-nums">{fmtDate(cur.due)}</p></div>
           <div><p className="text-ink/60">Falta pagar</p><p className="font-bold tabular-nums">{m(Math.max(0, cur.remaining))}</p></div>
         </div>
-        {cur.remaining > 0 && !paying && <button type="button" className="btn btn-primary mt-4 w-full" onClick={() => setPaying(true)}><Icon name="check" size={16} />Pagar fatura</button>}
+        {cur.paid > 0 && cur.remaining > 0 && <p className="mt-3 rounded-xl bg-attn px-3 py-2 text-[12.5px] text-ink/80" data-inv-partial>Você já pagou <b className="tabular-nums">{m(cur.paid)}</b>. Faltam <b className="tabular-nums">{m(left)}</b>.</p>}
+        {rolledOut && <p className="mt-3 rounded-xl bg-ink/[0.05] px-3 py-2 text-[12.5px] text-ink/75"><Icon name="repeat" size={13} className="mr-1 inline" />{m(rolledOut.amount)} foram levados para a fatura de {invoiceLabel(shiftMonth(cur.invoice, 1))}.</p>}
+        {left > 0 && !paying && !rolling && (
+          <div className="mt-4 flex gap-2">
+            <button type="button" className="btn btn-primary flex-[1.6]" onClick={() => setPaying(true)}><Icon name="check" size={16} />Pagar fatura</button>
+            {canRoll && cur.paid > 0 && <button type="button" className="btn btn-ghost flex-1 !px-3 text-[13px]" onClick={() => setRolling(true)}><Icon name="repeat" size={15} />Levar restante</button>}
+          </div>
+        )}
+        {rolling && (
+          <div className="mt-4 space-y-3 border-t border-ink/10 pt-4" data-roll-box>
+            <p className="text-[13px] leading-relaxed text-ink/80">Os <b className="tabular-nums">{m(left)}</b> que faltam vão para a fatura de <b>{invoiceLabel(shiftMonth(cur.invoice, 1))}</b>, como o banco faz. Não conta como gasto novo nos relatórios.</p>
+            <Field label="Juros e encargos (opcional)" hint="Se o banco cobrou juros sobre o restante, informe aqui. Eles entram como despesa.">
+              <MoneyInput id="roll-interest" label="Juros e encargos" cents={interest} onChange={setInterest} />
+            </Field>
+            <div className="flex gap-2">
+              <button type="button" className="btn btn-ghost flex-1" onClick={() => setRolling(false)}>Cancelar</button>
+              <button type="button" className="btn btn-primary flex-[1.6]" disabled={busy} onClick={doRoll}>{busy ? <Spinner size={14} /> : <Icon name="repeat" size={16} />}Levar {fmtBRL(left + interest)}</button>
+            </div>
+          </div>
+        )}
         {paying && (
           <div className="mt-4 space-y-3 border-t border-ink/10 pt-4">
+            <div>
+              <span className="lbl">Quanto vai pagar</span>
+              <div className="mt-2"><Segmented full size="sm" label="Quanto vai pagar" value={part ? 'part' : 'all'} onChange={(v) => choosePart(v === 'part')}
+                options={[{ value: 'all', label: `Tudo (${fmtBRL(left)})` }, { value: 'part', label: 'Só uma parte' }]} /></div>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Valor"><MoneyInput id="pay-amount" label="Valor do pagamento" cents={amount} onChange={setAmount} className="font-bold" /></Field>
+              <Field label={part ? 'Valor que vai pagar' : 'Valor'} hint={part ? (amount > 0 && amount < left ? `Depois deste pagamento faltam ${fmtBRL(after)}.` : `Falta pagar ${fmtBRL(left)}.`) : undefined}>
+                <MoneyInput id="pay-amount" label="Valor do pagamento" cents={amount} onChange={(v) => { setAmount(v); if (!part && v !== left) setPart(true); }} className="font-bold" />
+              </Field>
               <DateField id="pay-date" value={date} onChange={setDate} />
             </div>
+            {part && after > 0 && amount > 0 && canRoll && (
+              <div className="rounded-2xl border border-ink/[0.08] bg-ink/[0.02] p-3">
+                <Toggle id="pay-roll" checked={roll} onChange={setRoll} label={`Levar os ${fmtBRL(after)} para a próxima fatura`} desc={`Vão para ${invoiceLabel(shiftMonth(cur.invoice, 1))}, como o banco faz. Desligado, o restante fica nesta fatura como "falta pagar".`} />
+                {roll && <Field label="Juros e encargos (opcional)" className="mt-3" hint="Entram como despesa na próxima fatura."><MoneyInput id="pay-interest" label="Juros e encargos" cents={interest} onChange={setInterest} /></Field>}
+              </div>
+            )}
             <Field label="Pagar com">
               <select id="pay-acc" className="field" value={payAcc} onChange={(e) => setPayAcc(e.target.value)}>
                 {d.accounts.filter((a) => !a.archived).map((a) => <option key={a.id} value={a.id}>{a.name} · {fmtBRL(d.balances[a.id])}</option>)}
@@ -1044,7 +1102,7 @@ function InvoiceSheet({ card, initialInvoice, onClose }) {
             <ErrorNote>{err}</ErrorNote>
             <div className="flex gap-2">
               <button type="button" className="btn btn-ghost flex-1" onClick={() => setPaying(false)}>Cancelar</button>
-              <button type="button" className="btn btn-primary flex-[1.6]" onClick={pay} disabled={busy}>{busy ? <Spinner size={14} /> : <Icon name="check" size={16} />}Confirmar pagamento</button>
+              <button type="button" className="btn btn-primary flex-[1.6]" onClick={pay} disabled={busy}>{busy ? <Spinner size={14} /> : <Icon name="check" size={16} />}{part ? `Pagar ${fmtBRL(amount)}` : 'Confirmar pagamento'}</button>
             </div>
           </div>
         )}

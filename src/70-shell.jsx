@@ -177,7 +177,7 @@ function useLecoData(backend, session, toast) {
     },
     async deleteTx(t, scope = 'one') {
       if (scope === 'group' && t.group_id) {
-        return guard(async () => { await backend.db.removeWhere('transactions', 'group_id', t.group_id); set('transactions', (l) => l.filter((x) => x.group_id !== t.group_id)); }, 'Compra parcelada excluída');
+        return guard(async () => { await backend.db.removeWhere('transactions', 'group_id', t.group_id); set('transactions', (l) => l.filter((x) => x.group_id !== t.group_id)); }, t.is_adjustment && t.card_id ? 'Restante devolvido para a fatura' : 'Compra parcelada excluída');
       }
       if (scope === 'split' && t.split_id) {
         return guard(async () => { await backend.db.removeWhere('transactions', 'split_id', t.split_id); set('transactions', (l) => l.filter((x) => x.split_id !== t.split_id)); }, 'Compra dividida excluída');
@@ -225,6 +225,27 @@ function useLecoData(backend, session, toast) {
         const made = await backend.db.insert('transactions', [{ kind: 'card_payment', amount, date, account_id: accountId, card_id: card.id, invoice, paid: true, description: `Fatura ${card.name} · ${invoiceLabel(invoice)}` }]);
         set('transactions', (l) => [...made, ...l].sort(byTx));
       }, 'Pagamento da fatura registrado');
+    },
+    // Pagou só uma parte: o que faltou vai para a próxima fatura (como faz o banco), com juros opcionais.
+    // Fica fora dos relatórios (não é gasto novo); só os juros contam como despesa.
+    async rollInvoice(card, inv, interest = 0, interestCat = null) {
+      return guard(async () => {
+        const left = Math.max(0, inv.remaining);
+        if (!left) return;
+        const group = uid(), next = shiftMonth(inv.invoice, 1);
+        const label = invoiceLabel(inv.invoice);
+        const rows = [
+          { kind: 'card_payment', amount: left, date: inv.due, account_id: null, card_id: card.id, invoice: inv.invoice, paid: true, is_adjustment: true, group_id: group, description: `Restante levado para ${invoiceLabel(next)}` },
+          { kind: 'out', amount: left, date: inv.due, account_id: null, card_id: card.id, invoice: next, paid: true, is_adjustment: true, group_id: group, category_id: null, description: `Saldo da fatura de ${label}` },
+        ];
+        if (interest > 0) rows.push({ kind: 'out', amount: interest, date: inv.due, account_id: null, card_id: card.id, invoice: next, paid: true, group_id: group, category_id: interestCat, description: `Juros do restante da fatura de ${label}` });
+        const made = await backend.db.insert('transactions', rows);
+        set('transactions', (l) => [...made, ...l].sort(byTx));
+        markFresh(made.map((r) => r.id));
+      }, 'Restante levado para a próxima fatura');
+    },
+    async undoRoll(groupId) {
+      return guard(async () => { await backend.db.removeWhere('transactions', 'group_id', groupId); set('transactions', (l) => l.filter((x) => x.group_id !== groupId)); }, 'Restante devolvido para a fatura');
     },
     async saveAccount(initial, patch) {
       return guard(async () => {

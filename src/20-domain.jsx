@@ -28,6 +28,7 @@ const INVOICE_STATUS = {
   aberta: { label: 'Aberta', cls: 'pill pill-neutral' },
   fechada: { label: 'Fechada', cls: 'badge-gold' },
   vencida: { label: 'Vencida', cls: 'pill pill-bad' },
+  parcial: { label: 'Paga em parte', cls: 'badge-gold' },
   paga: { label: 'Paga', cls: 'pill pill-good' },
 };
 
@@ -60,7 +61,7 @@ function cardInvoices(card, txs, today = todayISO()) {
     else if (today < closing) status = 'aberta';
     else if (remaining <= 0) status = 'paga';
     else if (today > due) status = 'vencida';
-    else status = 'fechada';
+    else status = o.paid > 0 ? 'parcial' : 'fechada';
     return { ...o, closing, due, remaining, status };
   }).sort((a, b) => (a.invoice < b.invoice ? 1 : -1));
 }
@@ -72,7 +73,7 @@ function cardSummary(card, txs, today = todayISO()) {
   const invoices = cardInvoices(card, txs, today);
   const currentKey = invoiceOf(card, today);
   const current = invoices.find((i) => i.invoice === currentKey);
-  const toPay = invoices.filter((i) => i.status === 'fechada' || i.status === 'vencida').sort((a, b) => (a.invoice < b.invoice ? -1 : 1));
+  const toPay = invoices.filter((i) => i.status === 'fechada' || i.status === 'parcial' || i.status === 'vencida').sort((a, b) => (a.invoice < b.invoice ? -1 : 1));
   return { used, available: card.limit_amount - used, invoices, current, toPay, nextToPay: toPay[0] || null };
 }
 
