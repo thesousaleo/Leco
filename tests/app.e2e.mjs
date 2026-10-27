@@ -487,6 +487,31 @@ try {
     await dctx.close();
   }
 
+  step('Site Clean (visual paralelo)');
+  {
+    const cctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' });
+    const cp = await cctx.newPage();
+    cp.on('pageerror', (e) => errors.push(`clean: ${e}`));
+    await cp.route(/fonts\.(googleapis|gstatic)\.com|api\.github\.com/, (r) => r.abort());
+    await cp.goto(`file://${html}?demo=1&skin=clean`);
+    await cp.waitForTimeout(1500);
+    ok(await cp.evaluate(() => document.documentElement.dataset.skin) === 'clean', 'visual Clean ativo');
+    ok(await cp.getByRole('heading', { name: 'Fluxo de caixa' }).count() === 1 && await cp.getByText('Transações recentes').count() > 0, 'início com cartões, fluxo de caixa e tabela');
+    await cp.getByRole('navigation', { name: 'Menu principal' }).getByRole('button', { name: 'Despesas' }).click();
+    await cp.waitForTimeout(600);
+    const onlyOut = await cp.evaluate(() => { const d = window.__leco(); return d.page === 'transacoes' && d.txPreset && d.txPreset.type === 'out'; });
+    ok(onlyOut, 'menu leva às despesas filtradas');
+    await cp.getByRole('navigation', { name: 'Menu principal' }).getByRole('button', { name: 'Início' }).click();
+    await cp.waitForTimeout(500);
+    await cp.getByRole('tab', { name: 'Quadro de orçamento' }).click();
+    await cp.waitForTimeout(400);
+    ok(await cp.getByRole('region', { name: 'Contas fixas' }).count() === 1, 'quadro de orçamento em colunas');
+    await cp.getByRole('switch', { name: 'Modo escuro' }).click();
+    await cp.waitForTimeout(600);
+    ok(await cp.evaluate(() => document.documentElement.dataset.leco) === 'dark', 'modo escuro pelo menu');
+    await cctx.close();
+  }
+
   step('Layout no celular (sem rolagem lateral)');
   await page.setViewportSize({ width: 360, height: 760 });
   for (const id of ['inicio', 'transacoes', 'calendario', 'relatorios', 'planejamento', 'dividas', 'contas', 'metas', 'categorias', 'mais']) {

@@ -41,7 +41,8 @@ function createSupabaseBackend() {
     auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: !NATIVE },
   });
   const ok = (res) => { if (res.error) throw new Error(translateError(res.error)); return res.data; };
-  const siteUrl = CFG.siteUrl || window.location.origin + window.location.pathname;
+  // site Clean (/novo/): e-mails e login com Google voltam para ele mesmo
+  const siteUrl = CFG.siteUrl ? `${CFG.siteUrl}${window.LECO_SKIN === 'clean' ? 'novo/' : ''}` : window.location.origin + window.location.pathname;
 
   const auth = {
     async getSession() { return ok(await client.auth.getSession()).session; },

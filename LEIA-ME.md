@@ -41,6 +41,11 @@ App de finanças pessoais com contas de usuário (e-mail e senha ou Google), dad
 ## Novidades do Leco 3.7
 - Vale-alimentação, vale-refeição e benefício flexível: conta própria (operadora, crédito mensal automático), saldo à parte do saldo total, opção no "Pago com" e "dá por dia" até o próximo crédito. Requer `supabase/v4.sql`.
 
+## Site Clean (visual alternativo)
+- Mesmo app, mesmos dados e mesma conta, com outro visual: https://thesousaleo.github.io/Leco/novo/
+- Código do visual em `src/68-clean.jsx` e no fim de `src/styles.css` (bloco `data-skin="clean"`). Gerado por `node scripts/build-web.mjs web-clean`.
+- Para o login com Google e os e-mails voltarem para o /novo/, inclua `https://thesousaleo.github.io/Leco/**` em Supabase › Authentication › URL Configuration › Redirect URLs.
+
 ## Estrutura
 | Caminho | Para que serve |
 |---|---|

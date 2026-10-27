@@ -326,11 +326,12 @@ function TransactionsPage() {
   const d = useApp();
   const narrow = useNarrow();
   const m = useMoneyText();
-  const [scope, setScope] = useState('month');
-  const [type, setType] = useState('all');
+  const pre = d.txPreset || {};
+  const [scope, setScope] = useState(pre.scope || 'month');
+  const [type, setType] = useState(pre.type || 'all');
   const [src, setSrc] = useState('all');
   const [cat, setCat] = useState('all');
-  const [status, setStatus] = useState('all');
+  const [status, setStatus] = useState(pre.status || 'all');
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('recent');
   const [showFilters, setShowFilters] = useState(false);
@@ -534,7 +535,7 @@ function AccountsPage() {
           </ul>
         )}
       </Card>
-      {(d.v4 || bens.length > 0) && <BenefitsCard bens={bens} />}
+      {(d.v4 || bens.length > 0) && <div id="vales" className="scroll-mt-24"><BenefitsCard bens={bens} /></div>}
       <Card title="Cartões de crédito" sub="Limite, fatura atual e vencimentos" action={<button type="button" className="btn btn-primary !py-2 text-[13px]" onClick={() => d.openModal({ kind: 'card' })}><Icon name="plus" size={16} />Novo cartão</button>}>
         {cards.length === 0 ? <EmptyState icon="card" title="Nenhum cartão" text="Cadastre seus cartões para acompanhar faturas, parcelas e o limite disponível." /> : (
           <ul className={`grid gap-3 ${narrow ? 'grid-cols-1' : 'md:grid-cols-2 2xl:grid-cols-3'}`}>

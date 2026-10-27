@@ -882,6 +882,7 @@ function Workspace({ backend, session, toast, toastNode }) {
   const [settingsSub, setSettingsSub] = useState('perfil');
   const [month, setMonth] = useState(monthKey(todayISO()));
   const [modal, setModal] = useState(null);
+  const [txPreset, setTxPreset] = useState(null);
   const [calm, setCalm] = useLocal('leco.calm', false);
   // Preferências: no banco (Leco 3) ou neste aparelho enquanto o banco não foi atualizado
   const v3 = !!(data && data.v3);
@@ -909,7 +910,8 @@ function Workspace({ backend, session, toast, toastNode }) {
 
   const navRef = useRef({});
   navRef.current = { page, modal, tabs: prefs.tabs };
-  const go = useCallback((id) => { setPage(id); setModal(null); window.scrollTo({ top: 0, behavior: 'auto' }); }, []);
+  const go = useCallback((id) => { setPage(id); setModal(null); if (id !== 'transacoes') setTxPreset(null); window.scrollTo({ top: 0, behavior: 'auto' }); }, []);
+  const goTx = useCallback((preset) => { setTxPreset({ key: Date.now(), ...(preset || {}) }); setPage('transacoes'); setModal(null); window.scrollTo({ top: 0, behavior: 'auto' }); }, []);
   useEffect(() => {
     const capApp = Native.App;
     if (!capApp) return undefined;
@@ -931,7 +933,7 @@ function Workspace({ backend, session, toast, toastNode }) {
     return {
       ...data, ...actions, backend, session, toast, freshIds, balances, alerts,
       name: data.profile.name || '', hide: !!data.profile.hide_values, theme, fullTheme, themeMode, prefs, setPrefs, v3, calm, setCalm,
-      page, go, settingsSub, setSettingsSub, month, setMonth,
+      page, go, goTx, txPreset, settingsSub, setSettingsSub, month, setMonth,
       modal, openModal: (m) => setModal({ key: Date.now(), ...m }),
       // Fecha com animação de saída: marca como "fechando" e remove depois de 220 ms
       closeModal: () => setModal((cur) => { if (!cur || cur.closing) return cur; const k = cur.key; setTimeout(() => setModal((x) => (x && x.key === k ? null : x)), reducedMotion() ? 0 : 220); return { ...cur, closing: true }; }),
@@ -939,7 +941,7 @@ function Workspace({ backend, session, toast, toastNode }) {
       exportFile: async (name, content, mime) => { try { await exportFile(name, content, mime); toast(NATIVE ? 'Ficheiro pronto para salvar ou enviar' : 'Download iniciado'); } catch (e) { toast('Não foi possível exportar o ficheiro.', null, true); } },
       signOut: async () => { try { await backend.auth.signOut(); } catch (e) { toast(e.message, null, true); } },
     };
-  }, [data, freshIds, page, settingsSub, month, modal, theme, fullTheme, prefs, calm]);
+  }, [data, freshIds, page, settingsSub, month, modal, theme, fullTheme, prefs, calm, txPreset]);
 
   // Avisos na hora (orçamento perto do limite, meta quase lá) no celular
   const alertKey = ctx ? ctx.alerts.map((a) => a.id).join('|') : '';
@@ -978,7 +980,7 @@ function Workspace({ backend, session, toast, toastNode }) {
   return (
     <ThemeCtx.Provider value={theme}>
       <AppCtx.Provider value={ctx}>
-        {wide ? <WebLayout /> : <MobileLayout />}
+        {wide ? (CLEAN ? <CleanWebLayout /> : <WebLayout />) : <MobileLayout />}
         <ModalHost />
         {toastNode(wide ? 'corner' : 'top')}
         {backend.demo && <DemoBadge wide={wide} />}
