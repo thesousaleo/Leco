@@ -528,7 +528,7 @@ function TransactionsPage() {
               action={filtered ? <button type="button" className="btn btn-ghost !py-2 text-[13px]" onClick={() => { setType('all'); setSrc('all'); setCat('all'); setStatus('all'); setTag('all'); setQ(''); }}><Icon name="x" size={14} />Limpar filtros</button> : null} />
           ) : groups.length ? groups.map((g) => (
             <div key={g.date} className="mb-2">
-              <p className="sticky top-0 z-[1] px-1.5 py-1.5 text-[11px] font-bold uppercase tracking-wider tabular-nums text-ink/60">{fmtDate(g.date)} · {relDay(g.date)}</p>
+              <p className="day-head sticky z-[2] -mx-1.5 flex items-baseline gap-2 px-3 py-2 text-[12.5px]"><span className="font-bold text-ink/85">{dayHead(g.date)}</span><span className="text-ink/50">{relDay(g.date)}</span></p>
               <ul className="divide-y divide-ink/[0.07]">{g.items.map((t) => <TxItem key={t.id} t={t} showDate={false} select={selecting ? { on: sel.has(t.id), toggle: toggleSel } : undefined} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} onConfirm={d.confirmTx} />)}</ul>
             </div>
           )) : <ul className="divide-y divide-ink/[0.07]">{rows.slice(0, limit).map((t) => <TxItem key={t.id} t={t} select={selecting ? { on: sel.has(t.id), toggle: toggleSel } : undefined} onOpen={(x) => d.openModal({ kind: 'tx', initial: x })} onConfirm={d.confirmTx} />)}</ul>}
@@ -611,7 +611,7 @@ function AccountsPage() {
                     <Icon name="edit" size={16} className="text-ink/45" />
                   </div>
                   <p className={`mt-4 text-[24px] font-extrabold tracking-[-0.02em] tabular-nums ${d.balances[a.id] < 0 ? 'text-out' : ''}`}>{m(d.balances[a.id])}</p>
-                  <p className="text-xs text-ink/60">saldo atual{a.is_reserve ? ' · reserva de emergência' : ''}</p>
+                  <p className={`text-xs text-ink/60 ${a.archived ? '' : 'pr-32'}`}>saldo atual{a.is_reserve ? ' · reserva de emergência' : ''}</p>
                 </button>
               </li>
             ))}

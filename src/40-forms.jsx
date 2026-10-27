@@ -36,8 +36,13 @@ function TxItem({ t, onOpen: openTx, onConfirm, showDate = true, dense = false, 
     const s = g.current; if (!s) return;
     const mx = e.clientX - s.x, my = e.clientY - s.y;
     if (!s.on) { if (Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.4) { s.on = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) { /* ok */ } } else if (Math.abs(my) > 10) { g.current = null; return; } else return; }
-    const lim = !t.paid && onConfirm ? 120 : 0;
-    setDx(Math.max(-120, Math.min(lim, mx)));
+    const lim = !t.paid && onConfirm ? 110 : 0;
+    // além do limite o item resiste (elástico), em vez de travar seco
+    const band = (v, l) => (Math.abs(v) <= l ? v : Math.sign(v) * (l + (Math.abs(v) - l) * 0.25));
+    const v = mx < 0 ? band(mx, 110) : lim ? band(mx, lim) : band(mx, 0) * 0.6;
+    const was = Math.abs(dx) >= 90, now = Math.abs(v) >= 90 && (v < 0 || lim);
+    if (now && !was) haptic();
+    setDx(v);
   };
   const up = () => {
     const s = g.current; g.current = null;
@@ -49,15 +54,19 @@ function TxItem({ t, onOpen: openTx, onConfirm, showDate = true, dense = false, 
   const tagLine = (t.tags && t.tags.length ? ` · ${t.tags.map((x) => `#${x}`).join(' ')}` : '') + (t.orig_currency ? ` · ${fmtForeign(t.orig_amount, t.orig_currency)}` : '');
   return (
     <li className={`relative overflow-hidden rounded-2xl ${d.freshIds.includes(t.id) ? 'flash' : ''}`}>
-      {dx !== 0 && (
-        <div className="absolute inset-0 flex items-center justify-between px-4 text-[12.5px] font-bold" aria-hidden="true">
-          <span className={`flex items-center gap-1.5 text-in ${dx > 0 ? 'opacity-100' : 'opacity-0'}`}><Icon name="check" size={16} strokeWidth={2.4} />{t.kind === 'in' ? 'Recebi' : 'Paguei'}</span>
-          <span className={`flex items-center gap-1.5 text-out ${dx < 0 ? 'opacity-100' : 'opacity-0'}`}>Excluir<Icon name="trash" size={16} /></span>
-        </div>
-      )}
+      {dx !== 0 && (() => {
+        const p = Math.min(1, Math.abs(dx) / 90), armed = Math.abs(dx) >= 90;
+        return (
+          <div className="swipe-under absolute inset-0 flex items-center justify-between px-4 text-[12.5px] font-bold" aria-hidden="true"
+            style={{ background: dx > 0 ? `color-mix(in srgb, var(--color-vivo) ${Math.round(p * 16)}%, transparent)` : `color-mix(in srgb, #E0714F ${Math.round(p * 16)}%, transparent)` }}>
+            <span className="flex items-center gap-1.5 text-in" style={{ opacity: dx > 0 ? p : 0 }}><span className={`swipe-ico ${armed && dx > 0 ? 'armed' : ''}`}><Icon name="check" size={16} strokeWidth={2.4} /></span>{t.kind === 'in' ? 'Recebi' : 'Paguei'}</span>
+            <span className="flex items-center gap-1.5 text-out" style={{ opacity: dx < 0 ? p : 0 }}>Excluir<span className={`swipe-ico ${armed && dx < 0 ? 'armed' : ''}`}><Icon name="trash" size={16} /></span></span>
+          </div>
+        );
+      })()}
       <div ref={inner} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
-        className={`group relative flex items-center gap-3 rounded-2xl px-1.5 ${dense ? 'py-2' : 'py-2.5'} transition-colors hover:bg-ink/[0.03] ${dx !== 0 ? 'bg-[var(--paper)]' : ''}`}
-        style={{ transform: dx ? `translate3d(${dx}px,0,0)` : undefined, transition: g.current ? 'none' : 'transform .25s cubic-bezier(.2,.8,.2,1)', touchAction: 'pan-y' }}>
+        className={`row-press group relative flex items-center gap-3 rounded-2xl px-1.5 ${dense ? 'py-2' : 'py-2.5'} transition-colors hover:bg-ink/[0.03] ${dx !== 0 ? 'bg-[var(--paper)]' : ''}`}
+        style={{ transform: dx ? `translate3d(${dx}px,0,0)` : undefined, transition: g.current ? 'none' : 'transform .32s var(--ease-drawer)', touchAction: 'pan-y' }}>
         {select && <span role="checkbox" aria-checked={select.on} aria-label={`Selecionar ${meta.title}`} tabIndex={0} onClick={() => select.toggle(t)} onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); select.toggle(t); } }} className={`grid size-5 shrink-0 cursor-pointer place-items-center rounded-md border-2 ${select.on ? 'border-vivo bg-vivo text-white' : 'border-ink/25'}`}>{select.on && <Icon name="check" size={12} strokeWidth={3} />}</span>}
         <button type="button" onClick={() => onOpen && onOpen(t)} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={select ? `Selecionar ${meta.title}` : `Abrir ${meta.title}`}>
           <ColorIcon icon={meta.icon} color={meta.color} size={dense ? 36 : 40} />

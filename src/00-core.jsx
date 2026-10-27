@@ -59,6 +59,13 @@ const axisLabels = (ticks) => {
 const fmtPctAbs = (v, unit = '%') => `${Math.abs(v).toFixed(1).replace('.', ',')}${unit}`;
 const greeting = () => { const h = new Date().getHours(); return h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; };
 const firstName = (n) => (n || '').trim().split(/\s+/)[0] || '';
+// "Sábado, 24 de outubro" (com o ano só quando não é o ano atual)
+const dayHead = (iso) => {
+  const dt = new Date(`${iso}T12:00:00`);
+  const wd = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][dt.getDay()];
+  const mo = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'][dt.getMonth()];
+  return `${wd}, ${dt.getDate()} de ${mo}${iso.slice(0, 4) !== todayISO().slice(0, 4) ? ` de ${iso.slice(0, 4)}` : ''}`;
+};
 const relDay = (iso, today = todayISO()) => {
   const d = diffDays(iso, today);
   if (d === 0) return 'hoje';
@@ -562,19 +569,34 @@ function Sheet({ variant, onClose, titleId, onSubmit, children, wide = false }) 
   const Tag = onSubmit ? 'form' : 'div';
   const panel = useRef(null);
   const drag = useRef(null);
-  const dragStart = (e) => { if (!sheet) return; drag.current = { y: e.clientY, dy: 0 }; e.currentTarget.setPointerCapture(e.pointerId); if (panel.current) panel.current.style.transition = 'none'; };
-  const dragMove = (e) => { if (!drag.current || !panel.current) return; drag.current.dy = Math.max(0, e.clientY - drag.current.y); panel.current.style.transform = `translate3d(0,${drag.current.dy}px,0)`; };
+  const scrim = useRef(null);
+  // Arrastar para fechar: segue o dedo, resiste para cima, fecha por distância ou por um "peteleco" rápido
+  const dragStart = (e) => { if (!sheet) return; drag.current = { y: e.clientY, dy: 0, t: performance.now(), v: 0, ly: e.clientY, lt: performance.now() }; e.currentTarget.setPointerCapture(e.pointerId); if (panel.current) { panel.current.style.animation = 'none'; panel.current.style.transition = 'none'; } if (scrim.current) scrim.current.style.transition = 'none'; };
+  const dragMove = (e) => {
+    const g = drag.current; if (!g || !panel.current) return;
+    const raw = e.clientY - g.y;
+    g.dy = raw >= 0 ? raw : -Math.sqrt(-raw) * 2.2;
+    const now = performance.now(); if (now - g.lt > 0) { g.v = (e.clientY - g.ly) / (now - g.lt); g.ly = e.clientY; g.lt = now; }
+    panel.current.style.transform = `translate3d(0,${g.dy}px,0)`;
+    if (scrim.current) scrim.current.style.opacity = String(Math.max(0, 1 - Math.max(0, g.dy) / (panel.current.offsetHeight || 600)));
+  };
   const dragEnd = () => {
-    if (!drag.current || !panel.current) return;
-    const { dy } = drag.current; drag.current = null;
-    if (dy > 110) { const el = panel.current; el.style.animation = 'none'; el.style.transition = 'transform .22s cubic-bezier(.4,0,1,1)'; el.style.transform = 'translate3d(0,100%,0)'; onClose(); return; }
-    panel.current.style.transition = 'transform .3s cubic-bezier(.32,.72,0,1)'; panel.current.style.transform = '';
+    const g = drag.current; if (!g || !panel.current) return;
+    drag.current = null;
+    const h = panel.current.offsetHeight || 600;
+    if (g.dy > Math.min(140, h * 0.3) || (g.v > 0.5 && g.dy > 16)) {
+      const el = panel.current; el.style.transition = 'transform .24s cubic-bezier(.32,.72,0,1)'; el.style.transform = 'translate3d(0,100%,0)';
+      if (scrim.current) { scrim.current.style.transition = 'opacity .24s ease-out'; scrim.current.style.opacity = '0'; }
+      haptic(); onClose(); return;
+    }
+    panel.current.style.transition = 'transform .4s cubic-bezier(.32,.72,0,1)'; panel.current.style.transform = '';
+    if (scrim.current) { scrim.current.style.transition = 'opacity .3s ease-out'; scrim.current.style.opacity = '1'; }
   };
   return (
-    <div className={`fixed overlay-in inset-0 z-[70] flex backdrop-blur-md ${sheet ? 'items-end' : 'items-center justify-center p-4'}`}
-      style={{ background: 'var(--scrim)' }} onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className={`fixed inset-0 z-[70] flex ${sheet ? 'items-end' : 'items-center justify-center p-4'}`} onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div ref={scrim} className="overlay-in pointer-events-none absolute inset-0 backdrop-blur-md" style={{ background: 'var(--scrim)' }} aria-hidden="true" />
       <Tag ref={panel} onSubmit={onSubmit} role="dialog" aria-modal="true" aria-labelledby={titleId} noValidate
-        className={`glass-deep no-scrollbar w-full overflow-y-auto ${sheet ? 'sheet-in max-h-[92%] rounded-b-none rounded-t-[32px] p-5 pb-[calc(28px+var(--safe-bottom))]' : `dialog-in max-h-[calc(100dvh-32px)] p-6 sm:p-7 ${wide ? 'max-w-[600px]' : 'max-w-[500px]'}`}`}>
+        className={`sheet-panel glass-deep no-scrollbar relative w-full overflow-y-auto ${sheet ? 'sheet-in max-h-[92%] rounded-b-none rounded-t-[32px] p-5 pb-[calc(28px+var(--safe-bottom))]' : `dialog-in max-h-[calc(100dvh-32px)] p-6 sm:p-7 ${wide ? 'max-w-[600px]' : 'max-w-[500px]'}`}`}>
         {sheet && <div className="-mx-5 -mt-5 mb-2 flex cursor-grab touch-none justify-center pb-3 pt-3" onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd} aria-hidden="true"><span className="h-1.5 w-10 rounded-full bg-ink/20" /></div>}
         {children}
       </Tag>

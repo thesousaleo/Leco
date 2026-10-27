@@ -789,6 +789,15 @@ function MobileLayout() {
   const prevBal = series.length > 1 ? series[series.length - 2].bal : 0;
   const balDelta = prevBal ? ((totalBal - prevBal) / Math.abs(prevBal)) * 100 : null;
   const initial = (d.name || d.session.user.email).charAt(0).toUpperCase();
+  // Título grande que vira barra compacta ao rolar (como nos apps do sistema)
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    let raf = 0;
+    const on = () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; setScrolled(window.scrollY > 56); }); };
+    window.addEventListener('scroll', on, { passive: true });
+    on();
+    return () => { window.removeEventListener('scroll', on); if (raf) cancelAnimationFrame(raf); };
+  }, []);
   const pull = usePullRefresh(useCallback(async () => { await d.reload(); d.toast('Atualizado'); }, []));
   const [drawer, setDrawerState] = useState(false);
   const setDrawer = (v) => { setDrawerState(v); window.__lecoDrawer = v ? () => setDrawerState(false) : null; };
@@ -819,6 +828,11 @@ function MobileLayout() {
         </div>
       )}
       <div className="relative z-10 min-h-[100dvh] pb-[calc(170px+var(--safe-bottom))] pl-[max(16px,var(--safe-left))] pr-[max(16px,var(--safe-right))] pt-[calc(14px+var(--safe-top))]" style={pull ? { transform: `translate3d(0,${pull * 0.5}px,0)` } : undefined}>
+        {page !== 'inicio' && (
+          <div className={`title-bar fixed inset-x-0 top-0 z-[45] ${scrolled ? 'on' : ''}`} aria-hidden={!scrolled}>
+            <div className="flex h-[48px] items-center justify-center px-16 pt-[var(--safe-top)] box-content"><p className="truncate text-[15px] font-bold tracking-[-0.01em]">{title}</p></div>
+          </div>
+        )}
         <header className="pb-4">
           {page === 'inicio' ? (
             <>
@@ -828,10 +842,10 @@ function MobileLayout() {
                 <button type="button" className="icon-btn size-11" onClick={() => d.saveProfile({ hide_values: !d.hide })} aria-label={d.hide ? 'Mostrar valores' : 'Ocultar valores'} aria-pressed={d.hide}><Icon name={d.hide ? 'eyeOff' : 'eye'} size={19} /></button>
                 <TopTools />
               </div>
-              <button type="button" onClick={() => d.go('contas')} className="glass-hero mt-4 flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left">
+              <button type="button" onClick={() => d.go('contas')} className="glass-hero hero-balance mt-4 flex w-full items-center justify-between gap-3 rounded-[26px] px-5 py-4 text-left">
                 <span className="min-w-0">
-                  <span className="block text-[11px] font-semibold uppercase tracking-wider text-ink/75">Saldo total</span>
-                  <span className="mt-0.5 block text-[24px] font-extrabold leading-tight tracking-[-0.02em]"><Money cents={totalBal} /></span>
+                  <span className="block text-[13px] font-semibold text-ink/80">Saldo total</span>
+                  <span className="mt-0.5 block text-[30px] font-extrabold leading-[1.1] tracking-[-0.03em] tabular-nums"><Money cents={totalBal} /></span>
                   {hasBenefit && <span className="mt-0.5 flex items-center gap-1 text-[11.5px] font-semibold text-ink/80"><Icon name="utensils" size={12} />Vales: <Money cents={benefitBal} /></span>}
                 </span>
                 <Delta value={balDelta} />

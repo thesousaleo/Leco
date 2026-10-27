@@ -614,3 +614,132 @@ html { touch-action: manipulation; }
 .skel { border-radius: 10px; background: linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent) 25%, color-mix(in srgb, var(--ink) 11%, transparent) 50%, color-mix(in srgb, var(--ink) 6%, transparent) 75%); background-size: 200% 100%; animation: skel 1.3s ease-in-out infinite; }
 @keyframes skel { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 .cl-row-on td { background: color-mix(in srgb, var(--color-vivo) 8%, transparent) !important; }
+
+/* =====================================================================
+   Leco 3.12 · sensação de app nativo e revisão das animações
+   ===================================================================== */
+:root {
+  /* Curvas únicas para o app todo */
+  --ease-out: cubic-bezier(.23, 1, .32, 1);        /* entradas e respostas ao toque */
+  --ease-in-out: cubic-bezier(.65, 0, .35, 1);     /* algo que já está na tela e muda de lugar */
+  --ease-drawer: cubic-bezier(.32, .72, 0, 1);     /* folhas, gaveta, deslizes (curva do iOS) */
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
+}
+
+/* Toque: sem o clarão cinza do navegador, sem zoom de fonte no paisagem, sem atraso de 300 ms */
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+button, a, [role="button"], [role="tab"], [role="checkbox"], [role="radio"], label, summary { touch-action: manipulation; }
+/* Controles não selecionam texto nem abrem o menu de copiar ao segurar; o conteúdo continua selecionável */
+button, [role="button"], [role="tab"], [role="radio"], [role="checkbox"], .btn, .icon-btn, nav a, .fab-corner {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+img { -webkit-touch-callout: none; }
+/* No app e no celular, o "puxar para atualizar" é o do Leco: o navegador não puxa a página junto */
+:root[data-perf="lite"], :root[data-perf="lite"] body { overscroll-behavior-y: none; }
+/* Rolagem interna (folhas, menus, listas) não arrasta a página de trás */
+.sheet-panel, .drawer, .overflow-y-auto { overscroll-behavior: contain; }
+/* iPhone: campos com menos de 16px dão zoom ao tocar */
+@media (pointer: coarse) {
+  .field, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { font-size: 16px; }
+}
+
+/* Passar o mouse só onde existe mouse: no toque o estado "grudava" depois de tocar */
+.btn-primary:hover, .btn-ghost:hover, .icon-btn:hover, .fab:hover, .fab-corner:hover { filter: none; transform: none; }
+.btn-ghost:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.icon-btn:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 9%, transparent); }
+  .icon-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+  .fab-corner:hover { filter: brightness(1.08); }
+  .row-press:hover { background: color-mix(in srgb, var(--ink) 3%, transparent); }
+}
+
+/* Resposta ao toque: no momento em que o dedo encosta, curta e firme */
+.btn, .icon-btn, .fab-corner, button.glass, button.glass-milk, button.glass-hero, a.glass, .tap {
+  transition: transform .16s var(--ease-out), filter .2s var(--ease-out), background-color .2s var(--ease-out), box-shadow .25s var(--ease-out), opacity .2s var(--ease-out), color .2s var(--ease-out);
+}
+.btn:active:not(:disabled) { transform: scale(.97); }
+.icon-btn:active:not(:disabled) { transform: scale(.92); background: color-mix(in srgb, var(--ink) 12%, transparent); }
+.fab-corner:active { transform: scale(.9); transition-duration: .1s; }
+button.glass:active, button.glass-milk:active, button.glass-hero:active, a.glass:active, .tap:active { transform: scale(.985); }
+.row-press:active { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+nav[aria-label="Navegação principal"] button > span:first-child { transition: transform .16s var(--ease-out), color .3s var(--ease-out); }
+nav[aria-label="Navegação principal"] button:active > span:first-child { transform: scale(.88); }
+
+/* Navegar entre telas é o gesto mais frequente: uma transição única, curta e discreta.
+   O conteúdo da tela entra junto (sem cada cartão subir de novo por cima). */
+.rise { animation: riseSoft .34s var(--ease-out) both; }
+.rise .rise { animation: fadeSoft .3s var(--ease-out) both; }
+:root[data-perf="lite"] .rise { animation: riseSoft .26s var(--ease-out) both; }
+:root[data-perf="lite"] .rise .rise { animation: none; }
+@keyframes riseSoft { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
+@keyframes fadeSoft { from { opacity: 0; } to { opacity: 1; } }
+
+/* Janelas: entram com desaceleração firme (sem quique) e saem mais rápido do que entram */
+.dialog-in { animation: dialogIn .26s var(--ease-out) both; transform-origin: 50% 60%; }
+@keyframes dialogIn { from { opacity: 0; transform: translate3d(0, 8px, 0) scale(.97); } to { opacity: 1; transform: none; } }
+.sheet-in { animation: sheet .44s var(--ease-drawer) both; }
+:root[data-perf="lite"] .sheet-in { animation: sheet .38s var(--ease-drawer) both; }
+.overlay-in { animation: fadeIn .3s var(--ease-out) both; }
+[data-closing="true"] .overlay-in { animation: fadeOut .2s var(--ease-exit) both; }
+[data-closing="true"] .sheet-in { animation: sheetOut .22s var(--ease-exit) both; }
+[data-closing="true"] .dialog-in { animation: popOut .16s var(--ease-exit) both; }
+.pop-in { animation: popSmall .18s var(--ease-out) both; }
+
+/* Avisos: chegam de cima com desaceleração, sem exagero */
+.toast-top { animation: toastTop .36s var(--ease-out) both; }
+.toast-corner { animation: toastCorner .36s var(--ease-out) both; }
+@keyframes toastTop { from { opacity: 0; transform: translate(-50%, -14px) scale(.98); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes toastCorner { from { opacity: 0; transform: translate(14px, 0) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* Interruptor: o botão estica ao ser tocado, como no sistema */
+.switch > span { transition: transform .28s var(--ease-out), width .16s var(--ease-out); }
+.switch:active > span { width: 26px; }
+.switch.on:active > span { transform: translateX(14px); }
+
+/* Menu inferior e gaveta com a mesma curva das folhas */
+.nav-indicator { transition: transform .42s var(--ease-drawer), opacity .2s var(--ease-out); }
+.drawer { transition: transform .38s var(--ease-drawer); }
+
+/* Barras de progresso e de gráfico crescem com a mesma desaceleração */
+.track > i { transition: width .7s var(--ease-out); }
+
+/* Deslizar um lançamento: o ícone "acende" ao passar do ponto */
+.swipe-ico { display: inline-grid; place-items: center; transition: transform .2s var(--ease-out); }
+.swipe-ico.armed { transform: scale(1.25); }
+
+/* Calendário: troca de mês e de semana */
+.cal-next { animation: calNext .28s var(--ease-out) both; }
+.cal-prev { animation: calPrev .28s var(--ease-out) both; }
+
+/* Esqueleto de carregamento: brilho mais calmo */
+.skel { animation-duration: 1.6s; animation-timing-function: var(--ease-in-out); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise, .rise .rise, .dialog-in, .sheet-in, .toast-top, .toast-corner, .cal-next, .cal-prev { animation: fadeIn .15s linear both !important; }
+  .toast-top { transform: translate(-50%, 0); }
+  .btn:active:not(:disabled), .icon-btn:active:not(:disabled), .fab-corner:active, .tap:active { transform: none; }
+}
+
+/* Barra de título compacta que aparece ao rolar (celular) */
+.title-bar {
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(170%); backdrop-filter: blur(20px) saturate(170%);
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  opacity: 0; transform: translate3d(0, -6px, 0); pointer-events: none;
+  transition: opacity .2s var(--ease-out), transform .26s var(--ease-out);
+}
+.title-bar.on { opacity: 1; transform: none; }
+:root[data-perf="lite"] .title-bar { background: var(--paper); -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* Datas do extrato presas no topo enquanto a lista passa por baixo */
+.day-head { top: calc(var(--safe-top) + 48px); background: var(--glass-a); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-radius: 12px; }
+@media (min-width: 960px) { .day-head { top: 0; } }
+:root[data-perf="lite"] .day-head { background: color-mix(in srgb, var(--glass-a) 100%, var(--paper)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-skin="clean"] .day-head { background: var(--cl-card, var(--paper)); }
+/* Cartão do saldo: um brilho lento atravessa a superfície uma vez, ao abrir */
+.hero-balance { overflow: hidden; }
+.hero-balance > span:first-child { position: relative; z-index: 1; }
+.hero-balance::before { animation: heroSheen 1.6s var(--ease-in-out) .5s both; }
+@keyframes heroSheen { from { opacity: 0; transform: translate3d(-30%, 0, 0); } 40% { opacity: 1; } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .title-bar { transition: opacity .15s linear; transform: none; } .hero-balance::before { animation: none; } }
