@@ -245,6 +245,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
   const srcUser = useRef(!!initial || !!presetSource);
   const [ruleHit, setRuleHit] = useState(null);
   const pickCat = (id) => { catUser.current = true; setCat(id); };
+  const [calcOpen, setCalcOpen] = useState(false);
   const [toAcc, setToAcc] = useState(initial && initial.to_account_id ? initial.to_account_id : (accounts[1] || accounts[0] || {}).id || '');
   const [installments, setInstallments] = useState(1);
   const [repeat, setRepeat] = useState(false);
@@ -446,10 +447,14 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
               </button>
             ))}
           </div>
-          <Field label="Valor" error={errors.amount} className="mt-5">
-            <MoneyInput id="tx-amount" label="Valor" cents={amount} onChange={setAmount} invalid={errors.amount}
-              className={`!py-3 text-[30px] font-extrabold tracking-[-0.02em] ${kind === 'in' ? 'text-in' : kind === 'out' ? 'text-out' : ''}`} />
-          </Field>
+          <div className="mt-5 flex items-end gap-2">
+            <Field label="Valor" error={errors.amount} className="min-w-0 flex-1">
+              <MoneyInput id="tx-amount" label="Valor" cents={amount} onChange={setAmount} invalid={errors.amount}
+                className={`!py-3 text-[30px] font-extrabold tracking-[-0.02em] ${kind === 'in' ? 'text-in' : kind === 'out' ? 'text-out' : ''}`} />
+            </Field>
+            <button type="button" className={`icon-btn mb-[1px] size-[62px] shrink-0 !rounded-[18px] ${calcOpen ? '!bg-vivo/15 text-in' : ''} ${errors.amount ? 'mb-[26px]' : ''}`} aria-label={calcOpen ? 'Fechar calculadora' : 'Abrir calculadora'} aria-expanded={calcOpen} onClick={() => { haptic(); setCalcOpen((v) => !v); }}><Icon name="calc" size={22} /></button>
+          </div>
+          {calcOpen && <CalcPad cents={amount} onUse={(c) => { setAmount(c); setCalcOpen(false); }} onClose={() => setCalcOpen(false)} />}
           <Field label="Descrição" className="mt-4">
             <input id="tx-desc" className="field" value={desc} maxLength={60} onChange={(e) => setDesc(e.target.value)} placeholder={kind === 'in' ? 'Ex.: Salário de outubro' : kind === 'out' ? 'Ex.: Supermercado' : 'Ex.: Guardar na poupança'} />
             {ruleHit && !editing && <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] font-semibold text-in" data-rule-hit><Icon name="bolt" size={12} />Regra "{ruleHit.match}" aplicada{ruleHit.category_id ? ` · ${(d.categories.find((c) => c.id === ruleHit.category_id) || {}).name || ''}` : ''}{ruleHit.source && ruleSourceLabel(ruleHit.source, d) ? ` · ${ruleSourceLabel(ruleHit.source, d)}` : ''}</p>}

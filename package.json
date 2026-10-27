@@ -1,6 +1,6 @@
 {
   "name": "leco",
-  "version": "3.12.0",
+  "version": "3.13.0",
   "private": true,
   "description": "Leco · controle financeiro (Android com Capacitor + site, dados no Supabase)",
   "type": "module",

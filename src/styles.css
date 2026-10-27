@@ -743,3 +743,18 @@ nav[aria-label="Navegação principal"] button:active > span:first-child { trans
 .hero-balance::before { animation: heroSheen 1.6s var(--ease-in-out) .5s both; }
 @keyframes heroSheen { from { opacity: 0; transform: translate3d(-30%, 0, 0); } 40% { opacity: 1; } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .title-bar { transition: opacity .15s linear; transform: none; } .hero-balance::before { animation: none; } }
+
+/* Calculadora do valor */
+.calc-pad { background: color-mix(in srgb, var(--ink) 4%, transparent); border: 1px solid color-mix(in srgb, var(--ink) 9%, transparent); animation: calcIn .26s var(--ease-out) both; transform-origin: 50% 0; }
+@keyframes calcIn { from { opacity: 0; transform: translate3d(0, -6px, 0) scale(.98); } to { opacity: 1; transform: none; } }
+.calc-key { height: 50px; border-radius: 15px; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  transition: transform .12s var(--ease-out), background-color .15s var(--ease-out); }
+.calc-key:active { transform: scale(.94); }
+.calc-num { background: var(--field-bg); color: var(--ink); border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent); }
+.calc-fn { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); font-size: 17px; }
+.calc-op { background: color-mix(in srgb, var(--color-vivo) 13%, transparent); color: var(--in); font-size: 22px; }
+.calc-eq { background: linear-gradient(135deg, var(--color-vivo), var(--color-leco)); color: #fff; font-size: 22px; }
+.calc-num:active { background: color-mix(in srgb, var(--ink) 9%, var(--field-bg)); }
+.calc-op:active { background: color-mix(in srgb, var(--color-vivo) 24%, transparent); }
+@media (hover: hover) and (pointer: fine) { .calc-num:hover { background: color-mix(in srgb, var(--ink) 5%, var(--field-bg)); } .calc-op:hover { background: color-mix(in srgb, var(--color-vivo) 19%, transparent); } }
+@media (min-width: 640px) { .calc-key { height: 46px; } }

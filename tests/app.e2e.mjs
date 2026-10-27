@@ -643,6 +643,26 @@ try {
     await dctx.close();
   }
 
+  step('Calculadora no valor da transação');
+  {
+    await page.evaluate(() => { window.__leco().go('inicio'); window.__leco().openModal({ kind: 'tx' }); });
+    await wait(700);
+    await page.getByRole('button', { name: 'Abrir calculadora' }).click();
+    await wait(400);
+    const pad = page.getByRole('group', { name: 'Calculadora' });
+    for (const k of ['4', '5', 'Vírgula', '9', 'Somar', '1', '2', 'Vírgula', '5']) await pad.getByRole('button', { name: k, exact: true }).click();
+    ok((await page.locator('[data-calc-result]').innerText()).includes('58,40'), 'calculadora: soma 45,9 + 12,5');
+    await pad.getByRole('button', { name: 'Somar', exact: true }).click();
+    for (const k of ['1', '0', 'Porcentagem']) await pad.getByRole('button', { name: k, exact: true }).click();
+    ok((await page.locator('[data-calc-result]').innerText()).includes('64,24'), 'calculadora: porcentagem sobre o total');
+    await page.locator('[data-calc-use]').click();
+    await wait(300);
+    ok((await page.inputValue('#tx-amount')).includes('64,24'), 'calculadora: usa o resultado no valor');
+    ok(await page.getByRole('group', { name: 'Calculadora' }).count() === 0, 'calculadora: fecha ao usar');
+    await page.keyboard.press('Escape');
+    await wait(500);
+  }
+
   step('Layout no celular (sem rolagem lateral)');
   await page.setViewportSize({ width: 360, height: 760 });
   for (const id of ['inicio', 'transacoes', 'calendario', 'relatorios', 'planejamento', 'simulador', 'dividas', 'contas', 'metas', 'categorias', 'mais']) {

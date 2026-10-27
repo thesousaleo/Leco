@@ -337,3 +337,114 @@ function BulkBar({ rows, onClear, onAll, allCount = 0 }) {
       </div>
     </div>, document.body);
 }
+
+
+/* ---------- Calculadora do valor (somar notas sem sair do app) ---------- */
+// Avalia a conta sem eval: números com vírgula, + − × ÷ e % (10% de algo, como no celular)
+function calcEval(expr) {
+  const src = String(expr).replace(/\s/g, '').replace(/,/g, '.').replace(/[−–]/g, '-').replace(/×/g, '*').replace(/÷/g, '/');
+  const toks = [];
+  for (let i = 0; i < src.length;) {
+    const c = src[i];
+    if (/[0-9.]/.test(c)) { let j = i; while (j < src.length && /[0-9.]/.test(src[j])) j++; const n = Number(src.slice(i, j)); if (!isFinite(n)) return null; toks.push(n); i = j; }
+    else if ('+-*/%'.includes(c)) { toks.push(c); i++; } else return null;
+  }
+  while (toks.length && typeof toks[toks.length - 1] === 'string' && toks[toks.length - 1] !== '%') toks.pop(); // ignora operador no fim
+  if (!toks.length) return 0;
+  let p = 0;
+  const num = () => {
+    let sign = 1;
+    while (toks[p] === '-' || toks[p] === '+') { if (toks[p] === '-') sign = -sign; p++; }
+    const n = toks[p++];
+    if (typeof n !== 'number') throw new Error('x');
+    return sign * n;
+  };
+  const term = () => {
+    let v = num(), pct = false;
+    if (toks[p] === '%') { p++; pct = true; v /= 100; }
+    while (toks[p] === '*' || toks[p] === '/') {
+      const op = toks[p++]; let r = num();
+      if (toks[p] === '%') { p++; r /= 100; }
+      if (op === '/' && r === 0) throw new Error('div');
+      v = op === '*' ? v * r : v / r; pct = false;
+    }
+    return { v, pct };
+  };
+  try {
+    let { v } = term();
+    while (toks[p] === '+' || toks[p] === '-') {
+      const op = toks[p++]; const t = term();
+      const r = t.pct ? v * t.v : t.v; // 100 + 10% = 110
+      v = op === '+' ? v + r : v - r;
+    }
+    if (p < toks.length) return null;
+    return Math.round(v * 100) / 100;
+  } catch (e) { return e.message === 'div' ? NaN : null; }
+}
+const calcFmt = (n) => (n == null || isNaN(n) ? '—' : n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }));
+
+function CalcPad({ cents, onUse, onClose }) {
+  const [expr, setExpr] = useState(() => (cents > 0 ? String(cents / 100).replace('.', ',') : ''));
+  const [done, setDone] = useState(false); // depois do "=" um número novo começa outra conta
+  const ref = useRef(null);
+  const exprRef = useRef(null);
+  const val = calcEval(expr);
+  const ok = val != null && !isNaN(val) && val > 0 && val < 1e10;
+  useEffect(() => { if (ref.current) ref.current.focus({ preventScroll: true }); }, []);
+  useEffect(() => { if (exprRef.current) exprRef.current.scrollLeft = exprRef.current.scrollWidth; }, [expr]);
+  const isOp = (c) => '+−×÷'.includes(c);
+  const press = (k) => {
+    haptic();
+    const r = ((e) => {
+      const last = e.slice(-1);
+      const lastNum = e.split(/[+−×÷]/).pop();
+      if (k === 'C') { setDone(false); return ''; }
+      if (k === '⌫') { setDone(false); return e.slice(0, -1); }
+      if (k === '=') { const v = calcEval(e); if (v == null || isNaN(v)) return e; setDone(true); return calcFmt(v).replace(/\./g, ''); }
+      if (isOp(k)) { setDone(false); if (!e) return k === '−' ? '−' : ''; if (isOp(last)) return e.slice(0, -1) + k; if (last === ',') return e.slice(0, -1) + k; return e + k; }
+      if (k === '%') { if (!e || isOp(last) || last === '%') return e; return e + '%'; }
+      if (done) { setDone(false); e = ''; }
+      if (k === ',') { if (lastNum.includes(',')) return e; return e + (lastNum === '' || last === '%' ? '0,' : ','); }
+      if (last === '%') return e;
+      const dec = lastNum.split(',')[1];
+      if (dec != null && dec.length >= 2) return e; // centavos: no máximo 2 casas
+      if (lastNum.replace(',', '').length >= 10) return e;
+      if (lastNum === '0' && k !== '00') return e.slice(0, -1) + k;
+      if (k === '00' && (lastNum === '' || lastNum === '0')) return e + (lastNum === '' ? '0' : '');
+      return e + k;
+    })(expr);
+    if (r !== expr) setExpr(r);
+  };
+  const use = () => { if (!ok) return; haptic('success'); onUse(Math.round(val * 100)); };
+  const onKey = (e) => {
+    const map = { '+': '+', '-': '−', '*': '×', x: '×', X: '×', '/': '÷', ',': ',', '.': ',', '%': '%', Backspace: '⌫', Delete: 'C', '=': '=' };
+    if (/^[0-9]$/.test(e.key)) { e.preventDefault(); press(e.key); }
+    else if (map[e.key]) { e.preventDefault(); press(map[e.key]); }
+    else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (ok) use(); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); }
+  };
+  const keys = [['C', '⌫', '%', '÷'], ['7', '8', '9', '×'], ['4', '5', '6', '−'], ['1', '2', '3', '+'], ['00', '0', ',', '=']];
+  const label = { 'C': 'Limpar', '⌫': 'Apagar', '%': 'Porcentagem', '÷': 'Dividir', '×': 'Multiplicar', '−': 'Subtrair', '+': 'Somar', '=': 'Igual', ',': 'Vírgula' };
+  const tone = (k) => (k === '=' ? 'calc-eq' : isOp(k) || k === '%' ? 'calc-op' : k === 'C' || k === '⌫' ? 'calc-fn' : 'calc-num');
+  return (
+    <div ref={ref} tabIndex={-1} onKeyDown={onKey} className="calc-pad mt-3 rounded-[22px] p-3 outline-none" role="group" aria-label="Calculadora">
+      <div className="px-2 pb-2.5 pt-1 text-right">
+        <div ref={exprRef} className="no-scrollbar overflow-x-auto whitespace-nowrap text-[15px] font-semibold tabular-nums text-ink/60" aria-label="Conta">{expr ? expr.replace(/(.)([+−×÷])/g, '$1 $2 ') : '0'}</div>
+        <div className={`mt-0.5 text-[26px] font-extrabold leading-tight tracking-[-0.02em] tabular-nums ${val != null && val < 0 ? 'text-out' : ''}`} aria-live="polite" data-calc-result>
+          {val != null && isNaN(val) ? 'Não dá para dividir por zero' : `= ${fmtBRL(Math.round((val || 0) * 100))}`}
+        </div>
+      </div>
+      <div className="grid grid-cols-4 gap-1.5">
+        {keys.flat().map((k) => (
+          <button key={k} type="button" className={`calc-key ${tone(k)}`} aria-label={label[k] || k} onClick={() => press(k)}>{k}</button>
+        ))}
+      </div>
+      <div className="mt-2 grid grid-cols-[auto_1fr] gap-1.5">
+        <button type="button" className="btn btn-ghost !py-2.5 text-[13px]" onClick={onClose}>Fechar</button>
+        <button type="button" className="btn btn-primary !py-2.5 text-[14px]" disabled={!ok} onClick={use} data-calc-use>
+          <Icon name="check" size={16} strokeWidth={2.4} />{ok ? `Usar ${fmtBRL(Math.round(val * 100))}` : val != null && val < 0 ? 'O total precisa ser positivo' : 'Usar o valor'}
+        </button>
+      </div>
+    </div>
+  );
+}
