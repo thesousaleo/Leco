@@ -145,7 +145,7 @@ function CleanTransactions() {
         </div>
       </div>
       <ClStats items={[
-        { label: 'Entradas', value: m(inc), tone: 'text-[#16A34A]' },
+        { label: 'Entradas', value: m(inc), tone: 'text-in' },
         { label: 'Saídas', value: m(exp) },
         { label: 'Resultado', value: m(inc - exp), tone: inc - exp < 0 ? 'text-out' : '' },
         { label: 'Pendentes', value: String(pending.length), note: pending.length ? m(sum(pending, (t) => t.amount)) : 'nada em aberto' },
@@ -183,7 +183,7 @@ function CleanTransactions() {
                       <td className="max-w-[170px] truncate whitespace-nowrap text-ink/65">{t.kind === 'transfer' ? 'Transferência' : c ? c.name : 'Sem categoria'}</td>
                       <td className="max-w-[190px] truncate whitespace-nowrap text-ink/65">{payMethod(t, d)}</td>
                       <td><span className={`cl-pill ${st.c}`}>{st.l}</span></td>
-                      <td className={`cl-num whitespace-nowrap text-right font-medium ${t.kind === 'in' ? 'text-[#16A34A]' : ''}`}>{clAmount(t, m)}</td>
+                      <td className={`cl-num whitespace-nowrap text-right font-medium ${t.kind === 'in' ? 'text-in' : ''}`}>{clAmount(t, m)}</td>
                       <td className="whitespace-nowrap text-right">
                         <span className="inline-flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                           {!t.paid && (t.kind === 'in' || t.kind === 'out') && <button type="button" className="cl-iconbtn" aria-label={t.kind === 'in' ? 'Recebi' : 'Paguei'} onClick={() => d.confirmTx(t)}><Icon name="check" size={14} /></button>}
@@ -365,7 +365,7 @@ function CleanRecurring() {
     <ClPage actions={<button type="button" className="btn btn-primary !py-2 text-[13px]" onClick={() => d.openModal({ kind: 'recurring' })}><Icon name="plus" size={15} />Nova recorrência</button>}>
       <ClStats items={[
         { label: 'Despesas fixas / mês', value: m(outM), note: plural(act.filter((r) => r.kind === 'out').length, 'ativa', 'ativas') },
-        { label: 'Receitas fixas / mês', value: m(inM), tone: 'text-[#16A34A]', note: plural(act.filter((r) => r.kind === 'in').length, 'ativa', 'ativas') },
+        { label: 'Receitas fixas / mês', value: m(inM), tone: 'text-in', note: plural(act.filter((r) => r.kind === 'in').length, 'ativa', 'ativas') },
         { label: 'Sobra após fixos', value: m(inM - outM), tone: inM - outM < 0 ? 'text-out' : '', note: inM ? `${fmtPctAbs(((inM - outM) / inM) * 100)} da renda fixa` : 'cadastre suas receitas fixas' },
         { label: 'Próxima conta', value: next ? fmtDate(next.next_date).slice(0, 5) : '—', note: next ? `${next.description} · ${m(next.amount)}` : 'nenhuma' },
       ]} />
@@ -375,7 +375,7 @@ function CleanRecurring() {
             {list.map((r) => { const cat = d.categories.find((c) => c.id === r.category_id); return (
               <li key={r.id} className={`flex items-center gap-3 px-4 py-3 ${r.active ? '' : 'opacity-55'}`}>
                 <button type="button" className="min-w-0 flex-1 text-left" onClick={() => d.openModal({ kind: 'recurring', initial: r })}><ClCatCell icon={cat ? cat.icon : 'repeat'} color={cat ? cat.color : '#6B7280'} title={r.description} sub={`${FREQ[r.frequency]} · ${r.active ? `próx. ${fmtDate(r.next_date).slice(0, 5)}` : 'pausada'}`} /></button>
-                <span className={`cl-num shrink-0 text-[14px] font-medium ${r.kind === 'in' ? 'text-[#16A34A]' : ''}`}>{m(r.amount)}</span>
+                <span className={`cl-num shrink-0 text-[14px] font-medium ${r.kind === 'in' ? 'text-in' : ''}`}>{m(r.amount)}</span>
                 <button type="button" role="switch" aria-checked={r.active} aria-label={`${r.active ? 'Pausar' : 'Retomar'} ${r.description}`} className={`switch scale-[.85] ${r.active ? 'on' : ''}`} onClick={() => d.saveRecurring(r, { active: !r.active })}><span /></button>
               </li>
             ); })}
@@ -392,7 +392,7 @@ function CleanRecurring() {
                     <td className="text-ink/65">{FREQ[r.frequency]}{r.end_date ? <span className="block text-[12px] text-ink/45">até {fmtDate(r.end_date)}</span> : null}</td>
                     <td className="text-ink/65">{r.active ? fmtDate(r.next_date) : 'Pausada'}</td>
                     <td className="text-ink/65">{where(r)}</td>
-                    <td className={`cl-num text-right font-medium ${r.kind === 'in' ? 'text-[#16A34A]' : ''}`}>{r.kind === 'in' ? '+' : '−'}{m(r.amount)}</td>
+                    <td className={`cl-num text-right font-medium ${r.kind === 'in' ? 'text-in' : ''}`}>{r.kind === 'in' ? '+' : '−'}{m(r.amount)}</td>
                     <td className="text-right"><button type="button" role="switch" aria-checked={r.active} aria-label={`${r.active ? 'Pausar' : 'Retomar'} ${r.description}`} className={`switch scale-[.85] ${r.active ? 'on' : ''}`} onClick={() => d.saveRecurring(r, { active: !r.active })}><span /></button></td>
                   </tr>
                 );

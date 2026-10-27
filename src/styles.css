@@ -539,3 +539,61 @@ html { touch-action: manipulation; }
 :root[data-skin="clean"] [role="note"] { border-radius: 12px; border-color: var(--cl-line); background: var(--cl-card); }
 :root[data-skin="clean"] .divide-ink\/\[0\.07\] > * + * { border-color: var(--cl-line-2); }
 .cl-dot { box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent); }
+
+/* =====================================================================
+   Estilo "Sóbrio" do Leco (Ajustes › Aparência › Estilo): as mesmas cores
+   e telas do Leco, com cartões sólidos, sem brilhos e letras mais calmas.
+   ===================================================================== */
+:root[data-style="sobrio"] {
+  --cl-card: #FFFFFF; --cl-line: rgba(11, 47, 41, .10); --cl-line-2: rgba(11, 47, 41, .06); --cl-shadow: 0 1px 2px rgba(11, 47, 41, .05);
+  --cl-solid: var(--color-leco); --cl-solid-fg: #FFFFFF; --cl-blue: var(--color-vivo); --cl-blue-bg: rgba(20, 128, 107, .10); --cl-blue-fg: var(--color-leco);
+  --cl-in: var(--color-vivo); --cl-out: #E0714F;
+  --paper: #F6F8F7; --deep-bg: #FFFFFF; --field-bg: #FFFFFF;
+}
+:root[data-style="sobrio"][data-leco="dark"] {
+  --cl-card: #0F3832; --cl-line: rgba(228, 239, 234, .10); --cl-line-2: rgba(228, 239, 234, .06); --cl-shadow: none;
+  --cl-blue-bg: rgba(52, 195, 155, .14); --cl-blue-fg: #8EE6C8;
+  --paper: #0B2F29; --deep-bg: #0F3832; --field-bg: #0D332D;
+}
+:root[data-style="sobrio"][data-black="1"][data-leco="dark"] { --cl-card: #0E1111; --paper: #000000; --deep-bg: #0E1111; --field-bg: #0D1110; --cl-line: rgba(255, 255, 255, .09); }
+:root[data-style="sobrio"] body { background: var(--paper); }
+:root[data-style="sobrio"] .atmos-blobs { display: none; }
+:root[data-style="sobrio"] .atmos-base { background: var(--paper); }
+:root[data-style="sobrio"] .phone-bg { background: var(--paper); }
+
+/* superfícies sólidas */
+:root[data-style="sobrio"] .glass, :root[data-style="sobrio"] .glass-milk {
+  background: var(--cl-card); border: 1px solid var(--cl-line); box-shadow: var(--cl-shadow); -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+:root[data-style="sobrio"] .glass-milk { background: color-mix(in srgb, var(--color-vivo) 6%, var(--cl-card)); }
+:root[data-style="sobrio"] .glass-deep { background: var(--deep-bg); border: 1px solid var(--cl-line); box-shadow: 0 14px 40px -18px rgba(11, 47, 41, .35); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-style="sobrio"] .glass-hero {
+  background: var(--color-leco); border: 1px solid color-mix(in srgb, var(--color-leco) 70%, #000); box-shadow: 0 1px 2px rgba(11, 47, 41, .15);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+:root[data-style="sobrio"] .glass::after, :root[data-style="sobrio"] .glass-hero::after, :root[data-style="sobrio"] .glass-deep::after,
+:root[data-style="sobrio"] .glass-hero::before, :root[data-style="sobrio"] .spec::before { display: none; }
+:root[data-style="sobrio"] .backdrop-blur-md { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* botões e destaques sem brilho */
+:root[data-style="sobrio"] .btn-primary { background: var(--color-leco); border: 1px solid var(--color-leco); box-shadow: 0 1px 2px rgba(11, 47, 41, .2); }
+:root[data-style="sobrio"] .btn-primary:hover { filter: brightness(1.08); }
+:root[data-style="sobrio"] .btn-ghost { background: var(--cl-card); border: 1px solid var(--cl-line); }
+:root[data-style="sobrio"] .icon-btn { background: var(--cl-card); border: 1px solid var(--cl-line); }
+:root[data-style="sobrio"] .fab-corner { background: var(--color-leco); border: none; box-shadow: 0 8px 20px -8px rgba(11, 47, 41, .55); }
+:root[data-style="sobrio"] .nav-indicator > span { background: var(--color-leco); box-shadow: none; }
+:root[data-style="sobrio"] .track > i { box-shadow: none; background: var(--color-vivo); }
+:root[data-style="sobrio"] .track > i.warn { background: #5E8CA6; }
+:root[data-style="sobrio"] .track > i.over { background: #D9644A; }
+:root[data-style="sobrio"] [class*="rgba(20,128,107"], :root[data-style="sobrio"] [class*="rgba(20,_128,_107"] { box-shadow: none !important; }
+:root[data-style="sobrio"] .field { background: var(--field-bg); }
+
+/* tipografia e ícones mais calmos */
+:root[data-style="sobrio"] .font-extrabold { font-weight: 700; }
+:root[data-style="sobrio"] .page-header h1 { font-size: 24px; }
+:root[data-style="sobrio"] section h2.text-lg { font-size: 16px; font-weight: 700; }
+:root[data-style="sobrio"] .ci { background: color-mix(in srgb, currentColor 9%, transparent) !important; box-shadow: none !important; border-radius: 12px !important; }
+:root[data-style="sobrio"] .cl-num { font-family: var(--font-sans); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+:root[data-style="sobrio"] .cl-nav-on { background: var(--cl-blue-bg); color: var(--cl-blue-fg); }
+:root[data-style="sobrio"] [role="note"] { background: var(--cl-card); border-color: var(--cl-line); }
+:root[data-style="sobrio"] .chart-tip { background: var(--deep-bg) !important; }

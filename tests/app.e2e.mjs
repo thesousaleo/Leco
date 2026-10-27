@@ -487,6 +487,24 @@ try {
     await dctx.close();
   }
 
+  step('Estilo Sóbrio');
+  {
+    await page.evaluate(() => { const d = window.__leco(); d.setSettingsSub('preferencias'); d.go('config'); });
+    await wait(600);
+    await page.getByRole('button', { name: /Sóbrio/ }).click();
+    await wait(900);
+    ok(await page.evaluate(() => document.documentElement.dataset.style) === 'sobrio' && await page.evaluate(() => window.__leco().prefs.style) === 'sobrio', 'estilo Sóbrio salvo e aplicado');
+    await page.setViewportSize({ width: 1280, height: 860 });
+    await page.evaluate(() => window.__leco().goTx({}));
+    await wait(700);
+    ok(await page.getByRole('columnheader', { name: 'Descrição' }).count() > 0, 'Sóbrio no computador: extrato em tabela');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await wait(400);
+    await page.evaluate(() => window.__leco().setPrefs({ style: 'glass' }));
+    await wait(900);
+    ok(await page.evaluate(() => document.documentElement.dataset.style) === 'glass', 'volta para o Vidro');
+  }
+
   step('Site Clean (visual paralelo)');
   {
     const cctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' });

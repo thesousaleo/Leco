@@ -624,9 +624,17 @@ function TopTools({ withNotif = true }) {
   );
 }
 
+const SOBRIO_HEAD = { transacoes: ['Transações', 'Movimentações'], contas: ['Contas e cartões', 'Saldos, faturas e limites'], recorrentes: ['Recorrentes', 'Contas fixas e lembretes'], metas: ['Metas', 'Objetivos de economia'], categorias: ['Categorias', 'Categorias e orçamentos'] };
+function SobrioPage() {
+  const d = useApp();
+  const C = CLEAN_PAGES[d.page];
+  const [eyebrow, title] = SOBRIO_HEAD[d.page];
+  return <div className="space-y-5"><PageHeader eyebrow={eyebrow} title={title} /><C /></div>;
+}
 function WebLayout() {
   const d = useApp();
-  const Page = (PAGES[d.page] || PAGES.inicio).C;
+  const sobrio = d.prefs.style === 'sobrio';
+  const Page = sobrio && SOBRIO_HEAD[d.page] ? SobrioPage : (PAGES[d.page] || PAGES.inicio).C;
   return (
     <div className="relative z-10 mx-auto grid w-full max-w-[1480px] gap-5 pb-8 pl-[max(16px,var(--safe-left))] pr-[max(16px,var(--safe-right))] pt-5 lg:grid-cols-[248px_minmax(0,1fr)]">
       <aside className="glass sticky top-5 flex max-h-[calc(100vh-40px)] flex-col gap-5 self-start overflow-y-auto p-5">

@@ -40,6 +40,7 @@ const DEFAULT_PREFS = {
   home: HOME_BLOCKS.map((b) => ({ id: b.id, on: !['semana', 'orcamento', 'metas'].includes(b.id) })),
   tabs: ['transacoes', 'calendario', 'relatorios'],
   haptics: true,
+  style: 'glass', // 'glass' (vidro, o visual de sempre) | 'sobrio' (mesmas cores, menos efeitos)
   autoDarkFrom: 19,
   autoDarkTo: 6,
 };
@@ -73,6 +74,7 @@ function applyAppearance(prefs, theme) {
   root.dataset.leco = theme === 'black' ? 'dark' : theme;
   root.dataset.black = theme === 'black' ? '1' : '0';
   root.dataset.contrast = prefs.contrast ? '1' : '0';
+  root.dataset.style = prefs.style === 'sobrio' ? 'sobrio' : 'glass';
   const a = ACCENTS[prefs.accent] || ACCENTS.esmeralda;
   const st = root.style;
   if (prefs.accent && prefs.accent !== 'esmeralda') {

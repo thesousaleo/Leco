@@ -159,7 +159,7 @@ function CleanKpi({ label, icon, value, delta, goodWhen, note, tone, narrow }) {
       </div>
       <p className={`cl-num truncate font-semibold tracking-[-0.02em] ${narrow ? 'mt-2 text-[17px]' : 'mt-4 text-[27px]'} ${tone || ''}`}>{value}</p>
       <p className={`mt-1.5 flex items-center gap-1.5 text-ink/55 ${narrow ? 'text-[11px]' : 'text-[13px]'}`}>
-        {delta != null && isFinite(delta) && <span className={`font-semibold ${(goodWhen === 'down' ? delta <= 0 : delta >= 0) ? 'text-[#16A34A]' : 'text-[#DC2626]'}`}>{delta >= 0 ? '▲' : '▼'} {delta >= 0 ? '+' : '−'}{fmtPctAbs(delta)}</span>}
+        {delta != null && isFinite(delta) && <span className={`font-semibold ${(goodWhen === 'down' ? delta <= 0 : delta >= 0) ? 'text-in' : 'text-[#DC2626]'}`}>{delta >= 0 ? '▲' : '▼'} {delta >= 0 ? '+' : '−'}{fmtPctAbs(delta)}</span>}
         {!narrow && <span className="truncate">{note}</span>}
       </p>
     </div>
@@ -285,7 +285,7 @@ function RecentTable() {
           {rows.map((t) => (
             <li key={t.id}><button type="button" onClick={() => d.openModal({ kind: 'tx', initial: t })} className="flex w-full items-center gap-3 px-4 py-3 text-left">
               <span className="min-w-0 flex-1"><span className="block truncate text-[14.5px] font-medium">{txMeta(t, d).title}</span><span className="block truncate text-[12px] text-ink/50">{fmtDate(t.date).slice(0, 5)} · {catName(t)} · {payMethod(t, d)}</span></span>
-              <span className={`cl-num shrink-0 text-[14px] font-medium ${t.kind === 'in' ? 'text-[#16A34A]' : ''}`}>{t.kind === 'in' ? '+' : t.kind === 'transfer' ? '' : '−'}{m(t.amount)}</span>
+              <span className={`cl-num shrink-0 text-[14px] font-medium ${t.kind === 'in' ? 'text-in' : ''}`}>{t.kind === 'in' ? '+' : t.kind === 'transfer' ? '' : '−'}{m(t.amount)}</span>
             </button></li>
           ))}
         </ul>
@@ -300,7 +300,7 @@ function RecentTable() {
                   <td className="font-medium">{txMeta(t, d).title}{!t.paid && <span className="cl-pill cl-pill-wait ml-2">{t.kind === 'in' ? 'a receber' : 'a pagar'}</span>}</td>
                   <td className="text-ink/60">{catName(t)}</td>
                   <td className="text-ink/60">{payMethod(t, d)}</td>
-                  <td className={`cl-num whitespace-nowrap text-right font-medium ${t.kind === 'in' ? 'text-[#16A34A]' : ''}`}>{t.kind === 'in' ? '+' : t.kind === 'transfer' ? '' : '−'}{m(t.amount)}</td>
+                  <td className={`cl-num whitespace-nowrap text-right font-medium ${t.kind === 'in' ? 'text-in' : ''}`}>{t.kind === 'in' ? '+' : t.kind === 'transfer' ? '' : '−'}{m(t.amount)}</td>
                 </tr>
               ))}
             </tbody>
@@ -352,7 +352,7 @@ function BudgetBoard({ month }) {
                     </div>
                     <p className="mt-2 truncate text-[16px] font-semibold">{meta.title}</p>
                     <p className="truncate text-[12.5px] text-ink/45">↳ {meta.sub}</p>
-                    <p className={`cl-num mt-2 text-[22px] font-semibold tracking-[-0.02em] ${t.kind === 'in' ? 'text-[#16A34A]' : ''}`}>{t.kind === 'in' ? '+' : '−'}{m(t.amount)}</p>
+                    <p className={`cl-num mt-2 text-[22px] font-semibold tracking-[-0.02em] ${t.kind === 'in' ? 'text-in' : ''}`}>{t.kind === 'in' ? '+' : '−'}{m(t.amount)}</p>
                     <div className="mt-2 flex items-center justify-between text-[12.5px] text-ink/50">
                       <span className="flex items-center gap-1.5"><Icon name="calendar" size={13} />{t.paid ? 'Em' : 'Vence'} {fmtDate(t.date).slice(0, 5)}</span>
                       {!t.paid && <button type="button" className="font-semibold text-ink hover:underline" onClick={(e) => { e.stopPropagation(); d.confirmTx(t); }}>{t.kind === 'in' ? 'Recebi' : 'Paguei'}</button>}

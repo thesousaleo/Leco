@@ -147,6 +147,26 @@ function PrefsSettings() {
   const acc = ACCENTS[pr.accent] || ACCENTS.esmeralda;
   return (
     <div className="space-y-5">
+      {!CLEAN && (
+        <Panel title="Estilo" sub="Mesmas telas e cores; muda só o acabamento.">
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            {[{ v: 'glass', l: 'Vidro', s: 'Brilhos, transparências e fundo colorido' }, { v: 'sobrio', l: 'Sóbrio', s: 'Cartões sólidos, letras calmas, tabelas no computador' }].map((o) => {
+              const on = (pr.style || 'glass') === o.v;
+              return (
+                <button key={o.v} type="button" aria-pressed={on} onClick={() => d.setPrefs({ style: o.v })}
+                  className={`rounded-2xl border p-2 text-left transition-all ${on ? 'border-vivo shadow-[0_0_0_3px_rgba(20,128,107,.18)]' : 'border-ink/15 hover:border-ink/30'}`}>
+                  <span className="relative block h-16 overflow-hidden rounded-xl p-2" style={{ background: o.v === 'glass' ? 'radial-gradient(60px 40px at 85% 10%, rgba(52,195,155,.35), transparent), radial-gradient(60px 40px at 10% 100%, rgba(20,128,107,.25), transparent), #F3F8F6' : '#F6F8F7', boxShadow: 'inset 0 0 0 1px rgba(11,47,41,.12)' }}>
+                    <span className="block h-6 rounded-lg" style={{ background: o.v === 'glass' ? `linear-gradient(135deg,${acc.vivo},${acc.leco})` : acc.leco, boxShadow: o.v === 'glass' ? '0 6px 12px -6px rgba(15,92,77,.8), inset 0 1px 0 rgba(255,255,255,.35)' : 'none' }} />
+                    <span className="mt-1.5 block h-5 rounded-lg" style={{ background: o.v === 'glass' ? 'rgba(255,255,255,.7)' : '#FFFFFF', boxShadow: o.v === 'glass' ? 'inset 0 1px 0 #fff, 0 6px 12px -8px rgba(11,47,41,.4)' : 'inset 0 0 0 1px rgba(11,47,41,.12)' }} />
+                  </span>
+                  <span className="mt-2 block px-1 text-[13px] font-bold">{o.l}</span>
+                  <span className="block px-1 pb-0.5 text-[11.5px] leading-snug text-ink/60">{o.s}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Panel>
+      )}
       <Panel title="Tema" sub={d.themeMode === 'auto' ? `Automático: escuro das ${pr.autoDarkFrom}h às ${pr.autoDarkTo}h.` : 'O preto economiza bateria em telas AMOLED.'}>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {THEMES.map((o) => (
