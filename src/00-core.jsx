@@ -393,7 +393,7 @@ function ColorIcon({ icon, color, size = 40, round = false }) {
     );
   }
   return (
-    <span className={`grid shrink-0 place-items-center ${round ? 'rounded-full' : 'rounded-2xl'}`}
+    <span className={`ci grid shrink-0 place-items-center ${round ? 'rounded-full' : 'rounded-2xl'}`}
       style={{ width: size, height: size, background: `${c}22`, color: fg, boxShadow: `inset 0 0 0 1px ${c}38` }}>
       <Icon name={icon} size={Math.round(size * 0.47)} />
     </span>
@@ -433,7 +433,7 @@ function Card({ title, sub, action, children, className = '', delay = 0 }) {
 
 function PageHeader({ eyebrow, title, children }) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-4 px-1 pt-1">
+    <header className="page-header flex flex-wrap items-end justify-between gap-4 px-1 pt-1">
       <div className="min-w-0">
         {eyebrow && <p className="text-sm font-medium text-ink/70">{eyebrow}</p>}
         <h1 className="mt-1 text-[26px] font-extrabold leading-tight tracking-[-0.02em] sm:text-[32px]">{title}</h1>

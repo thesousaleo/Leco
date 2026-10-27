@@ -113,7 +113,7 @@ const CLEAN_TITLES = {
 function CleanWebLayout() {
   const d = useApp();
   const [collapsed, setCollapsed] = useLocal('leco.clean.collapsed', false);
-  const Page = d.page === 'inicio' ? CleanOverview : (PAGES[d.page] || PAGES.inicio).C;
+  const Page = cleanPage(d.page);
   const pre = d.txPreset || {};
   const [title, sub] = CLEAN_TITLES[d.page] || ['Leco', ''];
   const crumb = d.page === 'transacoes' ? (pre.type === 'in' ? 'Receitas' : pre.type === 'out' ? 'Despesas' : pre.status === 'pending' ? 'Pendentes' : null) : d.page === 'config' ? (SETTINGS_TABS.find((t) => t.id === d.settingsSub) || {}).label : null;
@@ -261,7 +261,7 @@ function CleanOverview() {
 }
 
 const payMethod = (t, d) => {
-  if (t.card_id) { const c = d.cards.find((x) => x.id === t.card_id); return `Cartão de crédito${c ? ` · ${c.name}` : ''}`; }
+  if (t.card_id) { const c = d.cards.find((x) => x.id === t.card_id); return c ? `${c.name} · crédito` : 'Cartão de crédito'; }
   const a = d.accounts.find((x) => x.id === t.account_id);
   if (!a) return '—';
   if (t.kind === 'transfer') { const b = d.accounts.find((x) => x.id === t.to_account_id); return `Transferência${b ? ` → ${b.name}` : ''}`; }
@@ -400,7 +400,7 @@ function CleanMobileLayout() {
   useEffect(() => { setDrawer(false); }, [page, pre.key]);
   useEffect(() => () => { window.__lecoDrawer = null; }, []);
   const pull = usePullRefresh(useCallback(async () => { await d.reload(); d.toast('Atualizado'); }, []));
-  const Page = page === 'inicio' ? CleanOverview : page === 'mais' ? CleanSettingsList : (PAGES[page] || PAGES.inicio).C;
+  const Page = page === 'mais' ? CleanSettingsList : cleanPage(page);
   const [title] = page === 'mais' ? ['Configurações'] : page === 'config' ? [(SETTINGS_TABS.find((t) => t.id === d.settingsSub) || {}).label] : CLEAN_TITLES[page] || ['Leco'];
   const crumb = page === 'transacoes' ? (pre.type === 'in' ? 'Receitas' : pre.type === 'out' ? 'Despesas' : pre.status === 'pending' ? 'Pendentes' : null) : null;
   const TABS = [{ id: 'inicio', label: 'Início', icon: 'home' }, { id: 'transacoes', label: 'Transações', icon: 'list' }, { id: 'calendario', label: 'Calendário', icon: 'calendar' }, { id: 'relatorios', label: 'Análises', icon: 'pie' }];

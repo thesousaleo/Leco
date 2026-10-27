@@ -509,6 +509,11 @@ try {
     await cp.getByRole('switch', { name: 'Modo escuro' }).click();
     await cp.waitForTimeout(600);
     ok(await cp.evaluate(() => document.documentElement.dataset.leco) === 'dark', 'modo escuro pelo menu');
+    for (const [id, label] of [['transacoes', 'Descrição'], ['contas', 'Saldo'], ['recorrentes', 'Frequência'], ['categorias', 'Participação']]) {
+      await cp.evaluate((x) => (x === 'transacoes' ? window.__leco().goTx({}) : window.__leco().go(x)), id);
+      await cp.waitForTimeout(500);
+      ok(await cp.getByRole('columnheader', { name: label }).count() > 0, `computador Clean: tabela em ${id}`);
+    }
     await cctx.close();
     const mctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' });
     const mp = await mctx.newPage();
@@ -522,8 +527,12 @@ try {
     await mp.getByRole('dialog', { name: 'Menu' }).getByRole('button', { name: 'Metas', exact: true }).click();
     await mp.waitForTimeout(600);
     ok(await mp.evaluate(() => window.__leco().page) === 'metas', 'celular: menu lateral navega');
-    const [sw, cw] = await mp.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
-    ok(sw <= cw, 'celular: sem rolagem lateral no Clean', `${sw} > ${cw}`);
+    for (const id of ['inicio', 'transacoes', 'contas', 'recorrentes', 'metas', 'categorias', 'planejamento', 'dividas', 'calendario', 'relatorios']) {
+      await mp.evaluate((x) => (x === 'transacoes' ? window.__leco().goTx({}) : window.__leco().go(x)), id);
+      await mp.waitForTimeout(450);
+      const [sw, cw] = await mp.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+      ok(sw <= cw, `celular Clean sem rolagem lateral: ${id}`, `${sw} > ${cw}`);
+    }
     await mctx.close();
   }
 
