@@ -31,7 +31,7 @@ function CleanNavItem({ icon, label, on, onClick, count, dot, sub, collapsed, ch
   );
 }
 
-function CleanSidebar({ collapsed, setCollapsed }) {
+function CleanSidebar({ collapsed, setCollapsed, drawer = false, onClose }) {
   const d = useApp();
   const today = todayISO();
   const pre = d.txPreset || {};
@@ -48,11 +48,12 @@ function CleanSidebar({ collapsed, setCollapsed }) {
   const dark = d.fullTheme !== 'light';
   const sec = (label) => (collapsed || !label ? <div className="mx-3 my-3 border-t border-ink/[0.07]" /> : <p className="cl-sec">{label}</p>);
   return (
-    <aside className={`cl-side sticky top-0 flex h-dvh flex-col ${collapsed ? 'w-[76px]' : 'w-[268px]'}`}>
+    <aside className={`cl-side flex flex-col ${drawer ? 'h-full w-full pt-[var(--safe-top)] pb-[var(--safe-bottom)]' : `sticky top-0 h-dvh ${collapsed ? 'w-[76px]' : 'w-[268px]'}`}`}>
       <div className={`flex h-[68px] shrink-0 items-center gap-3 border-b border-ink/[0.07] ${collapsed ? 'justify-center px-2' : 'px-5'}`}>
         <CleanMark />
         {!collapsed && <span className="flex-1 text-[19px] font-bold tracking-[-0.02em]">Leco</span>}
-        {!collapsed && <button type="button" className="cl-iconbtn" aria-label="Recolher menu" onClick={() => setCollapsed(true)}><Icon name="left" size={16} /></button>}
+        {!collapsed && !drawer && <button type="button" className="cl-iconbtn" aria-label="Recolher menu" onClick={() => setCollapsed(true)}><Icon name="left" size={16} /></button>}
+        {drawer && <button type="button" className="cl-iconbtn" aria-label="Fechar menu" onClick={onClose}><Icon name="x" size={16} /></button>}
       </div>
       {collapsed && <div className="flex justify-center pt-3"><button type="button" className="cl-iconbtn" aria-label="Abrir menu" onClick={() => setCollapsed(false)}><Icon name="right" size={16} /></button></div>}
       <nav aria-label="Menu principal" className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
@@ -92,7 +93,7 @@ function CleanSidebar({ collapsed, setCollapsed }) {
             <button type="button" role="switch" aria-checked={dark} aria-labelledby="cl-dark-l" className={`switch scale-[.85] ${dark ? 'on' : ''}`} onClick={() => d.setPrefs({ theme: dark ? 'light' : 'dark' })}><span /></button>
           </div>
         )}
-        <CleanNavItem collapsed={collapsed} icon="settings" label="Configurações" on={d.page === 'config' && d.settingsSub !== 'suporte'} onClick={() => { d.setSettingsSub('preferencias'); go('config'); }} />
+        <CleanNavItem collapsed={collapsed} icon="settings" label="Configurações" on={(d.page === 'config' && d.settingsSub !== 'suporte') || d.page === 'mais'} onClick={() => { if (drawer) go('mais'); else { d.setSettingsSub('preferencias'); go('config'); } }} />
       </div>
       <button type="button" onClick={() => { d.setSettingsSub('perfil'); go('config'); }} className={`flex shrink-0 items-center gap-3 border-t border-ink/[0.07] text-left hover:bg-ink/[0.03] ${collapsed ? 'justify-center px-2 py-4' : 'px-5 py-4'}`} aria-label="Seu perfil">
         <span className="cl-avatar grid size-10 shrink-0 place-items-center rounded-xl text-[13px] font-bold">{initialsOf(d.name || d.session.user.email)}</span>
@@ -149,17 +150,17 @@ function CleanWebLayout() {
 }
 
 /* ---------- Início ---------- */
-function CleanKpi({ label, icon, value, delta, goodWhen, note, tone }) {
+function CleanKpi({ label, icon, value, delta, goodWhen, note, tone, narrow }) {
   return (
-    <div className="cl-card p-5">
+    <div className={`cl-card min-w-0 ${narrow ? 'p-3.5' : 'p-5'}`}>
       <div className="flex items-start justify-between gap-2">
         <p className="text-[14px] text-ink/60">{label}</p>
-        <span className="cl-iconbox"><Icon name={icon} size={16} /></span>
+        {!narrow && <span className="cl-iconbox"><Icon name={icon} size={16} /></span>}
       </div>
-      <p className={`cl-num mt-4 truncate text-[27px] font-semibold tracking-[-0.02em] ${tone || ''}`}>{value}</p>
-      <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-ink/55">
+      <p className={`cl-num truncate font-semibold tracking-[-0.02em] ${narrow ? 'mt-2 text-[17px]' : 'mt-4 text-[27px]'} ${tone || ''}`}>{value}</p>
+      <p className={`mt-1.5 flex items-center gap-1.5 text-ink/55 ${narrow ? 'text-[11px]' : 'text-[13px]'}`}>
         {delta != null && isFinite(delta) && <span className={`font-semibold ${(goodWhen === 'down' ? delta <= 0 : delta >= 0) ? 'text-[#16A34A]' : 'text-[#DC2626]'}`}>{delta >= 0 ? '▲' : '▼'} {delta >= 0 ? '+' : '−'}{fmtPctAbs(delta)}</span>}
-        <span className="truncate">{note}</span>
+        {!narrow && <span className="truncate">{note}</span>}
       </p>
     </div>
   );
@@ -202,24 +203,25 @@ function CleanOverview() {
   const [tab, setTab] = useLocal('leco.clean.tab', 'recent');
   const TABS = [{ id: 'recent', l: 'Transações recentes' }, { id: 'board', l: 'Quadro de orçamento' }, { id: 'summary', l: 'Resumo' }, { id: 'goals', l: 'Metas' }];
   const fromLbl = fmtDate(from);
+  const narrow = useNarrow();
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="cl-select flex items-center gap-2 rounded-[10px] px-3 py-2 text-[14px]">
           <Icon name="calendar" size={16} className="text-ink/50" />
-          <span className="text-ink/60">{fromLbl} – {fmtDate(to)}</span>
+          {!narrow && <span className="text-ink/60">{fromLbl} – {fmtDate(to)}</span>}
           <select aria-label="Período" className="bg-transparent font-semibold outline-none" value={range} onChange={(e) => setRange(e.target.value)}>
             {CLEAN_RANGES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
         </label>
-        <button type="button" className="btn btn-ghost !py-2 text-[13.5px]" onClick={() => d.exportPDF(`leco-resumo-${from}-a-${to}.pdf`, () => { const months = []; for (let k = finMonthOf(from); k <= finMonthOf(to) && months.length < 36; k = shiftMonth(k, 1)) { const s = periodSummary(d.transactions, ...finRange(k), d.categories); months.push({ k, short: monthShort(k), full: monthLabel(k), in: s.income, out: s.expense }); } return summaryPDF({ d, from, to, sm: cur, months, byAccount: [], budgets: budgetsFor(d.categories, d.transactions, finMonthOf(to), d.plans) }); })}><Icon name="download" size={16} />Baixar PDF</button>
+        <button type="button" className="btn btn-ghost !py-2 text-[13.5px]" onClick={() => d.exportPDF(`leco-resumo-${from}-a-${to}.pdf`, () => { const months = []; for (let k = finMonthOf(from); k <= finMonthOf(to) && months.length < 36; k = shiftMonth(k, 1)) { const s = periodSummary(d.transactions, ...finRange(k), d.categories); months.push({ k, short: monthShort(k), full: monthLabel(k), in: s.income, out: s.expense }); } return summaryPDF({ d, from, to, sm: cur, months, byAccount: [], budgets: budgetsFor(d.categories, d.transactions, finMonthOf(to), d.plans) }); })}><Icon name="download" size={16} />{narrow ? 'PDF' : 'Baixar PDF'}</button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <CleanKpi label="Saldo total" icon="wallet" value={m(totalBal)} delta={startBal ? pct(totalBal, startBal) : null} note={`desde ${fromLbl.slice(0, 5)}`} />
-        <CleanKpi label="Receitas" icon="inArrow" value={m(cur.income)} delta={pct(cur.income, prev.income)} note="vs. período anterior" />
-        <CleanKpi label="Despesas" icon="up" value={m(cur.expense)} delta={pct(cur.expense, prev.expense)} goodWhen="down" note="vs. período anterior" />
-        <CleanKpi label="Fluxo líquido" icon="trend" value={m(cur.net)} tone={cur.net < 0 ? 'text-out' : ''} delta={prev.net ? pct(cur.net, prev.net) : null} note={`${fmtPctAbs(cur.rate)} da renda guardada`} />
+      <div className={`grid ${narrow ? 'grid-cols-2 gap-3' : 'gap-4 sm:grid-cols-2 xl:grid-cols-4'}`}>
+        <CleanKpi narrow={narrow} label="Saldo total" icon="wallet" value={m(totalBal)} delta={startBal ? pct(totalBal, startBal) : null} note={`desde ${fromLbl.slice(0, 5)}`} />
+        <CleanKpi narrow={narrow} label="Receitas" icon="inArrow" value={m(cur.income)} delta={pct(cur.income, prev.income)} note="vs. período anterior" />
+        <CleanKpi narrow={narrow} label="Despesas" icon="up" value={m(cur.expense)} delta={pct(cur.expense, prev.expense)} goodWhen="down" note="vs. período anterior" />
+        <CleanKpi narrow={narrow} label="Fluxo líquido" icon="trend" value={m(cur.net)} tone={cur.net < 0 ? 'text-out' : ''} delta={prev.net ? pct(cur.net, prev.net) : null} note={`${fmtPctAbs(cur.rate)} da renda guardada`} />
       </div>
 
       <section className="cl-card p-5">
@@ -233,7 +235,7 @@ function CleanOverview() {
           </span>
         </div>
         {weeks.some((w) => w.in || w.out) ? (
-          <AreaChart height={300} label="Fluxo de caixa semanal" points={weeks.map((w) => ({ k: w.k, short: `${fmtDate(w.k).slice(0, 5)}`, full: `Semana de ${fmtDate(w.k)} a ${fmtDate(addDays(w.k, 6))}` }))}
+          <AreaChart height={narrow ? 210 : 300} label="Fluxo de caixa semanal" points={weeks.map((w) => ({ k: w.k, short: `${fmtDate(w.k).slice(0, 5)}`, full: `Semana de ${fmtDate(w.k)} a ${fmtDate(addDays(w.k, 6))}` }))}
             series={[{ key: 'in', label: 'Receitas', color: theme === 'light' ? '#2563EB' : '#60A5FA', values: weeks.map((w) => w.in) }, { key: 'out', label: 'Despesas', color: theme === 'light' ? '#F97316' : '#FB923C', values: weeks.map((w) => w.out) }]} />
         ) : <EmptyState icon="chart" title="Sem movimentações no período" text="Registre receitas e despesas para ver o fluxo semana a semana." />}
       </section>
@@ -269,6 +271,7 @@ const payMethod = (t, d) => {
 function RecentTable() {
   const d = useApp();
   const m = useMoneyText();
+  const narrow = useNarrow();
   const rows = d.transactions.filter((t) => t.date <= todayISO() && t.kind !== 'card_payment').slice(0, 8);
   const catName = (t) => { const c = d.categories.find((x) => x.id === t.category_id); return t.kind === 'transfer' ? 'Transferência' : c ? c.name : 'Sem categoria'; };
   return (
@@ -277,7 +280,16 @@ function RecentTable() {
         <h2 className="text-[16px] font-semibold">Transações recentes</h2>
         <button type="button" className="btn btn-ghost !py-1.5 text-[13px]" onClick={() => d.goTx({})}>Ver todas<Icon name="right" size={14} /></button>
       </div>
-      {rows.length === 0 ? <div className="px-5 pb-5"><EmptyState icon="list" title="Nenhuma transação ainda" text="Use “Nova transação” no topo para registrar." /></div> : (
+      {rows.length === 0 ? <div className="px-5 pb-5"><EmptyState icon="list" title="Nenhuma transação ainda" text="Use o botão + para registrar." /></div> : narrow ? (
+        <ul className="divide-y divide-ink/[0.07] border-t border-ink/[0.07]">
+          {rows.map((t) => (
+            <li key={t.id}><button type="button" onClick={() => d.openModal({ kind: 'tx', initial: t })} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+              <span className="min-w-0 flex-1"><span className="block truncate text-[14.5px] font-medium">{txMeta(t, d).title}</span><span className="block truncate text-[12px] text-ink/50">{fmtDate(t.date).slice(0, 5)} · {catName(t)} · {payMethod(t, d)}</span></span>
+              <span className={`cl-num shrink-0 text-[14px] font-medium ${t.kind === 'in' ? 'text-[#16A34A]' : ''}`}>{t.kind === 'in' ? '+' : t.kind === 'transfer' ? '' : '−'}{m(t.amount)}</span>
+            </button></li>
+          ))}
+        </ul>
+      ) : (
         <div className="overflow-x-auto">
           <table className="cl-table w-full min-w-[720px] text-left text-[14px]">
             <thead><tr><th>Data</th><th>Transação</th><th>Categoria</th><th>Forma de pagamento</th><th className="text-right">Valor</th></tr></thead>
@@ -374,6 +386,98 @@ function CleanGoals() {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/* ---------- Layout (celular) ---------- */
+function CleanMobileLayout() {
+  const d = useApp();
+  const page = d.page;
+  const pre = d.txPreset || {};
+  const [drawer, setDrawerState] = useState(false);
+  const setDrawer = (v) => { setDrawerState(v); window.__lecoDrawer = v ? () => setDrawerState(false) : null; };
+  useEffect(() => { setDrawer(false); }, [page, pre.key]);
+  useEffect(() => () => { window.__lecoDrawer = null; }, []);
+  const pull = usePullRefresh(useCallback(async () => { await d.reload(); d.toast('Atualizado'); }, []));
+  const Page = page === 'inicio' ? CleanOverview : page === 'mais' ? CleanSettingsList : (PAGES[page] || PAGES.inicio).C;
+  const [title] = page === 'mais' ? ['Configurações'] : page === 'config' ? [(SETTINGS_TABS.find((t) => t.id === d.settingsSub) || {}).label] : CLEAN_TITLES[page] || ['Leco'];
+  const crumb = page === 'transacoes' ? (pre.type === 'in' ? 'Receitas' : pre.type === 'out' ? 'Despesas' : pre.status === 'pending' ? 'Pendentes' : null) : null;
+  const TABS = [{ id: 'inicio', label: 'Início', icon: 'home' }, { id: 'transacoes', label: 'Transações', icon: 'list' }, { id: 'calendario', label: 'Calendário', icon: 'calendar' }, { id: 'relatorios', label: 'Análises', icon: 'pie' }];
+  const back = page === 'config' ? () => d.go('mais') : null;
+  return (
+    <NarrowCtx.Provider value={true}>
+      <div className="cl-shell min-h-dvh">
+        {pull > 0 && (
+          <div className="pointer-events-none fixed inset-x-0 z-50 flex justify-center" style={{ top: `calc(${pull + 30}px + var(--safe-top))` }} aria-hidden="true">
+            <span className="cl-card grid size-10 place-items-center rounded-full" style={{ transform: `rotate(${pull * 4}deg)`, opacity: Math.min(1, pull / 60) }}><Icon name="refresh" size={18} /></span>
+          </div>
+        )}
+        <header className="cl-top sticky top-0 z-30 flex items-center gap-2 px-4 pb-2.5 pt-[calc(10px+var(--safe-top))]">
+          {back
+            ? <button type="button" className="icon-btn size-10" aria-label="Voltar" onClick={back}><Icon name="left" size={18} /></button>
+            : <button type="button" className="icon-btn size-10" aria-label="Abrir menu" onClick={() => { haptic(); setDrawer(true); }}><Icon name="menu" size={18} /></button>}
+          <h1 className="min-w-0 flex-1 truncate pl-1 text-[17px] font-semibold">{title}{crumb ? <span className="font-normal text-ink/45"> › {crumb}</span> : null}</h1>
+          <button type="button" className="icon-btn size-10" onClick={() => d.saveProfile({ hide_values: !d.hide })} aria-label={d.hide ? 'Mostrar valores' : 'Ocultar valores'} aria-pressed={d.hide}><Icon name={d.hide ? 'eyeOff' : 'eye'} size={18} /></button>
+          <button type="button" className="icon-btn size-10" aria-label="Buscar" onClick={() => d.openModal({ kind: 'search' })}><Icon name="search" size={18} /></button>
+          <NotifButton panelWidth={300} />
+        </header>
+        <main className="px-4 pb-[calc(150px+var(--safe-bottom))] pt-4" style={pull ? { transform: `translateY(${pull}px)` } : undefined}>
+          {(page === 'inicio' || page === 'mais') && <UpdateBanner />}
+          {page !== 'mais' && page !== 'config' && <PageTip id={page} />}
+          <div key={`${page}-${d.settingsSub}-${pre.key || ''}`} className="rise"><Page /></div>
+        </main>
+        <nav aria-label="Navegação principal" className="cl-bottom fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 px-2 pb-[calc(6px+var(--safe-bottom))] pt-1.5">
+          {TABS.map((t) => {
+            const on = page === t.id;
+            return (
+              <button key={t.id} type="button" aria-current={on ? 'page' : undefined} onClick={() => { if (!on) haptic(); if (t.id === 'transacoes') d.goTx({}); else d.go(t.id); }}
+                className={`flex min-w-0 flex-col items-center gap-1 rounded-xl py-1.5 text-[10.5px] font-medium ${on ? 'cl-nav-on' : 'text-ink/55'}`}>
+                <Icon name={t.icon} size={20} strokeWidth={1.8} /><span className="max-w-full truncate">{t.label}</span>
+              </button>
+            );
+          })}
+          <button type="button" onClick={() => { haptic(); setDrawer(true); }} className="flex min-w-0 flex-col items-center gap-1 rounded-xl py-1.5 text-[10.5px] font-medium text-ink/55" aria-label="Mais opções">
+            <Icon name="menu" size={20} strokeWidth={1.8} /><span>Mais</span>
+          </button>
+        </nav>
+        {page !== 'mais' && page !== 'config' && (
+          <button type="button" className="fab-corner fixed right-[max(16px,var(--safe-right))] bottom-[calc(84px+var(--safe-bottom))] z-40 size-[54px]" onClick={() => { haptic(); d.openModal({ kind: 'tx' }); }} aria-label="Nova transação">
+            <Icon name="plus" size={24} strokeWidth={2.6} />
+          </button>
+        )}
+        <div className={`fixed inset-0 z-[60] ${drawer ? '' : 'pointer-events-none'}`} aria-hidden={!drawer}>
+          <div className={`absolute inset-0 transition-opacity duration-200 ${drawer ? 'opacity-100' : 'opacity-0'}`} style={{ background: 'var(--scrim)' }} onClick={() => setDrawer(false)} />
+          <div role="dialog" aria-modal="true" aria-label="Menu" className={`drawer absolute inset-y-0 left-0 w-[86%] max-w-[320px] shadow-2xl ${drawer ? 'drawer-open' : ''}`}>
+            <CleanSidebar drawer onClose={() => setDrawer(false)} />
+          </div>
+        </div>
+      </div>
+    </NarrowCtx.Provider>
+  );
+}
+
+// Lista de configurações (celular)
+function CleanSettingsList() {
+  const d = useApp();
+  return (
+    <div className="space-y-4">
+      <button type="button" onClick={() => { d.setSettingsSub('perfil'); d.go('config'); }} className="cl-card flex w-full items-center gap-3 p-4 text-left">
+        <span className="cl-avatar grid size-12 shrink-0 place-items-center rounded-xl text-[15px] font-bold">{initialsOf(d.name || d.session.user.email)}</span>
+        <span className="min-w-0 flex-1"><span className="block truncate text-[15.5px] font-semibold">{d.name || 'Sua conta'}</span><span className="block truncate text-[12.5px] text-ink/50">{d.session.user.email}</span></span>
+        <Icon name="right" size={16} className="text-ink/40" />
+      </button>
+      <ul className="cl-card divide-y divide-ink/[0.07] px-1">
+        {SETTINGS_TABS.filter((it) => it.id !== 'perfil').map((it) => (
+          <li key={it.id}><button type="button" onClick={() => { d.setSettingsSub(it.id); d.go('config'); }} className="flex w-full items-center gap-3 px-3 py-3.5 text-left">
+            <span className="cl-iconbox"><Icon name={it.icon} size={16} /></span>
+            <span className="min-w-0 flex-1"><span className="block text-[14.5px] font-medium">{it.label}</span><span className="block truncate text-[12px] text-ink/50">{it.desc}</span></span>
+            <Icon name="right" size={16} className="text-ink/40" />
+          </button></li>
+        ))}
+      </ul>
+      <button type="button" className="btn btn-ghost w-full" onClick={d.signOut}><Icon name="logout" size={16} />Sair da conta</button>
+      <p className="text-center text-[11px] text-ink/40">Leco {APP_VERSION} · visual Clean · mesmos dados do Leco</p>
     </div>
   );
 }

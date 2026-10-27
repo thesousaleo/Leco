@@ -980,7 +980,7 @@ function Workspace({ backend, session, toast, toastNode }) {
   return (
     <ThemeCtx.Provider value={theme}>
       <AppCtx.Provider value={ctx}>
-        {wide ? (CLEAN ? <CleanWebLayout /> : <WebLayout />) : <MobileLayout />}
+        {wide ? (CLEAN ? <CleanWebLayout /> : <WebLayout />) : (CLEAN ? <CleanMobileLayout /> : <MobileLayout />)}
         <ModalHost />
         {toastNode(wide ? 'corner' : 'top')}
         {backend.demo && <DemoBadge wide={wide} />}

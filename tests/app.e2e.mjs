@@ -510,6 +510,21 @@ try {
     await cp.waitForTimeout(600);
     ok(await cp.evaluate(() => document.documentElement.dataset.leco) === 'dark', 'modo escuro pelo menu');
     await cctx.close();
+    const mctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' });
+    const mp = await mctx.newPage();
+    mp.on('pageerror', (e) => errors.push(`clean celular: ${e}`));
+    await mp.route(/fonts\.(googleapis|gstatic)\.com|api\.github\.com/, (r) => r.abort());
+    await mp.goto(`file://${html}?demo=1&skin=clean`);
+    await mp.waitForTimeout(1500);
+    ok(await mp.getByRole('heading', { name: 'Fluxo de caixa' }).count() === 1, 'celular: início no visual Clean');
+    await mp.getByRole('button', { name: 'Abrir menu' }).click();
+    await mp.waitForTimeout(400);
+    await mp.getByRole('dialog', { name: 'Menu' }).getByRole('button', { name: 'Metas', exact: true }).click();
+    await mp.waitForTimeout(600);
+    ok(await mp.evaluate(() => window.__leco().page) === 'metas', 'celular: menu lateral navega');
+    const [sw, cw] = await mp.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+    ok(sw <= cw, 'celular: sem rolagem lateral no Clean', `${sw} > ${cw}`);
+    await mctx.close();
   }
 
   step('Layout no celular (sem rolagem lateral)');
