@@ -121,7 +121,7 @@ function useLecoData(backend, session, toast) {
 
   const actions = {
     reload: load,
-    async saveTx(initial, base, installments = 1, scope = 'one') {
+    async saveTx(initial, base, installments = 1, scope = 'one', inst = {}) {
       return guard(async () => {
         const card = base.card_id ? data.cards.find((c) => c.id === base.card_id) : null;
         // Editar várias de uma vez: parcelas (group_id) ou lançamentos de uma recorrência
@@ -155,12 +155,12 @@ function useLecoData(backend, session, toast) {
           markFresh([row.id]);
           return true;
         }
-        const rows = installments > 1 || card ? buildInstallments(base, card, installments) : [{ ...base, invoice: null }];
+        const rows = installments > 1 || card ? buildInstallments(base, card, installments, todayISO(), inst) : [{ ...base, invoice: null }];
         const made = await backend.db.insert('transactions', rows);
         set('transactions', (l) => [...made, ...l].sort(byTx));
         markFresh(made.map((r) => r.id));
         return true;
-      }, initial && initial.id ? (scope === 'one' ? 'Transação atualizada com sucesso!' : 'Lançamentos atualizados com sucesso!') : installments > 1 ? `Compra em ${installments}x registrada` : base.kind === 'in' ? 'Receita adicionada com sucesso!' : base.kind === 'transfer' ? 'Transferência adicionada com sucesso!' : 'Despesa adicionada com sucesso!');
+      }, initial && initial.id ? (scope === 'one' ? 'Transação atualizada com sucesso!' : 'Lançamentos atualizados com sucesso!') : installments > 1 ? ((inst.start || 1) > 1 ? `Parcelas ${inst.start} a ${installments} registradas` : `Compra em ${installments}x registrada`) : base.kind === 'in' ? 'Receita adicionada com sucesso!' : base.kind === 'transfer' ? 'Transferência adicionada com sucesso!' : 'Despesa adicionada com sucesso!');
     },
     // Transação que se repete (assinatura, aluguel, salário): cria a recorrência e o primeiro lançamento
     async saveTxRepeat(base, frequency, endDate) {

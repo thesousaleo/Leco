@@ -248,6 +248,8 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
   const [calcOpen, setCalcOpen] = useState(false);
   const [toAcc, setToAcc] = useState(initial && initial.to_account_id ? initial.to_account_id : (accounts[1] || accounts[0] || {}).id || '');
   const [installments, setInstallments] = useState(1);
+  const [instPer, setInstPer] = useState(false); // valor digitado = cada parcela
+  const [instStart, setInstStart] = useState(1); // compra já em andamento: começa nesta parcela
   const [repeat, setRepeat] = useState(false);
   const [freq, setFreq] = useState('monthly');
   const [endDate, setEndDate] = useState('');
@@ -294,7 +296,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
   // Atalhos: Parcelada e Assinatura
   // À vista / Parcelado / Repete (assinatura, conta fixa ou receita fixa)
   const setPayMode = (m) => {
-    if (m === 'once') { setRepeat(false); setInstallments(1); }
+    if (m === 'once') { setRepeat(false); setInstallments(1); setInstStart(1); }
     if (m === 'parcel') { setRepeat(false); setSplit(false); setInstallments((n) => (n > 1 ? n : 2)); }
     if (m === 'repeat') { setInstallments(1); setSplit(false); setRepeat(true); setFreq((f) => f || 'monthly'); }
   };
@@ -414,7 +416,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
       base.orig_amount = foreign.on && kind !== 'transfer' ? foreign.orig : null;
     }
     const ok = split && !editing && kind !== 'transfer' ? await d.saveSplit(base, parts)
-      : repeat && canRepeat ? await d.saveTxRepeat(base, freq, endDate) : await d.saveTx(initial, base, canSplit ? installments : 1, scopeArg || 'one');
+      : repeat && canRepeat ? await d.saveTxRepeat(base, freq, endDate) : await d.saveTx(initial, base, canSplit ? installments : 1, scopeArg || 'one', canSplit && installments > 1 ? { per: instPer, start: instStart } : {});
     setBusy(false);
     if (ok) onClose();
   };
@@ -429,7 +431,9 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
       </Sheet>
     );
   }
-  const perInstallment = installments > 1 ? Math.floor(amount / installments) : amount;
+  const perInstallment = installments > 1 ? (instPer ? amount : Math.floor(amount / installments)) : amount;
+  const instTotal = installments > 1 && instPer ? amount * installments : amount;
+  const instLeft = installments - instStart + 1;
   return (
     <Sheet variant={sheetVariant()} onClose={onClose} titleId={titleId} onSubmit={submit}>
       <SheetHead id={titleId} title={editing ? 'Editar transação' : 'Nova transação'} sub={editing && initial.installments ? `Parcela ${initial.installment} de ${initial.installments}. A edição vale só para esta parcela.` : undefined} onClose={onClose} />
@@ -448,7 +452,7 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
             ))}
           </div>
           <div className="mt-5 flex items-end gap-2">
-            <Field label="Valor" error={errors.amount} className="min-w-0 flex-1">
+            <Field label={installments > 1 && canSplit && instPer ? 'Valor de cada parcela' : 'Valor'} error={errors.amount} className="min-w-0 flex-1">
               <MoneyInput id="tx-amount" label="Valor" cents={amount} onChange={setAmount} invalid={errors.amount}
                 className={`!py-3 text-[30px] font-extrabold tracking-[-0.02em] ${kind === 'in' ? 'text-in' : kind === 'out' ? 'text-out' : ''}`} />
             </Field>
@@ -528,11 +532,32 @@ function TxForm({ initial, defaultKind = 'out', presetSource, presetDate, scanFi
                       options={kind === 'in' ? [{ value: 'once', label: 'Uma vez' }, { value: 'repeat', label: 'Repete' }] : [{ value: 'once', label: 'À vista' }, { value: 'parcel', label: 'Parcelado' }, { value: 'repeat', label: 'Repete' }]} />
                   </div>
                   {installments > 1 && canSplit && (
-                    <Field label="Número de parcelas" className="mt-3" hint={card ? `${installments}x de ${fmtBRL(perInstallment)} · primeira parcela na fatura de ${invoiceLabel(invoiceOf(card, date || todayISO()))}` : `${installments}x de ${fmtBRL(perInstallment)} · 1ª em ${fmtDate(date || todayISO())}, depois todo dia ${Number((date || todayISO()).slice(8, 10))}. As próximas ficam "a pagar".`}>
-                      <select id="tx-inst" className="field" value={installments} onChange={(e) => setInstallments(Number(e.target.value))}>
-                        {Array.from({ length: 23 }, (_, i) => i + 2).map((n) => <option key={n} value={n}>{n}x</option>)}
-                      </select>
-                    </Field>
+                    <div className="mt-3 space-y-3 rounded-2xl border border-ink/[0.08] bg-ink/[0.02] p-3" data-inst-box>
+                      <div>
+                        <span className="lbl">O valor que você digitou é</span>
+                        <div className="mt-2"><Segmented full size="sm" label="O valor digitado é" value={instPer ? 'per' : 'total'} onChange={(v) => setInstPer(v === 'per')}
+                          options={[{ value: 'total', label: 'Total da compra' }, { value: 'per', label: 'Valor da parcela' }]} /></div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Parcelas">
+                          <select id="tx-inst" className="field" value={installments} onChange={(e) => { const n = Number(e.target.value); setInstallments(n); if (instStart > n) setInstStart(n); }}>
+                            {Array.from({ length: 47 }, (_, i) => i + 2).map((n) => <option key={n} value={n}>{n}x</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Começa na parcela">
+                          <select id="tx-inst-start" className="field" value={instStart} onChange={(e) => setInstStart(Number(e.target.value))}>
+                            {Array.from({ length: installments }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? '1ª (compra nova)' : `${n}ª de ${installments}`}</option>)}
+                          </select>
+                        </Field>
+                      </div>
+                      <p className="text-[12.5px] leading-relaxed text-ink/75" data-inst-summary>
+                        <b className="text-ink">{installments}x de {fmtBRL(perInstallment)}</b>{` · total ${fmtBRL(instTotal)}`}
+                        {instStart > 1
+                          ? <>. Lança da <b className="text-ink">{instStart}ª à {installments}ª</b> ({plural(instLeft, 'parcela', 'parcelas')}, {fmtBRL(instLeft * perInstallment)}); as anteriores, pagas antes do Leco, não entram. {card ? `A ${instStart}ª cai na fatura de ${invoiceLabel(invoiceOf(card, date || todayISO()))}.` : `A ${instStart}ª em ${fmtDate(date || todayISO())}.`}</>
+                          : card ? `. A 1ª cai na fatura de ${invoiceLabel(invoiceOf(card, date || todayISO()))}.` : `. A 1ª em ${fmtDate(date || todayISO())}, depois todo dia ${Number((date || todayISO()).slice(8, 10))}; as próximas ficam "a pagar".`}
+                      </p>
+                      {instStart > 1 && <p className="text-[11.5px] text-ink/60">{card ? 'Com a data de hoje, a parcela atual vai para a fatura em aberto.' : 'Use a data de vencimento da parcela atual.'}</p>}
+                    </div>
                   )}
                   {repeat && (
                     <div className="mt-3 grid gap-3 rounded-2xl border border-ink/[0.08] bg-ink/[0.02] p-3 sm:grid-cols-2">

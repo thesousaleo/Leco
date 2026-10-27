@@ -149,18 +149,24 @@ function budgetsFor(cats, txs, month, plans = []) {
 /* ---------- Parcelas ---------- */
 // Cartão: cada parcela cai numa fatura. Conta (boleto, carnê, Pix parcelado): parcelas mensais;
 // as que já venceram seguem a situação escolhida e as futuras ficam "a pagar".
-function buildInstallments(base, card, n, today = todayISO()) {
+// opts.per: o valor digitado é o de cada parcela (3x de R$ 72 = R$ 216), e não o total.
+// opts.start: a compra já estava em andamento; lança da parcela "start" até a última.
+//   A data (e a fatura) informadas são as da parcela "start"; as anteriores não entram.
+function buildInstallments(base, card, n, today = todayISO(), opts = {}) {
   const group = uid();
-  const each = Math.floor(base.amount / n);
-  const first = base.amount - each * (n - 1);
-  return Array.from({ length: n }, (_, i) => {
-    const date = addMonthsISO(base.date, i);
+  const per = !!opts.per && n > 1;
+  const start = n > 1 ? Math.min(n, Math.max(1, Number(opts.start) || 1)) : 1;
+  const each = per ? base.amount : Math.floor(base.amount / n);
+  const first = per ? base.amount : base.amount - each * (n - 1);
+  return Array.from({ length: n - start + 1 }, (_, j) => {
+    const i = start - 1 + j;
+    const date = addMonthsISO(base.date, j);
     return {
       ...base, amount: i === 0 ? first : each, date,
       description: n > 1 ? `${base.description} (${i + 1}/${n})` : base.description,
       installment: n > 1 ? i + 1 : null, installments: n > 1 ? n : null, group_id: n > 1 ? group : null,
-      invoice: card ? shiftMonth(invoiceOf(card, base.date), i) : null,
-      paid: card ? true : i === 0 ? base.paid : date <= today ? base.paid : false,
+      invoice: card ? shiftMonth(invoiceOf(card, base.date), j) : null,
+      paid: card ? true : j === 0 ? base.paid : date <= today ? base.paid : false,
     };
   });
 }

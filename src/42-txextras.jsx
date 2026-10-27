@@ -157,7 +157,7 @@ function QuickAddSheet({ onClose }) {
     if (!valid) return;
     setBusy(true);
     const base = { kind: p.kind, amount: p.amount, description: p.description || (cat ? cat.name : p.kind === 'in' ? 'Receita' : 'Despesa'), date: p.date, category_id: p.category_id || (d.categories.find((c) => c.kind === p.kind && /^outr/i.test(c.name)) || {}).id || null, account_id: p.card_id ? null : p.account_id, card_id: p.card_id, paid: p.card_id ? true : p.paid, notes: null };
-    const ok = await d.saveTx(null, base, p.card_id || p.installments > 1 ? p.installments : 1);
+    const ok = await d.saveTx(null, base, p.card_id || p.installments > 1 ? p.installments : 1, 'one', p.installments > 1 ? { per: p.instPer, start: p.instStart } : {});
     setBusy(false);
     if (ok) { setText(''); onClose(); }
   };
@@ -173,7 +173,7 @@ function QuickAddSheet({ onClose }) {
             <ColorIcon icon={cat ? cat.icon : p.kind === 'in' ? 'inArrow' : 'tag'} color={cat ? cat.color : '#9AA9A4'} size={42} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[15px] font-extrabold">{p.description || (cat ? cat.name : 'Sem descrição')}</p>
-              <p className="truncate text-xs text-ink/65">{cat ? cat.name : 'Categoria: Outros'} · {src ? src.name : 'Sem conta'} · {fmtDate(p.date)}{p.installments > 1 ? ` · ${p.installments}x` : ''}</p>
+              <p className="truncate text-xs text-ink/65">{cat ? cat.name : 'Categoria: Outros'} · {src ? src.name : 'Sem conta'} · {fmtDate(p.date)}{p.installments > 1 ? ` · ${p.instStart > 1 ? `parcelas ${p.instStart} a ${p.installments}` : `${p.installments}x`}${p.instPer ? ` de ${fmtBRL(p.amount)}` : ''}` : ''}</p>
             </div>
             <span className={`shrink-0 text-[16px] font-extrabold tabular-nums ${p.kind === 'in' ? 'text-in' : 'text-out'}`}>{p.kind === 'in' ? '+' : '−'}{fmtBRL(p.amount)}</span>
           </div>

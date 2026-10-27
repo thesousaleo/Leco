@@ -663,6 +663,38 @@ try {
     await wait(500);
   }
 
+  step('Parcelas: valor por parcela e compra já em andamento');
+  {
+    const run = (txt) => page.evaluate((t) => { const q = parseQuickText(t, window.__leco()); return { a: q.amount, n: q.installments, per: q.instPer, st: q.instStart }; }, txt);
+    const q1 = await run('tênis 3x de 72 no cartão');
+    ok(q1.a === 7200 && q1.n === 3 && q1.per, 'rápido: "3x de 72" é o valor de cada parcela', JSON.stringify(q1));
+    const q2 = await run('tênis 300 em 3x');
+    ok(q2.a === 30000 && q2.n === 3 && !q2.per, 'rápido: "300 em 3x" é o total', JSON.stringify(q2));
+    const q3 = await run('geladeira 250 parcela 3 de 6');
+    ok(q3.n === 6 && q3.st === 3 && q3.per, 'rápido: "parcela 3 de 6"', JSON.stringify(q3));
+    const card = await page.evaluate(() => window.__leco().cards[0]);
+    const before = (await txs()).length;
+    await page.evaluate((c) => { window.__leco().go('inicio'); window.__leco().openModal({ kind: 'tx', presetSource: `card:${c.id}` }); }, card);
+    await wait(700);
+    await money('#tx-amount', 7200);
+    await page.fill('#tx-desc', 'Celular parcelado');
+    await dlg().getByRole('radio', { name: 'Parcelado' }).or(dlg().getByRole('button', { name: 'Parcelado', exact: true })).first().click();
+    await wait(300);
+    await page.selectOption('#tx-inst', '6');
+    await dlg().getByRole('radio', { name: 'Valor da parcela' }).or(dlg().getByRole('button', { name: 'Valor da parcela', exact: true })).first().click();
+    await page.selectOption('#tx-inst-start', '3');
+    await wait(300);
+    const sum = await page.locator('[data-inst-summary]').innerText();
+    ok(/6x de R\$\s?72,00/.test(sum) && /total R\$\s?432,00/.test(sum) && /3ª à 6ª/.test(sum), 'formulário: resumo das parcelas', sum.replace(/\s+/g, ' '));
+    await save();
+    const made = (await txs()).filter((t) => /^Celular parcelado/.test(t.description));
+    ok(made.length === 4 && made.every((t) => t.amount === 7200), 'parcelas: 4 lançamentos de R$ 72 (3ª a 6ª)', `${made.length} ${made.map((t) => t.amount).join(',')}`);
+    ok(made.map((t) => t.installment).sort().join(',') === '3,4,5,6' && made.every((t) => t.installments === 6), 'parcelas: numeradas 3/6 a 6/6');
+    const invs = [...new Set(made.map((t) => t.invoice))].sort();
+    ok(invs.length === 4, 'parcelas: uma em cada fatura', invs.join(','));
+    ok((await txs()).length === before + 4, 'parcelas: nada além das 4');
+  }
+
   step('Layout no celular (sem rolagem lateral)');
   await page.setViewportSize({ width: 360, height: 760 });
   for (const id of ['inicio', 'transacoes', 'calendario', 'relatorios', 'planejamento', 'simulador', 'dividas', 'contas', 'metas', 'categorias', 'mais']) {

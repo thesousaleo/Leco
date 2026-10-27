@@ -76,11 +76,16 @@ function parseQuickText(text, d, today = todayISO()) {
   const raw = (text || '').trim();
   if (!raw) return null;
   let s = ` ${raw.toLowerCase()} `;
-  const out = { kind: 'out', amount: 0, description: '', date: today, category_id: null, account_id: null, card_id: null, installments: 1, paid: true };
+  const out = { kind: 'out', amount: 0, description: '', date: today, category_id: null, account_id: null, card_id: null, installments: 1, instPer: false, instStart: 1, paid: true };
   if (/\b(recebi|ganhei|entrou|caiu|salario|salário|pix recebido|reembolso)\b/.test(s)) out.kind = 'in';
   // parcelas
-  const inst = s.match(/\b(?:em\s*)?(\d{1,2})\s*x\b|\bparcelad[oa] em (\d{1,2})/);
-  if (inst) { out.installments = Math.min(24, Math.max(1, Number(inst[1] || inst[2]))); s = s.replace(inst[0], ' '); }
+  // "parcela 3 de 6": compra já em andamento
+  const cur = s.match(/\b(?:parcela|parc\.?)\s*(\d{1,2})\s*(?:de|\/)\s*(\d{1,2})\b/);
+  if (cur) { out.installments = Math.min(48, Math.max(1, Number(cur[2]))); out.instStart = Math.min(out.installments, Math.max(1, Number(cur[1]))); s = s.replace(cur[0], ' '); }
+  // "3x de 72": 72 é o valor de cada parcela; "300 em 3x": 300 é o total
+  const inst = s.match(/\b(?:em\s*)?(\d{1,2})\s*x(\s+de)?\b|\bparcelad[oa] em (\d{1,2})/);
+  if (inst) { out.installments = Math.min(48, Math.max(1, Number(inst[1] || inst[3]))); if (inst[2]) out.instPer = true; s = s.replace(inst[0], ' '); }
+  if (cur && !inst) out.instPer = true; // "parcela 3 de 6 de 72": o valor citado é o da parcela
   // data
   const rel = [['anteontem', -2], ['ontem', -1], ['hoje', 0], ['amanha', 1], ['amanhã', 1]];
   for (const [w, n] of rel) { if (s.includes(` ${w} `)) { out.date = addDays(today, n); s = s.replace(` ${w} `, ' '); break; } }
