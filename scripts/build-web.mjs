@@ -76,7 +76,7 @@ ${mode === 'web' ? `<link rel="manifest" href="${clean ? '../' : ''}manifest.web
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 ` : ''}<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-${clean ? '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap">' : '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">'}
+${clean ? '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">' : '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">'}
 <style>${css}
 html,body{margin:0;min-height:100%;overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent}</style>
 </head>

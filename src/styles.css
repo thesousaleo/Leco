@@ -456,7 +456,7 @@ html { touch-action: manipulation; }
 }
 :root[data-skin="clean"] body { font-family: var(--font-sans); background: var(--cl-bg); letter-spacing: -0.005em; }
 :root[data-skin="clean"] .atmos-base, :root[data-skin="clean"] .atmos-blobs { display: none; }
-:root[data-skin="clean"] .cl-num { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+:root[data-skin="clean"] .cl-num { font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1, "cv11" 1; letter-spacing: -0.02em; }
 
 /* superfícies: sem vidro, cartões planos com borda fina */
 :root[data-skin="clean"] .glass, :root[data-skin="clean"] .glass-milk, :root[data-skin="clean"] .glass-hero, :root[data-skin="clean"] .cl-card {
