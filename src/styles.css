@@ -758,3 +758,10 @@ nav[aria-label="Navegação principal"] button:active > span:first-child { trans
 .calc-op:active { background: color-mix(in srgb, var(--color-vivo) 24%, transparent); }
 @media (hover: hover) and (pointer: fine) { .calc-num:hover { background: color-mix(in srgb, var(--ink) 5%, var(--field-bg)); } .calc-op:hover { background: color-mix(in srgb, var(--color-vivo) 19%, transparent); } }
 @media (min-width: 640px) { .calc-key { height: 46px; } }
+
+/* App/celular: a folha que sobe não desfoca o fundo a cada quadro (o desfoque refeito durante o
+   movimento era o que pesava no Android); fica sólida e vai para a GPU só enquanto anima */
+:root[data-perf="lite"] .sheet-panel.glass-deep { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--paper); }
+:root[data-perf="lite"] .sheet-panel.glass-deep::after { display: none; }
+.sheet-in, .dialog-in { will-change: transform; contain: layout paint; }
+.overlay-in { will-change: opacity; }

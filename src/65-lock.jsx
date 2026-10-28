@@ -117,7 +117,8 @@ function usePinLock() {
 function PinSettingsPanel() {
   const d = useApp();
   const [p, setP] = useState(pinGet());
-  useEffect(() => { setP(pinGet()); }, [d.modal]);
+  const modal = useModal();
+  useEffect(() => { setP(pinGet()); }, [modal]);
   const setTimeoutVal = (v) => { const cur = pinGet(); if (cur) { pinSave({ ...cur, timeout: Number(v) }); setP(pinGet()); } };
   return (
     <Panel title="Bloqueio com PIN" sub={p ? 'Ativado neste aparelho. O app pede o PIN ao abrir.' : 'Proteja o app com um código de 4 dígitos. Vale só para este aparelho.'}>

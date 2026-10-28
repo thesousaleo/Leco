@@ -4,7 +4,25 @@
    Os ficheiros src/*.jsx são juntados em ordem pelo scripts/build-web.mjs.
    00-core: utilidades, ícones, logótipo, componentes de interface e gráficos.
    ===================================================================== */
-const { useState, useMemo, useEffect, useRef, useLayoutEffect, useCallback, useId, useContext, createContext } = React;
+const { useState, useMemo, useEffect, useRef, useLayoutEffect, useCallback, useId, useContext, createContext, useSyncExternalStore } = React;
+
+// Janelas (folhas e diálogos) ficam num estado próprio, fora do contexto do app:
+// abrir ou fechar uma janela não redesenha a tela de trás — era isso que travava o "+".
+const modalStore = {
+  cur: null, subs: new Set(),
+  set(v) { const n = typeof v === 'function' ? v(this.cur) : v; if (n === this.cur) return; this.cur = n; this.subs.forEach((f) => f()); },
+  open(m) { this.set({ key: Date.now(), ...m }); },
+  close() {
+    this.set((cur) => {
+      if (!cur || cur.closing) return cur;
+      const k = cur.key;
+      setTimeout(() => this.set((x) => (x && x.key === k ? null : x)), reducedMotion() ? 0 : 220);
+      return { ...cur, closing: true };
+    });
+  },
+  subscribe(cb) { modalStore.subs.add(cb); return () => modalStore.subs.delete(cb); },
+};
+const useModal = () => useSyncExternalStore(modalStore.subscribe, () => modalStore.cur);
 
 const CFG = window.LECO_CONFIG || {};
 const NATIVE = !!window.LECO_NATIVE;

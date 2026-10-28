@@ -1331,7 +1331,7 @@ function GoalForm({ initial, onClose }) {
 
 function ModalHost() {
   const d = useApp();
-  const m = d.modal;
+  const m = useModal();
   if (!m) return null;
   return <div data-closing={m.closing ? 'true' : undefined} className={m.closing ? 'pointer-events-none' : ''}><ModalBody m={m} close={d.closeModal} /></div>;
 }
